@@ -1,29 +1,57 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { HiEye, HiEyeOff, HiChevronLeft } from "react-icons/hi";
-import { FaGoogle, FaXTwitter } from "react-icons/fa6";
-import { 
-  MdMovie, 
-  MdLocalMovies, 
-  MdFavorite, 
+import { HiEye, HiEyeOff } from "react-icons/hi";
+import { FaGoogle } from "react-icons/fa6";
+import {
+  MdMovie,
+  MdFavorite,
   MdRateReview,
   MdHistory,
   MdNotifications
 } from "react-icons/md";
 import Image from "next/image";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { login, isAuthenticated } = useAuth();
+  const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Redirect if already authenticated (using useEffect to avoid render error)
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push('/');
+    }
+  }, [isAuthenticated, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle login logic here
-    console.log("Login:", { email, password, rememberMe });
+    setError("");
+    setLoading(true);
+
+    if (!email || !password) {
+      setError("لطفا تمام فیلدها را پر کنید");
+      setLoading(false);
+      return;
+    }
+
+    const result = await login(email, password);
+
+    if (result.success) {
+      router.push('/');
+    } else {
+      setError(result.message || "ورود ناموفق بود. لطفا دوباره تلاش کنید.");
+    }
+
+    setLoading(false);
   };
 
   const features = [
@@ -73,13 +101,13 @@ export default function LoginPage() {
 
             {/* Social Login Buttons */}
             <div className="grid grid-cols-1 gap-3 mb-6">
-              <button
-                type="button"
+              <a
+                href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000'}/auth/google`}
                 className="inline-flex items-center justify-center gap-2 py-3 px-4 text-sm font-normal text-gray-300 bg-[#1f1f1f] border border-[#2f2f2f] rounded-lg hover:bg-[#2a2a2a] hover:border-[#3f3f3f] hover:text-white transition-all duration-200"
               >
                 <FaGoogle className="w-5 h-5" />
-                <span>گوگل</span>
-              </button>
+                <span>ورود با گوگل</span>
+              </a>
             </div>
 
             {/* Divider */}
@@ -93,6 +121,13 @@ export default function LoginPage() {
                 </span>
               </div>
             </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+                {error}
+              </div>
+            )}
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -111,7 +146,8 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="info@gmail.com"
                   required
-                  className="w-full rounded-lg border border-[#2f2f2f] bg-[#1f1f1f] px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-[#f5c518] focus:outline-none focus:ring-2 focus:ring-[#f5c518]/20 transition-all duration-200"
+                  disabled={loading}
+                  className="w-full rounded-lg border border-[#2f2f2f] bg-[#1f1f1f] px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-[#f5c518] focus:outline-none focus:ring-2 focus:ring-[#f5c518]/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -131,7 +167,8 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="رمز عبور خود را وارد کنید"
                     required
-                    className="w-full rounded-lg border border-[#2f2f2f] bg-[#1f1f1f] px-4 py-2.5 pr-12 text-sm text-white placeholder:text-gray-500 focus:border-[#f5c518] focus:outline-none focus:ring-2 focus:ring-[#f5c518]/20 transition-all duration-200"
+                    disabled={loading}
+                    className="w-full rounded-lg border border-[#2f2f2f] bg-[#1f1f1f] px-4 py-2.5 pr-12 text-sm text-white placeholder:text-gray-500 focus:border-[#f5c518] focus:outline-none focus:ring-2 focus:ring-[#f5c518]/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
@@ -176,9 +213,10 @@ export default function LoginPage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full rounded-lg bg-[#f5c518] px-4 py-2.5 text-sm font-semibold text-black hover:bg-[#e0b615] focus:outline-none focus:ring-2 focus:ring-[#f5c518] focus:ring-offset-2 focus:ring-offset-[#121212] transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-[#f5c518]/30"
+                disabled={loading}
+                className="w-full rounded-lg bg-[#f5c518] px-4 py-2.5 text-sm font-semibold text-black hover:bg-[#e0b615] focus:outline-none focus:ring-2 focus:ring-[#f5c518] focus:ring-offset-2 focus:ring-offset-[#121212] transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-[#f5c518]/30 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                ورود
+                {loading ? "در حال ورود..." : "ورود"}
               </button>
             </form>
 
@@ -213,7 +251,14 @@ export default function LoginPage() {
         <div className="relative z-10 flex flex-col justify-center items-center px-12 py-16 text-white">
           {/* Logo/Brand */}
           <div className="mb-12 text-center">
-            <Image src="/images/cinema_logo.png" alt="logo" width={150} height={150} />
+            <Image
+              src="/images/cinema_logo.png"
+              alt="logo"
+              width={150}
+              height={150}
+              className="h-20 w-auto"
+              loading="eager"
+            />
           </div>
 
           {/* Features List */}

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import Header from "./components/Header";
+import AppChrome from "./components/AppChrome";
+import { AuthProvider } from "./contexts/AuthContext";
 
 const iranSansX = localFont({
   src: [
@@ -82,8 +83,9 @@ export default function RootLayout({
       <body
         className={`${iranSansX.variable} font-sans antialiased`}
       >
-        <Header />
-        {children}
+        <AuthProvider>
+          <AppChrome>{children}</AppChrome>
+        </AuthProvider>
       </body>
     </html>
   );

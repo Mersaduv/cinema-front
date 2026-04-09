@@ -3,7 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
-import { HiSearch, HiUser, HiArrowLeft, HiX } from "react-icons/hi";
+import { HiSearch, HiArrowLeft, HiX, HiLogout } from "react-icons/hi";
+import { useAuth } from "../contexts/AuthContext";
+import { RiUserReceived2Line } from "react-icons/ri";
 
 const navItems = [
   { label: "فیلم", href: "#" },
@@ -30,7 +32,12 @@ const searchHistory = [
 export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
   const searchRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const { user, isAuthenticated, logout, hasRole } = useAuth();
 
   // بستن dropdown با کلیک خارج از آن
   useEffect(() => {
@@ -38,24 +45,82 @@ export default function Header() {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setIsSearchOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
     }
 
-    if (isSearchOpen) {
+    if (isSearchOpen || isUserMenuOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isSearchOpen]);
+  }, [isSearchOpen, isUserMenuOpen]);
+
+  // مدیریت نمایش/پنهان شدن Header هنگام اسکرول
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const scrollThreshold = 10; // حداقل اسکرول برای فعال شدن
+
+      // اگر در بالای صفحه هستیم، همیشه Header را نمایش بده
+      if (currentScrollY < scrollThreshold) {
+        setIsHeaderVisible(true);
+        setLastScrollY(currentScrollY);
+        return;
+      }
+
+      // اگر به سمت پایین اسکرول می‌کنیم، Header را پنهان کن
+      if (currentScrollY > lastScrollY && currentScrollY > scrollThreshold) {
+        setIsHeaderVisible(false);
+      }
+      // اگر به سمت بالا اسکرول می‌کنیم، Header را نمایش بده
+      else if (currentScrollY < lastScrollY) {
+        setIsHeaderVisible(true);
+      }
+
+      setLastScrollY(currentScrollY);
+    };
+
+    // استفاده از throttle برای بهینه‌سازی عملکرد
+    let ticking = false;
+    const throttledHandleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          handleScroll();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener("scroll", throttledHandleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", throttledHandleScroll);
+    };
+  }, [lastScrollY]);
   return (
-    <header className="bg-[#121212] text-white border-b border-[#2f2f2f]">
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 bg-[#121212]/95 backdrop-blur-md text-white border-b border-[#2f2f2f] transition-transform duration-300 ease-in-out shadow-lg ${
+        isHeaderVisible ? "translate-y-0" : "-translate-y-full"
+      }`}
+    >
       <div className="mx-auto flex max-w-[1350px] items-center justify-between gap-4 px-4 py-3 md:px-6">
         {/* Right side: logo + nav (RTL) */}
         <div className="flex items-center gap-6">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/images/cinema_logo.png" alt="logo" width={130} height={120} />
+            <Image
+              src="/images/cinema_logo.png"
+              alt="logo"
+              width={130}
+              height={130}
+              className="h-10 w-auto"
+              loading="eager"
+            />
           </Link>
 
           {/* Nav links */}
@@ -170,14 +235,76 @@ export default function Header() {
             )}
           </div>
 
-          {/* Login icon button */}
-          <Link
-            href="/login"
-            className="group hidden h-10 w-10 items-center justify-center rounded-full border border-[#2f2f2f] bg-[#1f1f1f] text-gray-300 transition-all duration-200 hover:border-[#f5c518] hover:bg-[#2a2a2a] hover:text-white hover:shadow-lg hover:shadow-[#f5c518]/20 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-[#f5c518] focus:ring-offset-2 focus:ring-offset-[#121212] active:scale-105 md:flex"
-            aria-label="ورود / حساب کاربری"
-          >
-            <HiUser className="w-5 h-5 transition-transform duration-200 group-hover:scale-110" />
-          </Link>
+          {/* User Menu */}
+          {isAuthenticated && user ? (
+            <div ref={userMenuRef} className="relative hidden md:block">
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="group flex items-center gap-2 h-10 px-3 pt-0.5 rounded-full border border-[#2f2f2f] bg-[#1f1f1f] text-gray-300 transition-all duration-200 hover:border-[#f5c518] hover:bg-[#2a2a2a] hover:text-white hover:shadow-lg hover:shadow-[#f5c518]/20 focus:outline-none focus:ring-2 focus:ring-[#f5c518] focus:ring-offset-2 focus:ring-offset-[#121212]"
+                aria-label="منوی کاربر"
+              >
+                <span className="text-sm font-medium whitespace-nowrap">{user.name}</span>
+              </button>
+
+              {isUserMenuOpen && (
+                <div className="absolute left-0 mt-2 w-56 rounded-lg border border-[#2f2f2f] bg-[#1f1f1f] shadow-xl shadow-black/50 overflow-hidden z-50">
+                  <div className="px-4 py-3 border-b border-[#2f2f2f]">
+                    <p className="text-sm font-medium text-white">{user.name}</p>
+                    <p className="text-xs text-gray-400">{user.email}</p>
+                    {user.roles.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {user.roles.map((role) => (
+                          <span
+                            key={role.id}
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#f5c518]/20 text-[#f5c518]"
+                          >
+                            {role.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="py-1">
+                    {hasRole('admin') || hasRole('super-admin') ? (
+                      <Link
+                        href="/admin"
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        پنل مدیریت
+                      </Link>
+                    ) : null}
+                    <Link
+                      href="/profile"
+                      className="block px-4 py-2 text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white transition-colors"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      پروفایل کاربری
+                    </Link>
+                    <button
+                      onClick={() => {
+                        logout();
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full text-right px-4 py-2 text-sm text-red-400 hover:bg-[#2a2a2a] transition-colors flex items-center gap-2"
+                    >
+                      <HiLogout className="w-4 h-4" />
+                      خروج
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="group hidden items-center justify-center px-2 py-2 rounded-full border border-[#2f2f2f] bg-[#1f1f1f] text-gray-300 transition-all duration-200 hover:border-[#f5c518] hover:bg-[#2a2a2a] hover:text-white hover:shadow-lg hover:shadow-[#f5c518]/20 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-[#f5c518] focus:ring-offset-2 focus:ring-offset-[#121212] active:scale-105 md:flex"
+              aria-label="ورود / حساب کاربری"
+            >
+              <RiUserReceived2Line className="w-5 h-5 transition-transform duration-200 group-hover:scale-110" />
+            </Link>
+          )}
         </div>
       </div>
 
