@@ -1,17 +1,13 @@
-import AdminPlaceholderPage from "../../../components/admin/AdminPlaceholderPage";
+import AdminTaxonomyManagerPage from "../../../components/admin/AdminTaxonomyManagerPage";
 
 export default function LanguagesPage() {
   return (
-    <AdminPlaceholderPage
-      badge="نمای اولیه"
-      title="Languages"
-      description="این صفحه برای مدیریت زبان‌های اصلی، دوبله و زیرنویس طراحی شده و بعداً در metadata و player استفاده می‌شود."
-      highlights={[
-        "فهرست زبان‌های قابل استفاده در محتوا",
-        "آمادگی برای اتصال به صوت، دوبله و زیرنویس",
-        "پایه‌ی لازم برای فیلتر و نمایش بهتر در سایت کاربری",
-      ]}
-      nextStep="در گام بعد، زبان‌ها به فرم‌های ثبت فیلم و سریال و metadata مدیا متصل خواهند شد."
+    <AdminTaxonomyManagerPage
+      taxonomyType="languages"
+      badge="طبقه بندی محتوا"
+      title="زبان‌ها"
+      singularLabel="زبان"
+      description="زبان‌ها برای صوت، دوبله یا زبان اصلی محتوا نگه‌داری می‌شوند تا در فرم فیلم و مرور محتوا انتخاب شوند."
     />
   );
 }

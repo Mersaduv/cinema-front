@@ -71,6 +71,48 @@ class ApiClient {
     });
   }
 
+  async postForm<T>(endpoint: string, body: FormData): Promise<ApiResponse<T>> {
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('auth_token')
+      : null;
+
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          message: data.message || 'An error occurred',
+          errors: data.errors,
+        };
+      }
+
+      return {
+        success: true,
+        ...data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Network error',
+      };
+    }
+  }
+
   async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PUT',

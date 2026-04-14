@@ -90,6 +90,16 @@ export default function PublicMoviePage() {
               <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2">
                 مدت زمان: {formatDuration(movie.duration_seconds)}
               </span>
+              {movie.has_dubbed_audio ? (
+                <span className="rounded-full border border-[#38bdf8]/20 bg-[#38bdf8]/10 px-4 py-2 text-[#7dd3fc]">
+                  دوبله
+                </span>
+              ) : null}
+              {movie.has_subtitle ? (
+                <span className="rounded-full border border-[#f5c518]/20 bg-[#f5c518]/10 px-4 py-2 text-[#f8d977]">
+                  زیرنویس
+                </span>
+              ) : null}
             </div>
 
             {movie.playback?.master_playlist_url ? (

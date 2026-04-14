@@ -10,11 +10,13 @@ export default function AppChrome({
 }) {
   const pathname = usePathname();
   const isAdminRoute = pathname?.startsWith("/admin");
+  const isWatchRoute = pathname?.startsWith("/watch/");
+  const shouldHideHeader = isAdminRoute || isWatchRoute;
 
   return (
     <>
-      {!isAdminRoute && <Header />}
-      <div className={isAdminRoute ? "min-h-screen" : "pt-[72px]"}>
+      {!shouldHideHeader && <Header />}
+      <div className={shouldHideHeader ? "min-h-screen" : "pt-[72px]"}>
         {children}
       </div>
     </>
