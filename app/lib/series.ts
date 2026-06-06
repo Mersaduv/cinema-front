@@ -1,0 +1,126 @@
+import { apiClient, type ApiResponse } from "./api";
+import type { PublicGenre } from "./movies";
+
+export interface PublicSeriesActor {
+  name: string | null;
+  character: string | null;
+  profile_url: string | null;
+}
+
+export interface PublicSeriesCastMember {
+  person_id?: number;
+  name: string | null;
+  character: string | null;
+  profile_url: string | null;
+  slug?: string | null;
+  order?: number | null;
+}
+
+export interface PublicSeriesCrewMember {
+  person_id?: number;
+  name: string | null;
+  job: string | null;
+  department: string | null;
+  profile_url: string | null;
+  slug?: string | null;
+}
+
+export interface PublicSeriesEpisode {
+  id: number;
+  season_number: number;
+  episode_number: number;
+  title: string;
+  slug: string;
+  synopsis: string | null;
+  air_date: string | null;
+  duration_minutes: number | null;
+  still_url: string | null;
+  hls_url: string | null;
+  download_links?: Record<string, string>;
+  subtitle_url: string | null;
+  dubbed_audio_url: string | null;
+}
+
+export interface PublicSeriesSeason {
+  id: number;
+  season_number: number;
+  name: string | null;
+  synopsis: string | null;
+  air_date: string | null;
+  episode_count: number | null;
+  poster_url: string | null;
+  episodes: PublicSeriesEpisode[];
+}
+
+export interface PublicSeries {
+  id: number;
+  title: string;
+  slug: string;
+  tmdb_id?: number | null;
+  original_title: string | null;
+  synopsis: string | null;
+  first_air_date: string | null;
+  last_air_date: string | null;
+  release_year: number | null;
+  status: string | null;
+  status_label_fa?: string | null;
+  episode_runtime_minutes: number | null;
+  number_of_seasons: number | null;
+  number_of_episodes: number | null;
+  network: string | null;
+  provider_name?: string | null;
+  poster_url: string | null;
+  backdrop_url: string | null;
+  trailer_url: string | null;
+  age_rating: string | null;
+  genres?: PublicGenre[];
+  origin_country?: string | null;
+  original_language?: string | null;
+  has_subtitle: boolean;
+  has_dubbed: boolean;
+  cast?: PublicSeriesCastMember[];
+  crew?: PublicSeriesCrewMember[];
+  seasons?: PublicSeriesSeason[];
+  details: {
+    backdrop_url: string | null;
+    rating: number | null;
+    original_language: string | null;
+    creators: string[];
+    directors: string[];
+    writers: string[];
+    genres: string[];
+    languages: string[];
+    countries: string[];
+    network?: string | null;
+    actors: PublicSeriesActor[];
+    gallery: string[];
+  };
+}
+
+export const seriesService = {
+  async list(): Promise<ApiResponse<{ series: PublicSeries[] }>> {
+    return apiClient.get<{ series: PublicSeries[] }>("/series");
+  },
+
+  async show(
+    slug: string,
+    options?: { lite?: boolean },
+  ): Promise<ApiResponse<{ series: PublicSeries }>> {
+    const query = options?.lite ? "?lite=1" : "";
+
+    return apiClient.get<{ series: PublicSeries }>(`/series/${slug}${query}`);
+  },
+
+  async episodes(slug: string): Promise<ApiResponse<{ seasons: PublicSeriesSeason[] }>> {
+    return apiClient.get<{ seasons: PublicSeriesSeason[] }>(`/series/${slug}/episodes`);
+  },
+
+  async related(
+    slug: string,
+    limit = 6,
+  ): Promise<ApiResponse<{ series: PublicSeries[] }>> {
+    return apiClient.get<{ series: PublicSeries[] }>(
+      `/series/${slug}/related?limit=${limit}`,
+    );
+  },
+};

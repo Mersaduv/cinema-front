@@ -5,16 +5,11 @@ import {
   HiOutlineViewGrid,
 } from "react-icons/hi";
 import {
-  MdOutlineCategory,
-  MdOutlineFace,
-  MdOutlineLanguage,
   MdOutlineLiveTv,
   MdOutlineLocalMovies,
   MdOutlineMovieCreation,
-  MdOutlinePublic,
   MdOutlineRateReview,
   MdOutlineRequestPage,
-  MdOutlineSell,
   MdOutlineSubscriptions,
   MdOutlineVideoLibrary,
 } from "react-icons/md";
@@ -61,7 +56,7 @@ export const adminNavigation: AdminNavItem[] = [
     id: "media-management",
     href: "/admin/content-management",
     label: "مدیریت مدیا",
-    description: "مدیریت فیلم، سریال، استریم و داده‌های مرجع محتوا",
+    description: "مدیریت فیلم، سریال و استریم در یک ساختار واحد",
     badge: "ساختار",
     icon: MdOutlineVideoLibrary,
     children: [
@@ -102,7 +97,7 @@ export const adminNavigation: AdminNavItem[] = [
             id: "add-movie",
             href: "/admin/content-management/movies/add",
             label: "Add Movie",
-            description: "ثبت سریع فیلم در حالت پیش‌نویس",
+            description: "ثبت سریع فیلم با فرم TMDB-first",
             badge: "فیلم",
             icon: MdOutlineMovieCreation,
           },
@@ -124,6 +119,15 @@ export const adminNavigation: AdminNavItem[] = [
           },
           {
             type: "link",
+            id: "add-series",
+            href: "/admin/content-management/series/add",
+            label: "Add Series",
+            description: "ثبت سریال جدید با فرم کامل TV Show، فصل ها و قسمت ها",
+            badge: "سریال",
+            icon: MdOutlineSubscriptions,
+          },
+          {
+            type: "link",
             id: "series-seasons",
             href: "/admin/content-management/series/seasons",
             label: "Seasons",
@@ -139,58 +143,6 @@ export const adminNavigation: AdminNavItem[] = [
             description: "ساختار اولیه اپیزودها و اتصال به مدیا",
             badge: "سریال",
             icon: MdOutlineSubscriptions,
-          },
-        ],
-      },
-      {
-        type: "section",
-        id: "taxonomy",
-        label: "طبقه بندی ها",
-        items: [
-          {
-            type: "link",
-            id: "genres",
-            href: "/admin/taxonomy/genres",
-            label: "Genres",
-            description: "ژانرهای اصلی محتوا",
-            badge: "مرجع",
-            icon: MdOutlineCategory,
-          },
-          {
-            type: "link",
-            id: "countries",
-            href: "/admin/taxonomy/countries",
-            label: "Countries",
-            description: "کشورها و مبدا تولید محتوا",
-            badge: "مرجع",
-            icon: MdOutlinePublic,
-          },
-          {
-            type: "link",
-            id: "languages",
-            href: "/admin/taxonomy/languages",
-            label: "Languages",
-            description: "زبان‌های صوت و زیرنویس",
-            badge: "مرجع",
-            icon: MdOutlineLanguage,
-          },
-          {
-            type: "link",
-            id: "tags",
-            href: "/admin/taxonomy/tags",
-            label: "Tags",
-            description: "برچسب‌های تکمیلی برای جست‌وجو و فیلتر",
-            badge: "مرجع",
-            icon: MdOutlineSell,
-          },
-          {
-            type: "link",
-            id: "actors",
-            href: "/admin/taxonomy/actors",
-            label: "Actors",
-            description: "بازیگران برای استفاده در فرم‌های فیلم",
-            badge: "مرجع",
-            icon: MdOutlineFace,
           },
         ],
       },
@@ -282,18 +234,7 @@ function flattenNavigation(items: AdminNavItem[]): AdminNavLink[] {
   return links;
 }
 
-export const adminPageLinks = [
-  {
-    type: "link" as const,
-    id: "taxonomy-root",
-    href: "/admin/taxonomy",
-    label: "طبقه بندی ها",
-    description: "مدیریت داده‌های مرجع محتوا در کنار مدیریت مدیا",
-    badge: "مرجع",
-    icon: MdOutlineCategory,
-  },
-  ...flattenNavigation(adminNavigation),
-];
+export const adminPageLinks = [...flattenNavigation(adminNavigation)];
 
 export const adminPrimaryNavigation = adminNavigation.filter(
   (item) => item.href !== "/"

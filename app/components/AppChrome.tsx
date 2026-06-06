@@ -11,12 +11,22 @@ export default function AppChrome({
   const pathname = usePathname();
   const isAdminRoute = pathname?.startsWith("/admin");
   const isWatchRoute = pathname?.startsWith("/watch/");
+  const isPublicDetailRoute =
+    (pathname?.startsWith("/movies/") && pathname.split("/").length === 3) ||
+    (pathname?.startsWith("/series/") && pathname.split("/").length === 3);
   const shouldHideHeader = isAdminRoute || isWatchRoute;
+  const shouldOverlayHeader = isPublicDetailRoute;
 
   return (
     <>
-      {!shouldHideHeader && <Header />}
-      <div className={shouldHideHeader ? "min-h-screen" : "pt-[72px]"}>
+      {!shouldHideHeader ? <Header overlay={shouldOverlayHeader} /> : null}
+      <div
+        className={
+          shouldHideHeader || shouldOverlayHeader
+            ? "min-h-screen"
+            : "min-h-screen pt-[138px] xl:pt-[92px]"
+        }
+      >
         {children}
       </div>
     </>

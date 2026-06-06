@@ -1,7 +1,10 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+import { tokenStorage } from './token-storage';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8005/api';
 
 export interface ApiResponse<T> {
   success: boolean;
+  status?: number;
   message?: string;
   data?: T;
   errors?: Record<string, string[]>;
@@ -16,11 +19,10 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    requestOptions?: { timeoutMs?: number },
   ): Promise<ApiResponse<T>> {
-    const token = typeof window !== 'undefined' 
-      ? localStorage.getItem('auth_token') 
-      : null;
+    const token = tokenStorage.getToken();
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -32,49 +34,87 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const controller = new AbortController();
+    const timeoutMs = requestOptions?.timeoutMs;
+    const timeoutId =
+      typeof timeoutMs === 'number' && timeoutMs > 0
+        ? window.setTimeout(() => controller.abort(), timeoutMs)
+        : null;
+
     try {
       const response = await fetch(`${this.baseURL}${endpoint}`, {
+        cache: 'no-store',
         ...options,
         headers,
+        signal: controller.signal,
       });
 
-      const data = await response.json();
+      let data: Record<string, unknown> = {};
+
+      try {
+        data = (await response.json()) as Record<string, unknown>;
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
         return {
           success: false,
-          message: data.message || 'An error occurred',
-          errors: data.errors,
+          status: response.status,
+          message:
+            (typeof data.message === 'string' && data.message) || 'An error occurred',
+          errors: data.errors as Record<string, string[]> | undefined,
         };
       }
 
       return {
         success: true,
+        status: response.status,
         ...data,
-      };
+      } as ApiResponse<T>;
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return {
+          success: false,
+          message: 'درخواست به دلیل طولانی شدن لغو شد.',
+        };
+      }
+
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Network error',
       };
+    } finally {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
     }
   }
 
-  async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, { method: 'GET' });
+  async get<T>(
+    endpoint: string,
+    requestOptions?: { timeoutMs?: number },
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'GET' }, requestOptions);
   }
 
-  async post<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
+  async post<T>(
+    endpoint: string,
+    body?: unknown,
+    requestOptions?: { timeoutMs?: number },
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(
+      endpoint,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+      requestOptions,
+    );
   }
 
   async postForm<T>(endpoint: string, body: FormData): Promise<ApiResponse<T>> {
-    const token = typeof window !== 'undefined'
-      ? localStorage.getItem('auth_token')
-      : null;
+    const token = tokenStorage.getToken();
 
     const headers: Record<string, string> = {
       'Accept': 'application/json',
@@ -87,24 +127,34 @@ class ApiClient {
     try {
       const response = await fetch(`${this.baseURL}${endpoint}`, {
         method: 'POST',
+        cache: 'no-store',
         headers,
         body,
       });
 
-      const data = await response.json();
+      let data: Record<string, unknown> = {};
+
+      try {
+        data = (await response.json()) as Record<string, unknown>;
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
         return {
           success: false,
-          message: data.message || 'An error occurred',
-          errors: data.errors,
+          status: response.status,
+          message:
+            (typeof data.message === 'string' && data.message) || 'An error occurred',
+          errors: data.errors as Record<string, string[]> | undefined,
         };
       }
 
       return {
         success: true,
+        status: response.status,
         ...data,
-      };
+      } as ApiResponse<T>;
     } catch (error) {
       return {
         success: false,
@@ -113,11 +163,19 @@ class ApiClient {
     }
   }
 
-  async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    });
+  async put<T>(
+    endpoint: string,
+    body?: unknown,
+    requestOptions?: { timeoutMs?: number },
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(
+      endpoint,
+      {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      },
+      requestOptions,
+    );
   }
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {

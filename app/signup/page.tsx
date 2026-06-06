@@ -114,7 +114,7 @@ export default function SignUpPage() {
             {/* Social Login Buttons */}
             <div className="grid grid-cols-1 gap-3 mb-6">
               <a
-                href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000'}/auth/google`}
+                href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8005'}/auth/google`}
                 className="inline-flex items-center justify-center gap-2 py-3 px-4 text-sm font-normal text-gray-300 bg-[#1f1f1f] border border-[#2f2f2f] rounded-lg hover:bg-[#2a2a2a] hover:border-[#3f3f3f] hover:text-white transition-all duration-200"
               >
                 <FaGoogle className="w-5 h-5" />

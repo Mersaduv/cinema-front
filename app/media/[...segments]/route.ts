@@ -11,8 +11,10 @@ const CONTENT_TYPES: Record<string, string> = {
   ".png": "image/png",
   ".webp": "image/webp",
   ".gif": "image/gif",
-  ".m3u8": "application/vnd.apple.mpegurl",
+  ".m3u8": "application/vnd.apple.mpegurl; charset=utf-8",
+  ".vtt": "text/vtt; charset=utf-8",
   ".ts": "video/mp2t",
+  ".aac": "audio/aac",
   ".mp4": "video/mp4",
 };
 
@@ -31,12 +33,17 @@ function resolveMediaPath(segments: string[]): string | null {
   return absolutePath;
 }
 
-function buildHeaders(contentType: string, size: number) {
+function buildHeaders(contentType: string, size: number, extension: string) {
+  const cacheControl =
+    extension === ".m3u8" || extension === ".vtt"
+      ? "no-store, must-revalidate"
+      : "public, max-age=3600";
+
   return {
     "Content-Type": contentType,
     "Content-Length": String(size),
     "Accept-Ranges": "bytes",
-    "Cache-Control": "public, max-age=3600",
+    "Cache-Control": cacheControl,
   };
 }
 
@@ -68,7 +75,7 @@ async function createFileResponse(
     if (!includeBody) {
       return new Response(null, {
         status: 200,
-        headers: buildHeaders(contentType, fileStat.size),
+        headers: buildHeaders(contentType, fileStat.size, extension),
       });
     }
 
@@ -76,7 +83,7 @@ async function createFileResponse(
 
     return new Response(Readable.toWeb(stream) as ReadableStream, {
       status: 200,
-      headers: buildHeaders(contentType, fileStat.size),
+      headers: buildHeaders(contentType, fileStat.size, extension),
     });
   }
 
@@ -104,7 +111,10 @@ async function createFileResponse(
     "Content-Length": String(chunkLength),
     "Content-Range": `bytes ${start}-${end}/${fileStat.size}`,
     "Accept-Ranges": "bytes",
-    "Cache-Control": "public, max-age=3600",
+    "Cache-Control":
+      extension === ".m3u8" || extension === ".vtt"
+        ? "no-store, must-revalidate"
+        : "public, max-age=3600",
   };
 
   if (process.env.NODE_ENV === "development" && [".m3u8", ".ts"].includes(extension)) {

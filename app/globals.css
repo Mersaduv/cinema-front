@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #05070b;
+  --foreground: #f6f7fb;
 }
 
 @theme inline {
@@ -11,17 +11,36 @@
   --font-sans: var(--font-iran-sans-x), "Arial", "Helvetica", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at top, rgba(239, 68, 68, 0.08), transparent 32%),
+    linear-gradient(180deg, #06090e 0%, #05070b 100%);
   color: var(--foreground);
   font-family: var(--font-iran-sans-x), "Arial", "Helvetica", sans-serif;
+}
+
+* {
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  background-clip: padding-box;
 }
 
 .cinema-player-video::cue {

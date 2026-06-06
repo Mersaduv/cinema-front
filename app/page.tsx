@@ -8,7 +8,7 @@ export default function Home() {
           {/* Status */}
           <div className="mt-8">
             <p className="text-slate-400 text-sm">
-              پروژه در حال توسعه است - صفحه اصلی آماده است
+              Status: <span className="text-green-500">Online</span>
             </p>
           </div>
         </div>

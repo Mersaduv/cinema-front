@@ -69,8 +69,8 @@ const iranSansX = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "سینما - Cinema",
-  description: "پروژه سینما - سیستم مدیریت سینما",
+  title: "Cinema",
+  description: "پلتفرم نمایش و مدیریت فیلم و سریال",
 };
 
 export default function RootLayout({
@@ -80,9 +80,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fa" dir="rtl">
-      <body
-        className={`${iranSansX.variable} font-sans antialiased`}
-      >
+      <body className={`${iranSansX.variable} font-sans antialiased`}>
         <AuthProvider>
           <AppChrome>{children}</AppChrome>
         </AuthProvider>

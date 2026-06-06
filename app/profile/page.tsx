@@ -63,9 +63,9 @@ export default function ProfilePage() {
   ];
 
   const getCurrentDate = () => {
-    return new Intl.DateTimeFormat("fa-AF-u-ca-persian", {
-      day: "numeric",
-      month: "long",
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
       year: "numeric",
     }).format(new Date());
   };

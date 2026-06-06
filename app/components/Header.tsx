@@ -2,323 +2,231 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
-import { HiSearch, HiArrowLeft, HiX, HiLogout } from "react-icons/hi";
+import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  HiChevronDown,
+  HiGlobeAlt,
+  HiMagnifyingGlass,
+  HiMiniPlay,
+} from "react-icons/hi2";
+import { RiBroadcastLine } from "react-icons/ri";
+import { HiLogout } from "react-icons/hi";
 import { useAuth } from "../contexts/AuthContext";
-import { RiUserReceived2Line } from "react-icons/ri";
 
 const navItems = [
-  { label: "فیلم", href: "#" },
-  { label: "سریال", href: "#" },
-  { label: "کارتون و انیمیشن", href: "#" },
-  { label: "درخواست فیلم", href: "#" },
+  { label: "خانه", href: "/" },
+  { label: "فیلم", href: "/movies" },
+  { label: "سریال", href: "/series" },
+  { label: "انیمیشن", href: "#" },
+  { label: "کالکشن‌ها", href: "#" },
+  { label: "رویدادهای ورزشی", href: "#" },
+  { label: "درخواست", href: "#" },
 ];
 
-// Mock data - در آینده از API یا localStorage می‌آید
 const popularSearches = [
-  "آواتار",
-  "اینتراستلار",
-  "پیشتازان فضا",
-  "بریکینگ بد",
-  "بازی تاج و تخت",
+  "گناهکاران",
+  "ایندیانا جونز",
+  "اینترستلار",
+  "برکینگ بد",
+  "آخرین بازمانده از ما",
 ];
 
-const searchHistory = [
-  "دیدنگران",
-  "سوپرمن",
-  "بتمن",
-];
-
-export default function Header() {
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+export default function Header({ overlay = false }: { overlay?: boolean }) {
+  const pathname = usePathname();
+  const { user, isAuthenticated, loading: authLoading, logout, hasRole } = useAuth();
+  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const userMenuRef = useRef<HTMLDivElement>(null);
-  const { user, isAuthenticated, logout, hasRole } = useAuth();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement | null>(null);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // بستن dropdown با کلیک خارج از آن
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    const handlePointerDown = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setIsSearchOpen(false);
+        setSearchOpen(false);
       }
+
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setIsUserMenuOpen(false);
+        setUserMenuOpen(false);
       }
-    }
+    };
 
-    if (isSearchOpen || isUserMenuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
+    document.addEventListener("mousedown", handlePointerDown);
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("mousedown", handlePointerDown);
     };
-  }, [isSearchOpen, isUserMenuOpen]);
+  }, []);
 
-  // مدیریت نمایش/پنهان شدن Header هنگام اسکرول
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      const scrollThreshold = 10; // حداقل اسکرول برای فعال شدن
+  const userInitial = useMemo(
+    () => user?.name?.trim()?.charAt(0)?.toUpperCase() || "G",
+    [user?.name],
+  );
 
-      // اگر در بالای صفحه هستیم، همیشه Header را نمایش بده
-      if (currentScrollY < scrollThreshold) {
-        setIsHeaderVisible(true);
-        setLastScrollY(currentScrollY);
-        return;
-      }
+  const headerClassName = overlay
+    ? "fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[linear-gradient(180deg,rgba(6,9,14,0.88),rgba(6,9,14,0.44)_70%,transparent)] text-white backdrop-blur-xl"
+    : "fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#06090e]/88 text-white backdrop-blur-xl";
 
-      // اگر به سمت پایین اسکرول می‌کنیم، Header را پنهان کن
-      if (currentScrollY > lastScrollY && currentScrollY > scrollThreshold) {
-        setIsHeaderVisible(false);
-      }
-      // اگر به سمت بالا اسکرول می‌کنیم، Header را نمایش بده
-      else if (currentScrollY < lastScrollY) {
-        setIsHeaderVisible(true);
-      }
-
-      setLastScrollY(currentScrollY);
-    };
-
-    // استفاده از throttle برای بهینه‌سازی عملکرد
-    let ticking = false;
-    const throttledHandleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          handleScroll();
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    window.addEventListener("scroll", throttledHandleScroll, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", throttledHandleScroll);
-    };
-  }, [lastScrollY]);
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 bg-[#121212]/95 backdrop-blur-md text-white border-b border-[#2f2f2f] transition-transform duration-300 ease-in-out shadow-lg ${
-        isHeaderVisible ? "translate-y-0" : "-translate-y-full"
-      }`}
-    >
-      <div className="mx-auto flex max-w-[1350px] items-center justify-between gap-4 px-4 py-3 md:px-6">
-        {/* Right side: logo + nav (RTL) */}
-        <div className="flex items-center gap-6">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
+    <header className={headerClassName} dir="rtl">
+      <div className="mx-auto flex max-w-[1820px] items-center justify-between gap-3 px-4 py-4 md:px-7">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/"
+            className="relative block h-10 w-[132px] shrink-0 transition hover:opacity-90"
+            aria-label="Movie"
+          >
             <Image
               src="/images/cinema_logo.png"
-              alt="logo"
-              width={130}
-              height={130}
-              className="h-10 w-auto"
-              loading="eager"
+              alt="Movie"
+              fill
+              sizes="132px"
+              className="object-contain object-right"
+              priority
             />
           </Link>
+        </div>
 
-          {/* Nav links */}
-          <nav className="hidden items-center gap-8 font-medium text-gray-300 lg:flex">
-            {navItems.map((item) => (
+        <nav className="hidden flex-1 items-center justify-start gap-2 xl:flex" dir="rtl">
+          {navItems.map((item) => {
+            const isActive =
+              item.href !== "#" &&
+              (pathname === item.href ||
+                (item.href !== "/" && pathname?.startsWith(item.href)));
+
+            return (
               <Link
                 key={item.label}
                 href={item.href}
-                className="group relative px-4 py-3 transition-all duration-300 ease-out hover:text-white"
+                className={`rounded-2xl px-5 py-3 text-base font-semibold transition ${
+                  isActive
+                    ? "bg-white/12 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                    : "text-white/86 hover:bg-white/[0.06] hover:text-white"
+                }`}
               >
-                <span className="relative z-10">{item.label}</span>
-                {/* Background glow on hover */}
-                <span className="absolute inset-0 z-0 rounded-md bg-[#f5c5183a] opacity-0 transition-opacity duration-300 group-hover:opacity-100"></span>
+                {item.label}
               </Link>
-            ))}
-          </nav>
-        </div>
+            );
+          })}
+        </nav>
 
-        {/* Left side: search + login */}
-        <div className="flex flex-1 items-center justify-end gap-3">
-          {/* Search with dropdown */}
-          <div ref={searchRef} className="relative w-full max-w-md">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="جستجوی فیلم، سریال..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setIsSearchOpen(true)}
-                onClick={() => setIsSearchOpen(true)}
-                className="w-full rounded-md border border-[#2f2f2f] bg-[#1f1f1f] pr-11 pl-4 py-2.5 text-sm text-white placeholder:text-gray-500 transition-all duration-200 focus:border-[#f5c518] focus:outline-none focus:ring-2 focus:ring-[#f5c518]/20 hover:border-[#3f3f3f]"
-              />
-              <button
-                type="button"
-                onClick={() => setIsSearchOpen(!isSearchOpen)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#f5c518] transition-colors duration-200"
-                aria-label="جستجو"
-              >
-                <HiSearch className="w-5 h-5" />
-              </button>
-            </div>
+        <div className="flex min-w-0 items-center gap-3">
 
-            {/* Dropdown */}
-            {isSearchOpen && (
-              <div className="absolute top-full left-0 right-0 mt-2 rounded-md border border-[#2f2f2f] bg-[#1f1f1f] shadow-xl shadow-black/50 overflow-hidden z-50">
-                {searchQuery === "" ? (
-                  <>
-                    {/* بیشترین جستجو */}
-                    <div className="border-b border-[#2f2f2f]">
-                      <div className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                        بیشترین جستجو
-                      </div>
-                      <div className="max-h-48 overflow-y-auto">
-                        {popularSearches.map((item, index) => (
-                          <button
-                            key={index}
-                            type="button"
-                            onClick={() => {
-                              setSearchQuery(item);
-                              setIsSearchOpen(false);
-                            }}
-                            className="w-full px-4 py-2.5 text-right text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white transition-colors duration-150 flex items-center justify-between group"
-                          >
-                            <span>{item}</span>
-                            <HiArrowLeft className="w-4 h-4 text-gray-500 group-hover:text-[#f5c518] transition-colors" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+          <div ref={searchRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setSearchOpen((current) => !current)}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/8 text-white transition hover:bg-white/12"
+              aria-label="جستجو"
+            >
+              <HiMagnifyingGlass className="h-5 w-5" />
+            </button>
 
-                    {/* تاریخچه جستجو */}
-                    {searchHistory.length > 0 && (
-                      <div>
-                        <div className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center justify-between">
-                          <span>تاریخچه جستجو</span>
-                          <button
-                            type="button"
-                            className="text-[#f5c518] hover:text-[#e0b615] text-xs font-normal transition-colors"
-                          >
-                            پاک کردن
-                          </button>
-                        </div>
-                        <div className="max-h-48 overflow-y-auto">
-                          {searchHistory.map((item, index) => (
-                            <button
-                              key={index}
-                              type="button"
-                              onClick={() => {
-                                setSearchQuery(item);
-                                setIsSearchOpen(false);
-                              }}
-                              className="w-full px-4 py-2.5 text-right text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white transition-colors duration-150 flex items-center justify-between group"
-                            >
-                              <span>{item}</span>
-                              <div className="flex items-center gap-2">
-                                <HiX className="w-3.5 h-3.5 text-gray-500 group-hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100" />
-                                <HiArrowLeft className="w-4 h-4 text-gray-500 group-hover:text-[#f5c518] transition-colors" />
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  /* نتایج جستجو - برای آینده */
-                  <div className="px-4 py-3 text-sm text-gray-400 text-center">
-                    در حال جستجو برای &quot;{searchQuery}&quot;...
-                  </div>
-                )}
+            {searchOpen ? (
+              <div className="absolute left-0 top-[calc(100%+12px)] z-50 w-[min(92vw,420px)] overflow-hidden rounded-[28px] border border-white/10 bg-[#090d12]/96 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+                <input
+                  type="text"
+                  placeholder="جستجوی فیلم، سریال و بازیگران"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-[#ef4444]"
+                  autoFocus
+                />
+                <div className="mt-3 space-y-1">
+                  {(searchQuery
+                    ? popularSearches.filter((item) => item.includes(searchQuery))
+                    : popularSearches
+                  ).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery(item);
+                        setSearchOpen(false);
+                      }}
+                      className="flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-right text-sm text-white/82 transition hover:bg-white/[0.06]"
+                    >
+                      <span>{item}</span>
+                      <HiMiniPlay className="h-4 w-4 text-[#ef4444]" />
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
+            ) : null}
           </div>
 
-          {/* User Menu */}
+          {!authLoading && !isAuthenticated ? (
+            <Link
+              href={`/login${pathname && pathname !== "/login" ? `?redirect=${encodeURIComponent(pathname)}` : ""}`}
+              className="hidden rounded-2xl border border-[#f5c518]/30 bg-[#f5c518]/10 px-5 py-2.5 text-sm font-bold text-[#f8d977] transition hover:bg-[#f5c518]/20 md:inline-flex"
+            >
+              ورود
+            </Link>
+          ) : null}
+
           {isAuthenticated && user ? (
             <div ref={userMenuRef} className="relative hidden md:block">
               <button
-                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className="group flex items-center gap-2 h-10 px-3 pt-0.5 rounded-full border border-[#2f2f2f] bg-[#1f1f1f] text-gray-300 transition-all duration-200 hover:border-[#f5c518] hover:bg-[#2a2a2a] hover:text-white hover:shadow-lg hover:shadow-[#f5c518]/20 focus:outline-none focus:ring-2 focus:ring-[#f5c518] focus:ring-offset-2 focus:ring-offset-[#121212]"
-                aria-label="منوی کاربر"
+                type="button"
+                onClick={() => setUserMenuOpen((current) => !current)}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.1]"
               >
-                <span className="text-sm font-medium whitespace-nowrap">{user.name}</span>
+                <span>{user.name}</span>
+                <HiChevronDown className="h-4 w-4" />
               </button>
 
-              {isUserMenuOpen && (
-                <div className="absolute left-0 mt-2 w-56 rounded-lg border border-[#2f2f2f] bg-[#1f1f1f] shadow-xl shadow-black/50 overflow-hidden z-50">
-                  <div className="px-4 py-3 border-b border-[#2f2f2f]">
-                    <p className="text-sm font-medium text-white">{user.name}</p>
-                    <p className="text-xs text-gray-400">{user.email}</p>
-                    {user.roles.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {user.roles.map((role) => (
-                          <span
-                            key={role.id}
-                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#f5c518]/20 text-[#f5c518]"
-                          >
-                            {role.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+              {userMenuOpen ? (
+                <div className="absolute left-0 top-[calc(100%+12px)] z-50 w-64 overflow-hidden rounded-[28px] border border-white/10 bg-[#090d12]/96 p-2 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+                  <div className="rounded-2xl bg-white/[0.04] px-4 py-3">
+                    <p className="text-sm font-bold text-white">{user.name}</p>
+                    <p className="mt-1 text-xs text-white/45">{user.email}</p>
                   </div>
-
-                  <div className="py-1">
-                    {hasRole('admin') || hasRole('super-admin') ? (
+                  <div className="mt-2 space-y-1">
+                    {(hasRole("admin") || hasRole("super-admin")) && (
                       <Link
                         href="/admin"
-                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white transition-colors"
-                        onClick={() => setIsUserMenuOpen(false)}
+                        onClick={() => setUserMenuOpen(false)}
+                        className="block rounded-2xl px-4 py-2.5 text-sm text-white/82 transition hover:bg-white/[0.06]"
                       >
                         پنل مدیریت
                       </Link>
-                    ) : null}
+                    )}
                     <Link
                       href="/profile"
-                      className="block px-4 py-2 text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white transition-colors"
-                      onClick={() => setIsUserMenuOpen(false)}
+                      onClick={() => setUserMenuOpen(false)}
+                      className="block rounded-2xl px-4 py-2.5 text-sm text-white/82 transition hover:bg-white/[0.06]"
                     >
-                      پروفایل کاربری
+                      پروفایل
                     </Link>
                     <button
+                      type="button"
                       onClick={() => {
-                        logout();
-                        setIsUserMenuOpen(false);
+                        void logout();
+                        setUserMenuOpen(false);
                       }}
-                      className="w-full text-right px-4 py-2 text-sm text-red-400 hover:bg-[#2a2a2a] transition-colors flex items-center gap-2"
+                      className="flex w-full items-center gap-2 rounded-2xl px-4 py-2.5 text-sm text-[#fda4af] transition hover:bg-white/[0.06]"
                     >
-                      <HiLogout className="w-4 h-4" />
+                      <HiLogout className="h-4 w-4" />
                       خروج
                     </button>
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
-          ) : (
-            <Link
-              href="/login"
-              className="group hidden items-center justify-center px-2 py-2 rounded-full border border-[#2f2f2f] bg-[#1f1f1f] text-gray-300 transition-all duration-200 hover:border-[#f5c518] hover:bg-[#2a2a2a] hover:text-white hover:shadow-lg hover:shadow-[#f5c518]/20 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-[#f5c518] focus:ring-offset-2 focus:ring-offset-[#121212] active:scale-105 md:flex"
-              aria-label="ورود / حساب کاربری"
-            >
-              <RiUserReceived2Line className="w-5 h-5 transition-transform duration-200 group-hover:scale-110" />
-            </Link>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {/* Mobile nav */}
-      <nav className="border-t border-[#2f2f2f] bg-[#121212] px-4 py-3 text-sm lg:hidden">
-        <div className="mx-auto flex max-w-[1350px] flex-wrap items-center justify-center gap-2.5">
+      <nav className="overflow-x-auto border-t border-white/8 px-4 pb-4 xl:hidden" dir="rtl">
+        <div className="mx-auto flex max-w-[1820px] min-w-max items-center gap-2 pt-3">
           {navItems.map((item) => (
             <Link
               key={item.label}
               href={item.href}
-              className="group relative rounded-full bg-[#1f1f1f] px-4 py-2 text-gray-300 transition-all duration-200 hover:bg-[#2a2a2a] hover:text-white hover:shadow-md hover:shadow-black/20 active:scale-95"
+              className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/82 transition hover:bg-white/[0.08]"
             >
-              <span className="relative z-10">{item.label}</span>
-              <span className="absolute inset-0 rounded-full bg-[#f5c518] opacity-0 transition-opacity duration-200 group-hover:opacity-10"></span>
+              {item.label}
             </Link>
           ))}
         </div>
@@ -326,4 +234,3 @@ export default function Header() {
     </header>
   );
 }
-

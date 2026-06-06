@@ -32,16 +32,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await authService.me();
-      if (response.success && response.data) {
-        setUser(response.data.user);
-      } else {
-        tokenStorage.removeToken();
-        setUser(null);
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const response = await authService.me();
+
+        if (response.success && response.data?.user) {
+          setUser(response.data.user);
+          return;
+        }
+
+        const status = response.status ?? 0;
+        if (status === 401 || status === 403) {
+          tokenStorage.removeToken();
+          setUser(null);
+          return;
+        }
+
+        if (attempt === 0) {
+          await new Promise((resolve) => window.setTimeout(resolve, 400));
+        }
       }
     } catch {
-      tokenStorage.removeToken();
-      setUser(null);
+      // Keep token on transient network errors; session may still be valid.
     } finally {
       setLoading(false);
     }

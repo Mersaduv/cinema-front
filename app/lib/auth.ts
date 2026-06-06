@@ -1,4 +1,7 @@
 import { apiClient } from './api';
+import { tokenStorage } from './token-storage';
+
+export { tokenStorage };
 
 export interface User {
   id: number;
@@ -60,19 +63,3 @@ export const authService = {
   },
 };
 
-export const tokenStorage = {
-  getToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('auth_token');
-  },
-
-  setToken(token: string): void {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('auth_token', token);
-  },
-
-  removeToken(): void {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem('auth_token');
-  },
-};

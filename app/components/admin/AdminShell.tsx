@@ -275,10 +275,7 @@ export default function AdminShell({
 
   const closeSidebar = () => setSidebarOpen(false);
   const handleTopLevelNavigate = (href: string) => {
-    if (
-      !href.startsWith("/admin/content-management") &&
-      !href.startsWith("/admin/taxonomy")
-    ) {
+    if (!href.startsWith("/admin/content-management")) {
       setExpandedTrees((current) => ({
         ...current,
         "media-management": false,
@@ -350,10 +347,6 @@ export default function AdminShell({
                 <h2 className="mt-4 text-2xl font-black tracking-tight text-white">
                   Cinema Admin
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-[#8ea4b3]">
-                  هسته‌ی مدیریت پروژه برای توسعه‌ی قدم‌به‌قدم Cinema از همین‌جا
-                  کنترل می‌شود.
-                </p>
               </div>
               <button
                 type="button"

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -42,6 +42,17 @@ type SubtitleOption = {
   label: string;
 };
 
+type SubtitlePanel =
+  | "tracks"
+  | "settings"
+  | "fontSize"
+  | "fontColor"
+  | "background";
+
+type SubtitleFontSize = "large" | "medium" | "small";
+type SubtitleFontColor = "black" | "white" | "yellow";
+type SubtitleBackground = "black" | "white" | "transparent";
+
 type NativeAudioTrack = {
   enabled: boolean;
   label?: string;
@@ -81,6 +92,37 @@ function parseResolutionHeight(resolution?: string) {
 
   const match = resolution.match(/(\d{3,4})$/);
   return match ? Number(match[1]) : null;
+}
+
+const mojibakePattern = /[ÃƒÃ‚Ã˜Ã™]/;
+
+function hasMojibake(value?: string | null) {
+  return Boolean(value && mojibakePattern.test(value));
+}
+
+function repairPotentialMojibake(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  let current = value.trim();
+
+  for (let index = 0; index < 3; index += 1) {
+    if (!mojibakePattern.test(current)) {
+      break;
+    }
+
+    const bytes = Uint8Array.from(current, (character) => character.charCodeAt(0) & 0xff);
+    const repaired = new TextDecoder("utf-8").decode(bytes).replace(/\uFFFD/g, "").trim();
+
+    if (!repaired || repaired === current) {
+      break;
+    }
+
+    current = repaired;
+  }
+
+  return current;
 }
 
 function getQualityLabel(height?: number, fallback?: string) {
@@ -130,7 +172,10 @@ function getAudioTracksFromVideo(video: HTMLVideoElement): AudioOption[] {
 
     return {
       value: index,
-      label: track.label || track.language || `صدا ${index + 1}`,
+      label: normalizeAudioOptionLabel(
+        track.label || track.language || `صدا ${index + 1}`,
+        track.language,
+      ),
     };
   });
 }
@@ -147,9 +192,93 @@ function getSubtitleTracksFromVideo(video: HTMLVideoElement): SubtitleOption[] {
 
     return {
       value: index,
-      label: track.label || track.language || `زیرنویس ${index + 1}`,
+      label: normalizeSubtitleOptionLabel(
+        track.label || track.language || `زیرنویس ${index + 1}`,
+        track.language,
+      ),
     };
   });
+}
+
+function normalizeAudioOptionLabel(label: string, language?: string) {
+  const normalizedLabel = repairPotentialMojibake(label);
+  const normalizedLanguage = repairPotentialMojibake(language).toLowerCase();
+
+  if (
+    normalizedLabel === "دوبله" ||
+    normalizedLabel === "دوبله فارسی" ||
+    normalizedLabel.toLowerCase() === "dubbed" ||
+    normalizedLanguage === "fa"
+  ) {
+    return "دوبله فارسی";
+  }
+
+  if (
+    normalizedLabel === "زبان اصلی" ||
+    normalizedLabel.toLowerCase() === "original" ||
+    ((normalizedLanguage === "und" || normalizedLanguage === "original") &&
+      (normalizedLabel === "" || hasMojibake(label)))
+  ) {
+    return "زبان اصلی";
+  }
+
+  return normalizedLabel || "صوت";
+}
+
+function normalizeSubtitleOptionLabel(label: string, language?: string) {
+  const normalizedLabel = repairPotentialMojibake(label);
+  const normalizedLanguage = repairPotentialMojibake(language).toLowerCase();
+
+  if (
+    normalizedLabel === "فارسی" ||
+    normalizedLabel === "زیرنویس" ||
+    normalizedLabel === "زیرنویس فارسی" ||
+    normalizedLabel.toLowerCase() === "persian" ||
+    normalizedLabel.toLowerCase() === "farsi" ||
+    normalizedLanguage === "fa" ||
+    normalizedLanguage === "fas" ||
+    normalizedLanguage === "per"
+  ) {
+    return "زیرنویس فارسی";
+  }
+
+  return normalizedLabel || "زیرنویس";
+}
+
+function buildPlaybackSubtitleUrl(subtitleUrl?: string | null) {
+  if (!subtitleUrl) {
+    return null;
+  }
+
+  const trimmed = subtitleUrl.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return `/api/subtitles?src=${encodeURIComponent(trimmed)}`;
+  }
+
+  return trimmed;
+}
+
+function stripSubtitleMarkup(text: string) {
+  return repairPotentialMojibake(text)
+    .replace(/<[^>]+>/g, "")
+    .replace(/\r/g, "")
+    .trim();
+}
+
+function extractActiveSubtitleLines(track: TextTrack | null) {
+  if (!track?.activeCues || track.activeCues.length === 0) {
+    return [];
+  }
+
+  return Array.from(track.activeCues)
+    .flatMap((cue) => stripSubtitleMarkup((cue as VTTCue).text).split("\n"))
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function debugPlayer(event: string, payload?: unknown) {
@@ -160,14 +289,28 @@ function debugPlayer(event: string, payload?: unknown) {
   console.info(`[CinemaPlayer] ${event}`, payload ?? "");
 }
 
+const EMPTY_VARIANTS: Array<{
+  profile_key: string;
+  resolution: string;
+  bandwidth: number;
+}> = [];
+
+const EMPTY_AUDIO_TRACKS: Array<{
+  key: string;
+  label: string;
+  language: string;
+  is_default: boolean;
+}> = [];
+
 export default function HlsVideoPlayer({
   src,
   poster,
   title,
   backHref,
   immersive = false,
-  availableVariants = [],
-  availableAudioTracks = [],
+  availableVariants = EMPTY_VARIANTS,
+  availableAudioTracks = EMPTY_AUDIO_TRACKS,
+  subtitleUrl,
 }: {
   src: string;
   poster?: string | null;
@@ -185,13 +328,17 @@ export default function HlsVideoPlayer({
     language: string;
     is_default: boolean;
   }>;
+  subtitleUrl?: string | null;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const subtitleTrackRef = useRef<HTMLTrackElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const progressTrackRef = useRef<HTMLDivElement | null>(null);
   const controlsTimerRef = useRef<number | null>(null);
   const manualQualityRef = useRef(-1);
+  const userSeekingRef = useRef(false);
+  const attachedSrcRef = useRef<string | null>(null);
 
   const [playerError, setPlayerError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -211,11 +358,25 @@ export default function HlsVideoPlayer({
   const [selectedAudio, setSelectedAudio] = useState(0);
   const [subtitleOptions, setSubtitleOptions] = useState<SubtitleOption[]>([]);
   const [selectedSubtitle, setSelectedSubtitle] = useState(-1);
+  const [subtitlePanel, setSubtitlePanel] = useState<SubtitlePanel>("tracks");
+  const [subtitleFontSize, setSubtitleFontSize] =
+    useState<SubtitleFontSize>("medium");
+  const [subtitleFontColor, setSubtitleFontColor] =
+    useState<SubtitleFontColor>("white");
+  const [subtitleBackground, setSubtitleBackground] =
+    useState<SubtitleBackground>("transparent");
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
   const [usingManagedHls, setUsingManagedHls] = useState(false);
+  const [activeSubtitleLines, setActiveSubtitleLines] = useState<string[]>([]);
+
+  const managedSubtitleUrl = useMemo(
+    () => buildPlaybackSubtitleUrl(subtitleUrl),
+    [subtitleUrl],
+  );
 
   const playbackRates = useMemo(
     () => [
+      { value: 0.5, label: "0.5x" },
       { value: 0.75, label: "0.75x" },
       { value: 1, label: "عادی" },
       { value: 1.25, label: "1.25x" },
@@ -260,7 +421,9 @@ export default function HlsVideoPlayer({
 
   const activeQualityLabel = useMemo(() => {
     if (selectedQuality === -1) {
-      return autoQualityLabel ? `خودکار (${autoQualityLabel})` : "خودکار";
+      return autoQualityLabel
+        ? `خودکار (${autoQualityLabel})`
+        : "خودکار";
     }
 
     return (
@@ -272,9 +435,69 @@ export default function HlsVideoPlayer({
   const activeAudioLabel = useMemo(
     () =>
       audioOptions.find((option) => option.value === selectedAudio)?.label ||
-      "???? ????",
+      "انتخاب صدا",
     [audioOptions, selectedAudio],
   );
+
+  const subtitleFontSizeLabel = useMemo(() => {
+    if (subtitleFontSize === "large") {
+      return "بزرگ";
+    }
+
+    if (subtitleFontSize === "small") {
+      return "کوچک";
+    }
+
+    return "متوسط";
+  }, [subtitleFontSize]);
+
+  const subtitleFontColorLabel = useMemo(() => {
+    if (subtitleFontColor === "black") {
+      return "سیاه";
+    }
+
+    if (subtitleFontColor === "yellow") {
+      return "زرد";
+    }
+
+    return "سفید";
+  }, [subtitleFontColor]);
+
+  const subtitleBackgroundLabel = useMemo(() => {
+    if (subtitleBackground === "black") {
+      return "سیاه";
+    }
+
+    if (subtitleBackground === "white") {
+      return "سفید";
+    }
+
+    return "بی رنگ";
+  }, [subtitleBackground]);
+
+  const activeSubtitleStyle = useMemo(() => {
+    const fontSizeMap: Record<SubtitleFontSize, string> = {
+      large: "clamp(1.2rem, 2vw, 1.8rem)",
+      medium: "clamp(1rem, 1.65vw, 1.45rem)",
+      small: "clamp(0.92rem, 1.3vw, 1.2rem)",
+    };
+    const colorMap: Record<SubtitleFontColor, string> = {
+      black: "#000000",
+      white: "#ffffff",
+      yellow: "#fde047",
+    };
+    const backgroundMap: Record<SubtitleBackground, string> = {
+      black: "rgba(0, 0, 0, 0.82)",
+      white: "rgba(255, 255, 255, 0.82)",
+      transparent: "transparent",
+    };
+
+    return {
+      fontSize: fontSizeMap[subtitleFontSize],
+      color: colorMap[subtitleFontColor],
+      backgroundColor: backgroundMap[subtitleBackground],
+    };
+  }, [subtitleBackground, subtitleFontColor, subtitleFontSize]);
 
   const queueControlsHide = useCallback(() => {
     if (controlsTimerRef.current) {
@@ -367,11 +590,13 @@ export default function HlsVideoPlayer({
         setAudioOptions(
           hls.audioTracks.map((track, index) => ({
             value: index,
-            label:
+            label: normalizeAudioOptionLabel(
               availableAudioTracks[index]?.label ||
-              track.name ||
-              track.lang ||
-              `??? ${index + 1}`,
+                track.name ||
+                track.lang ||
+                `صوت ${index + 1}`,
+              availableAudioTracks[index]?.language || track.lang,
+            ),
           })),
         );
         setSelectedAudio(hls.audioTrack >= 0 ? hls.audioTrack : 0);
@@ -385,12 +610,23 @@ export default function HlsVideoPlayer({
 
   const syncSubtitleOptions = useCallback(
     (video: HTMLVideoElement, hls?: Hls | null) => {
+      if (managedSubtitleUrl) {
+        setSubtitleOptions([
+          { value: -1, label: "خاموش" },
+          { value: 0, label: "زیرنویس فارسی" },
+        ]);
+        return;
+      }
+
       if (hls && hls.subtitleTracks.length > 0) {
         setSubtitleOptions([
           { value: -1, label: "خاموش" },
           ...hls.subtitleTracks.map((track, index) => ({
             value: index,
-            label: track.name || track.lang || `زیرنویس ${index + 1}`,
+            label: normalizeSubtitleOptionLabel(
+              track.name || track.lang || `زیرنویس ${index + 1}`,
+              track.lang,
+            ),
           })),
         ]);
         setSelectedSubtitle(hls.subtitleTrack);
@@ -402,7 +638,7 @@ export default function HlsVideoPlayer({
         ...getSubtitleTracksFromVideo(video),
       ]);
     },
-    [],
+    [managedSubtitleUrl],
   );
 
   const togglePlayback = useCallback(async () => {
@@ -421,7 +657,9 @@ export default function HlsVideoPlayer({
         setShowControls(true);
       }
     } catch {
-      setPlayerError("???? ??? ?? ??? ?????? ?? ?????? ????? ???.");
+      setPlayerError(
+        "شروع پخش در این مرورگر انجام نشد.",
+      );
     }
   }, [revealControls]);
 
@@ -462,6 +700,7 @@ export default function HlsVideoPlayer({
 
   const handleProgressPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      userSeekingRef.current = true;
       setPositionFromClientX(event.clientX);
 
       const handlePointerMove = (moveEvent: PointerEvent) => {
@@ -469,6 +708,7 @@ export default function HlsVideoPlayer({
       };
 
       const handlePointerUp = () => {
+        userSeekingRef.current = false;
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", handlePointerUp);
       };
@@ -595,6 +835,31 @@ export default function HlsVideoPlayer({
       return;
     }
 
+    if (managedSubtitleUrl) {
+      const manualTrack = subtitleTrackRef.current?.track ?? null;
+
+      if (hlsRef.current) {
+        hlsRef.current.subtitleTrack = -1;
+      }
+
+      Array.from(video.textTracks).forEach((track) => {
+        track.mode = "disabled";
+      });
+
+      if (manualTrack) {
+        manualTrack.mode = nextValue === 0 ? "hidden" : "disabled";
+        setActiveSubtitleLines(
+          nextValue === 0 ? extractActiveSubtitleLines(manualTrack) : [],
+        );
+      } else {
+        setActiveSubtitleLines([]);
+      }
+
+      setSelectedSubtitle(nextValue);
+      setOpenMenu(null);
+      return;
+    }
+
     if (hlsRef.current && hlsRef.current.subtitleTracks.length > 0) {
       hlsRef.current.subtitleTrack = nextValue;
       setSelectedSubtitle(nextValue);
@@ -613,7 +878,81 @@ export default function HlsVideoPlayer({
 
     setSelectedSubtitle(nextValue);
     setOpenMenu(null);
-  }, []);
+  }, [managedSubtitleUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    const subtitleSizeMap: Record<SubtitleFontSize, string> = {
+      large: "170%",
+      medium: "130%",
+      small: "100%",
+    };
+    const subtitleColorMap: Record<SubtitleFontColor, string> = {
+      black: "#000000",
+      white: "#ffffff",
+      yellow: "#fde047",
+    };
+    const subtitleBackgroundMap: Record<SubtitleBackground, string> = {
+      black: "rgba(0, 0, 0, 0.78)",
+      white: "rgba(255, 255, 255, 0.78)",
+      transparent: "transparent",
+    };
+
+    video.style.setProperty(
+      "--cinema-subtitle-size",
+      subtitleSizeMap[subtitleFontSize],
+    );
+    video.style.setProperty(
+      "--cinema-subtitle-color",
+      subtitleColorMap[subtitleFontColor],
+    );
+    video.style.setProperty(
+      "--cinema-subtitle-bg",
+      subtitleBackgroundMap[subtitleBackground],
+    );
+  }, [subtitleBackground, subtitleFontColor, subtitleFontSize]);
+
+  useEffect(() => {
+    const manualTrack = subtitleTrackRef.current?.track ?? null;
+
+    if (!managedSubtitleUrl || !manualTrack) {
+      return;
+    }
+
+    const syncActiveCues = () => {
+      if (selectedSubtitle !== 0) {
+        setActiveSubtitleLines([]);
+        return;
+      }
+
+      setActiveSubtitleLines(extractActiveSubtitleLines(manualTrack));
+    };
+
+    const handleTrackLoad = () => {
+      manualTrack.mode = selectedSubtitle === 0 ? "hidden" : "disabled";
+      syncActiveCues();
+      debugPlayer("manual-subtitle-loaded", {
+        cueCount: manualTrack.cues?.length ?? 0,
+        src: managedSubtitleUrl,
+      });
+    };
+
+    const trackElement = subtitleTrackRef.current;
+
+    trackElement?.addEventListener("load", handleTrackLoad);
+    manualTrack.addEventListener("cuechange", syncActiveCues);
+    syncActiveCues();
+
+    return () => {
+      trackElement?.removeEventListener("load", handleTrackLoad);
+      manualTrack.removeEventListener("cuechange", syncActiveCues);
+    };
+  }, [managedSubtitleUrl, selectedSubtitle]);
 
   const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) {
@@ -627,7 +966,9 @@ export default function HlsVideoPlayer({
         await document.exitFullscreen();
       }
     } catch {
-      setPlayerError("تغییر حالت تمام‌صفحه در این مرورگر انجام نشد.");
+      setPlayerError(
+        "تغییر حالت تمام‌صفحه در این مرورگر انجام نشد.",
+      );
     }
   }, []);
 
@@ -645,7 +986,9 @@ export default function HlsVideoPlayer({
         await video.requestPictureInPicture();
       }
     } catch {
-      setPlayerError("حالت تصویر در تصویر در این دستگاه در دسترس نیست.");
+      setPlayerError(
+        "حالت تصویر در تصویر در این دستگاه در دسترس نیست.",
+      );
     }
   }, [canUsePictureInPicture]);
 
@@ -656,12 +999,28 @@ export default function HlsVideoPlayer({
       return;
     }
 
+    if (attachedSrcRef.current === src && hlsRef.current) {
+      return;
+    }
+
+    if (attachedSrcRef.current && attachedSrcRef.current !== src) {
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    }
+
+    attachedSrcRef.current = src;
+
     let hls: Hls | null = null;
     const resetFrame = window.requestAnimationFrame(() => {
       setPlayerError("");
       setIsLoading(true);
       setShowControls(true);
       setUsingManagedHls(false);
+      setSelectedSubtitle(-1);
+      setActiveSubtitleLines([]);
     });
 
     const handleLoadedMetadata = () => {
@@ -670,6 +1029,11 @@ export default function HlsVideoPlayer({
       syncBuffered();
       syncAudioOptions(video, hls);
       syncSubtitleOptions(video, hls);
+    };
+    const handleLoadedData = () => {
+      if (video.readyState >= 2) {
+        setIsLoading(false);
+      }
     };
 
     const handleDurationChange = () => setDuration(video.duration || 0);
@@ -687,9 +1051,10 @@ export default function HlsVideoPlayer({
       debugPlayer("media-seeking", {
         currentTime: video.currentTime,
         manualQuality: manualQualityRef.current,
+        userSeeking: userSeekingRef.current,
       });
 
-      if (!hls) {
+      if (!hls || !userSeekingRef.current) {
         return;
       }
 
@@ -709,6 +1074,8 @@ export default function HlsVideoPlayer({
       });
     };
     const handleSeeked = () => {
+      userSeekingRef.current = false;
+
       if (video.readyState >= 2) {
         setIsLoading(false);
       }
@@ -737,6 +1104,7 @@ export default function HlsVideoPlayer({
     };
 
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("loadeddata", handleLoadedData);
     video.addEventListener("durationchange", handleDurationChange);
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("progress", handleProgress);
@@ -769,6 +1137,9 @@ export default function HlsVideoPlayer({
             bitrate: level.bitrate,
           })),
         });
+        if (managedSubtitleUrl) {
+          hls!.subtitleTrack = -1;
+        }
         syncQualityOptions(hls!);
         syncAudioOptions(video, hls!);
         syncSubtitleOptions(video, hls!);
@@ -818,18 +1189,53 @@ export default function HlsVideoPlayer({
       });
 
       hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, (_, data) => {
+        if (managedSubtitleUrl) {
+          return;
+        }
+
         setSelectedSubtitle(data.id);
       });
 
       hls.on(Hls.Events.ERROR, (_, data) => {
         debugPlayer("hls-error", data);
+
+        const failedSubtitleUrl = String(data.url || "").toLowerCase();
+        const isManagedSubtitleParsingIssue =
+          Boolean(managedSubtitleUrl) &&
+          failedSubtitleUrl.endsWith(".vtt") &&
+          data.details === Hls.ErrorDetails.LEVEL_PARSING_ERROR;
+
+        if (isManagedSubtitleParsingIssue) {
+          if (hls) {
+            hls.subtitleTrack = -1;
+          }
+          setPlayerError("");
+          setIsLoading(false);
+          debugPlayer("manual-subtitle-hls-bypass", data);
+          return;
+        }
+
         if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              debugPlayer("hls-recover-network", data);
+              hls?.startLoad();
+              return;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              debugPlayer("hls-recover-media", data);
+              hls?.recoverMediaError();
+              return;
+            default:
+              break;
+          }
+
           setPlayerError(
             "پخش HLS با خطا روبه‌رو شد. لاگ پردازش را در پنل بررسی کن.",
           );
           setIsLoading(false);
           hls?.destroy();
           hlsRef.current = null;
+          attachedSrcRef.current = null;
         }
       });
 
@@ -842,7 +1248,11 @@ export default function HlsVideoPlayer({
         setQualityOptions(
           availableVariants.length > 0
             ? [
-                { value: -1, label: "خودکار", detail: "Adaptive HLS" },
+                {
+                  value: -1,
+                  label: "خودکار",
+                  detail: "Adaptive HLS",
+                },
                 ...availableVariants.map((variant, index) => ({
                   value: index,
                   label: variant.profile_key,
@@ -853,7 +1263,8 @@ export default function HlsVideoPlayer({
                 {
                   value: -1,
                   label: "خودکار",
-                  detail: "مرورگر کیفیت را مدیریت می‌کند",
+                  detail:
+                    "مرورگر کیفیت را مدیریت می‌کند",
                 },
               ],
         );
@@ -861,7 +1272,9 @@ export default function HlsVideoPlayer({
       });
     } else {
       window.requestAnimationFrame(() => {
-        setPlayerError("مرورگر شما از HLS پشتیبانی نمی‌کند.");
+        setPlayerError(
+          "مرورگر شما از HLS پشتیبانی نمی‌کند.",
+        );
         setIsLoading(false);
       });
     }
@@ -869,6 +1282,7 @@ export default function HlsVideoPlayer({
     return () => {
       video.pause();
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("loadeddata", handleLoadedData);
       video.removeEventListener("durationchange", handleDurationChange);
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("progress", handleProgress);
@@ -887,19 +1301,11 @@ export default function HlsVideoPlayer({
       window.cancelAnimationFrame(resetFrame);
       hlsRef.current?.destroy();
       hlsRef.current = null;
+      attachedSrcRef.current = null;
       video.removeAttribute("src");
       video.load();
     };
-  }, [
-    availableVariants,
-    getAutoQualityLabel,
-    queueControlsHide,
-    src,
-    syncAudioOptions,
-    syncBuffered,
-    syncQualityOptions,
-    syncSubtitleOptions,
-  ]);
+  }, [managedSubtitleUrl, src]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -1006,9 +1412,37 @@ export default function HlsVideoPlayer({
             poster={poster || undefined}
             className="cinema-player-video h-full w-full bg-black object-contain"
             onClick={handleVideoSurfaceClick}
-          />
+          >
+            {managedSubtitleUrl ? (
+              <track
+                ref={subtitleTrackRef}
+                key={managedSubtitleUrl}
+                kind="subtitles"
+                src={managedSubtitleUrl}
+                srcLang="fa"
+                label="زیرنویس فارسی"
+                default={false}
+              />
+            ) : null}
+          </video>
 
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.12),rgba(0,0,0,0.7)_88%)]" />
+
+          {managedSubtitleUrl && selectedSubtitle === 0 && activeSubtitleLines.length > 0 ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-24 z-20 flex justify-center px-4 md:bottom-28 md:px-10">
+              <div
+                className="max-w-5xl rounded-2xl px-4 py-2 text-center font-bold leading-8 shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
+                dir="rtl"
+                style={activeSubtitleStyle}
+              >
+                {activeSubtitleLines.map((line, index) => (
+                  <p key={`${index}-${line}`} className="whitespace-pre-wrap">
+                    {line}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {isLoading ? (
             <div className="absolute inset-0 z-20 flex items-center justify-center">
@@ -1016,7 +1450,7 @@ export default function HlsVideoPlayer({
                 className="rounded-full border border-white/10 bg-black/55 px-5 py-3 text-sm text-white"
                 dir="rtl"
               >
-                در حال بارگذاری پخش...
+                {"در حال بارگذاری پخش..."}
               </div>
             </div>
           ) : null}
@@ -1201,7 +1635,7 @@ export default function HlsVideoPlayer({
                   {audioOptions.length > 1 ? (
                     <PlayerMenu
                       isOpen={openMenu === "audio"}
-                      label={`????: ${activeAudioLabel}`}
+                      label={`صدا: (${activeAudioLabel})`}
                       onToggle={() =>
                         setOpenMenu(openMenu === "audio" ? null : "audio")
                       }
@@ -1228,25 +1662,173 @@ export default function HlsVideoPlayer({
                     <PlayerMenu
                       isOpen={openMenu === "subtitle"}
                       label="زیرنویس"
-                      onToggle={() =>
-                        setOpenMenu(openMenu === "subtitle" ? null : "subtitle")
+                    onToggle={() => {
+                      if (openMenu === "subtitle") {
+                        setSubtitlePanel("tracks");
+                        setOpenMenu(null);
+                        return;
                       }
-                      onClose={() => setOpenMenu(null)}
-                    >
-                      {subtitleOptions.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => selectSubtitleTrack(option.value)}
-                          className={`w-full rounded-2xl px-3 py-2 text-right transition ${
-                            selectedSubtitle === option.value
-                              ? "bg-[#38bdf8]/15 text-white"
-                              : "text-[#d6e3ea] hover:bg-white/[0.05]"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+
+                      setSubtitlePanel("tracks");
+                      setOpenMenu("subtitle");
+                    }}
+                    onClose={() => {
+                      setSubtitlePanel("tracks");
+                      setOpenMenu(null);
+                    }}
+                  >
+                      {subtitlePanel === "tracks" ? (
+                        <>
+                          {subtitleOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => selectSubtitleTrack(option.value)}
+                              className={`w-full rounded-2xl px-3 py-2 text-right transition ${
+                                selectedSubtitle === option.value
+                                  ? "bg-[#38bdf8]/15 text-white"
+                                  : "text-[#d6e3ea] hover:bg-white/[0.05]"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setSubtitlePanel("settings")}
+                            className="w-full rounded-2xl px-3 py-2 text-right text-[#d6e3ea] transition hover:bg-white/[0.05]"
+                          >
+                            تنظیمات
+                          </button>
+                        </>
+                      ) : null}
+
+                      {subtitlePanel === "settings" ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setSubtitlePanel("tracks")}
+                            className="mb-1 flex w-full items-center justify-between rounded-2xl px-3 py-2 text-right text-[#d6e3ea] transition hover:bg-white/[0.05]"
+                          >
+                            <span>بازگشت</span>
+                            <HiOutlineArrowLeft className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSubtitlePanel("fontSize")}
+                            className="w-full rounded-2xl px-3 py-2 text-right text-[#d6e3ea] transition hover:bg-white/[0.05]"
+                          >
+                            اندازه فونت: {subtitleFontSizeLabel}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSubtitlePanel("fontColor")}
+                            className="w-full rounded-2xl px-3 py-2 text-right text-[#d6e3ea] transition hover:bg-white/[0.05]"
+                          >
+                            رنگ فونت: {subtitleFontColorLabel}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSubtitlePanel("background")}
+                            className="w-full rounded-2xl px-3 py-2 text-right text-[#d6e3ea] transition hover:bg-white/[0.05]"
+                          >
+                            پس زمینه: {subtitleBackgroundLabel}
+                          </button>
+                        </>
+                      ) : null}
+
+                      {subtitlePanel === "fontSize" ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setSubtitlePanel("settings")}
+                            className="mb-1 flex w-full items-center justify-between rounded-2xl px-3 py-2 text-right text-[#d6e3ea] transition hover:bg-white/[0.05]"
+                          >
+                            <span>بازگشت</span>
+                            <HiOutlineArrowLeft className="h-4 w-4" />
+                          </button>
+                          {[
+                            { value: "large" as const, label: "بزرگ" },
+                            { value: "medium" as const, label: "متوسط" },
+                            { value: "small" as const, label: "کوچک" },
+                          ].map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setSubtitleFontSize(option.value)}
+                              className={`w-full rounded-2xl px-3 py-2 text-right transition ${
+                                subtitleFontSize === option.value
+                                  ? "bg-[#38bdf8]/15 text-white"
+                                  : "text-[#d6e3ea] hover:bg-white/[0.05]"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </>
+                      ) : null}
+
+                      {subtitlePanel === "fontColor" ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setSubtitlePanel("settings")}
+                            className="mb-1 flex w-full items-center justify-between rounded-2xl px-3 py-2 text-right text-[#d6e3ea] transition hover:bg-white/[0.05]"
+                          >
+                            <span>بازگشت</span>
+                            <HiOutlineArrowLeft className="h-4 w-4" />
+                          </button>
+                          {[
+                            { value: "black" as const, label: "سیاه" },
+                            { value: "white" as const, label: "سفید" },
+                            { value: "yellow" as const, label: "زرد" },
+                          ].map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setSubtitleFontColor(option.value)}
+                              className={`w-full rounded-2xl px-3 py-2 text-right transition ${
+                                subtitleFontColor === option.value
+                                  ? "bg-[#38bdf8]/15 text-white"
+                                  : "text-[#d6e3ea] hover:bg-white/[0.05]"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </>
+                      ) : null}
+
+                      {subtitlePanel === "background" ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setSubtitlePanel("settings")}
+                            className="mb-1 flex w-full items-center justify-between rounded-2xl px-3 py-2 text-right text-[#d6e3ea] transition hover:bg-white/[0.05]"
+                          >
+                            <span>بازگشت</span>
+                            <HiOutlineArrowLeft className="h-4 w-4" />
+                          </button>
+                          {[
+                            { value: "black" as const, label: "سیاه" },
+                            { value: "white" as const, label: "سفید" },
+                            { value: "transparent" as const, label: "بی رنگ" },
+                          ].map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setSubtitleBackground(option.value)}
+                              className={`w-full rounded-2xl px-3 py-2 text-right transition ${
+                                subtitleBackground === option.value
+                                  ? "bg-[#38bdf8]/15 text-white"
+                                  : "text-[#d6e3ea] hover:bg-white/[0.05]"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </>
+                      ) : null}
                     </PlayerMenu>
                   ) : null}
 
@@ -1310,27 +1892,29 @@ export default function HlsVideoPlayer({
         <div className="grid gap-3 md:grid-cols-3" dir="rtl">
           <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-4">
           <p className="text-xs uppercase tracking-[0.24em] text-[#8ea4b3]">
-            کنترل سریع
+            {"کنترل سریع"}
           </p>
           <p className="mt-2 text-sm leading-7 text-[#d6e3ea]">
-            Space یا K برای پخش، فلش‌های راست و چپ برای جابه‌جایی ۱۰ ثانیه‌ای، F
-            برای تمام‌صفحه و M برای قطع صدا.
+            {
+              "Space یا K برای پخش، فلش‌های راست و چپ برای جابه‌جایی ۱۰ ثانیه‌ای، F برای تمام‌صفحه و M برای قطع صدا."
+            }
           </p>
         </div>
 
         <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-4">
           <p className="text-xs uppercase tracking-[0.24em] text-[#8ea4b3]">
-            سازگار با TV
+            {"سازگار با TV"}
           </p>
           <p className="mt-2 text-sm leading-7 text-[#d6e3ea]">
-            دکمه‌ها بزرگ‌تر و focus-friendly هستند تا با ریموت و مرورگرهای
-            تلویزیونی هم راحت‌تر کنترل شوند.
+            {
+              "دکمه‌ها بزرگ‌تر و focus-friendly هستند تا با ریموت و مرورگرهای تلویزیونی هم راحت‌تر کنترل شوند."
+            }
           </p>
         </div>
 
         <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-4">
           <p className="text-xs uppercase tracking-[0.24em] text-[#8ea4b3]">
-            وضعیت پخش
+            {"وضعیت پخش"}
           </p>
           <p className="mt-2 flex items-start gap-2 text-sm leading-7 text-[#d6e3ea]">
             <HiOutlineRefresh className="mt-1 h-4 w-4 shrink-0 text-[#38bdf8]" />
@@ -1340,6 +1924,13 @@ export default function HlsVideoPlayer({
         </div>
         </div>
       ) : null}
+      <style jsx global>{`
+        .cinema-player-video::cue {
+          font-size: var(--cinema-subtitle-size, 130%);
+          color: var(--cinema-subtitle-color, #ffffff);
+          background-color: var(--cinema-subtitle-bg, transparent);
+        }
+      `}</style>
     </div>
   );
 }

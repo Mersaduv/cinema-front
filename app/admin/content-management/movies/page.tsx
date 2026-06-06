@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 import {
-  HiOutlineLightningBolt,
+  HiOutlinePencilAlt,
   HiOutlinePlus,
   HiOutlineSearch,
   HiOutlineTrash,
@@ -12,19 +13,26 @@ import {
   MdOutlineLocalMovies,
   MdOutlineMovieFilter,
   MdOutlineOndemandVideo,
+  MdOutlinePlaylistPlay,
 } from "react-icons/md";
+import AdminDeleteConfirmModal from "../../../components/admin/AdminDeleteConfirmModal";
 import AdminPagination from "../../../components/admin/AdminPagination";
 import AdminSelect from "../../../components/admin/AdminSelect";
 import AdminStatCard from "../../../components/admin/AdminStatCard";
+import { adminApiErrorMessage, unwrapAdminListPayload } from "../../../lib/admin-api";
+import { apiClient } from "../../../lib/api";
 import {
   adminMoviesService,
+  getAdminMovieOptions,
   type AdminMovie,
   type AdminMovieOptionsResponse,
   type AdminMoviesPagination,
+  type AdminMoviesResponse,
   type AdminMoviesSummary,
   type ProcessingStatus,
   type PublishStatus,
 } from "../../../lib/admin-movies";
+import { formatGregorianDate } from "../../../lib/date-format";
 
 const emptySummary: AdminMoviesSummary = {
   total: 0,
@@ -45,27 +53,8 @@ const emptyOptions: AdminMovieOptionsResponse = {
   publish_statuses: [],
   processing_statuses: [],
   hls_profiles: [],
-  taxonomies: {
-    genres: [],
-    countries: [],
-    languages: [],
-    tags: [],
-    actors: [],
-  },
   media_root: "D:\\media",
 };
-
-function formatPersianDate(value: string | null) {
-  if (!value) {
-    return "ثبت نشده";
-  }
-
-  return new Intl.DateTimeFormat("fa-AF-u-ca-persian", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(value));
-}
 
 function getPublishPresentation(status: PublishStatus) {
   switch (status) {
@@ -76,43 +65,13 @@ function getPublishPresentation(status: PublishStatus) {
       };
     case "scheduled":
       return {
-        label: "زمان بندی شده",
+        label: "زمان‌بندی شده",
         className: "border-[#38bdf8]/25 bg-[#38bdf8]/10 text-[#7dd3fc]",
       };
     default:
       return {
-        label: "پیش نویس",
+        label: "پیش‌نویس",
         className: "border-[#f5c518]/25 bg-[#f5c518]/10 text-[#f8d977]",
-      };
-  }
-}
-
-function getProcessingPresentation(status: ProcessingStatus) {
-  switch (status) {
-    case "ready":
-      return {
-        label: "آماده پخش",
-        className: "border-[#34d399]/25 bg-[#34d399]/10 text-[#86efac]",
-      };
-    case "processing":
-      return {
-        label: "در حال پردازش",
-        className: "border-[#38bdf8]/25 bg-[#38bdf8]/10 text-[#7dd3fc]",
-      };
-    case "queued":
-      return {
-        label: "در صف",
-        className: "border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#c4b5fd]",
-      };
-    case "failed":
-      return {
-        label: "خطا",
-        className: "border-[#fb7185]/25 bg-[#fb7185]/10 text-[#fecdd3]",
-      };
-    default:
-      return {
-        label: "در انتظار",
-        className: "border-white/10 bg-white/[0.05] text-[#d7e4eb]",
       };
   }
 }
@@ -142,59 +101,54 @@ function PosterPreview({ movie }: { movie: AdminMovie }) {
 }
 
 export default function AllMoviesPage() {
-  const [movies, setMovies] = useState<AdminMovie[]>([]);
-  const [summary, setSummary] = useState<AdminMoviesSummary>(emptySummary);
-  const [pagination, setPagination] =
-    useState<AdminMoviesPagination>(emptyPagination);
   const [options, setOptions] = useState<AdminMovieOptionsResponse>(emptyOptions);
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [publishStatus, setPublishStatus] = useState("");
   const [processingStatus, setProcessingStatus] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
   const [error, setError] = useState("");
-  const [processingMovieId, setProcessingMovieId] = useState<number | null>(null);
-  const [deletingMovieId, setDeletingMovieId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminMovie | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const loadMovies = useCallback(
-    async (page = 1) => {
-      setLoading(true);
-      setError("");
+  const listKey = useMemo(() => {
+    const query = new URLSearchParams();
+    query.set("page", String(page));
+    if (debouncedSearch) query.set("search", debouncedSearch);
+    if (publishStatus) query.set("publish_status", publishStatus);
+    if (processingStatus) query.set("processing_status", processingStatus);
+    return `/admin/movies?${query.toString()}`;
+  }, [page, debouncedSearch, publishStatus, processingStatus]);
 
-      const [moviesResponse, optionsResponse] = await Promise.all([
-        adminMoviesService.list({
-          page,
-          search: debouncedSearch,
-          publish_status: publishStatus,
-          processing_status: processingStatus,
-        }),
-        adminMoviesService.options(),
-      ]);
-
-      if (moviesResponse.success && moviesResponse.data) {
-        setMovies(moviesResponse.data.movies);
-        setSummary(moviesResponse.data.summary);
-        setPagination(moviesResponse.data.pagination);
-      } else {
-        setError(moviesResponse.message || "دریافت فیلم ها با خطا روبه رو شد.");
+  const { data, isLoading, mutate } = useSWR(
+    listKey,
+    async (url: string) => {
+      const response = await apiClient.get<AdminMoviesResponse>(url);
+      const payload = unwrapAdminListPayload<AdminMoviesResponse>(response, "movies");
+      if (!payload) {
+        throw new Error(adminApiErrorMessage(response, "دریافت فیلم‌ها با خطا روبه‌رو شد."));
       }
-
-      if (optionsResponse.success && optionsResponse.data) {
-        setOptions(optionsResponse.data);
-      }
-
-      setLoading(false);
+      return payload;
     },
-    [debouncedSearch, publishStatus, processingStatus]
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30_000,
+      keepPreviousData: true,
+    },
   );
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadMovies(1);
-    }, 0);
+  const movies = data?.movies ?? [];
+  const summary = data?.summary ?? emptySummary;
+  const pagination = data?.pagination ?? emptyPagination;
+  const loading = isLoading && !data;
 
-    return () => window.clearTimeout(timer);
-  }, [loadMovies]);
+  useEffect(() => {
+    void getAdminMovieOptions().then(setOptions);
+  }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, publishStatus, processingStatus]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -204,18 +158,6 @@ export default function AllMoviesPage() {
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
-  useEffect(() => {
-    if (!movies.some((movie) => ["queued", "processing"].includes(movie.processing_status))) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      void loadMovies(pagination.current_page || 1);
-    }, 2500);
-
-    return () => window.clearInterval(interval);
-  }, [loadMovies, movies, pagination.current_page]);
-
   const handleResetFilters = () => {
     setSearchInput("");
     setDebouncedSearch("");
@@ -223,34 +165,16 @@ export default function AllMoviesPage() {
     setProcessingStatus("");
   };
 
-  const handleQueueProcessing = async (movieId: number) => {
-    setProcessingMovieId(movieId);
-    setError("");
-
-    const response = await adminMoviesService.queueProcessing(movieId);
-
-    if (response.success) {
-      await loadMovies(pagination.current_page);
-    } else {
-      setError(response.message || "شروع پردازش با خطا روبه رو شد.");
-    }
-
-    setProcessingMovieId(null);
-  };
-
-  const handleDeleteMovie = async (movie: AdminMovie) => {
-    const confirmed = window.confirm(
-      `همه اطلاعات و خروجی های مدیریت شده فیلم «${movie.title}» حذف شود؟ این عمل قابل بازگشت نیست.`
-    );
-
-    if (!confirmed) {
+  const executeDeleteMovie = async () => {
+    if (!deleteTarget || isDeleting) {
       return;
     }
 
-    setDeletingMovieId(movie.id);
+    const deletedId = deleteTarget.id;
+    setIsDeleting(true);
     setError("");
 
-    const response = await adminMoviesService.remove(movie.id);
+    const response = await adminMoviesService.remove(deletedId);
 
     if (response.success) {
       const targetPage =
@@ -258,37 +182,65 @@ export default function AllMoviesPage() {
           ? pagination.current_page - 1
           : pagination.current_page;
 
-      await loadMovies(targetPage);
+      setDeleteTarget(null);
+
+      await mutate(
+        (current) => {
+          if (!current) {
+            return current;
+          }
+
+          const nextMovies = current.movies.filter((movie) => movie.id !== deletedId);
+
+          return {
+            ...current,
+            movies: nextMovies,
+            summary: {
+              ...current.summary,
+              total: Math.max(0, current.summary.total - 1),
+            },
+            pagination: {
+              ...current.pagination,
+              total: Math.max(0, current.pagination.total - 1),
+            },
+          };
+        },
+        { revalidate: true },
+      );
+
+      if (targetPage !== page) {
+        setPage(targetPage);
+      }
     } else {
       setError(response.message || "حذف کامل فیلم انجام نشد.");
     }
 
-    setDeletingMovieId(null);
+    setIsDeleting(false);
   };
 
   const statCards = [
     {
-      label: "کل فیلم ها",
+      label: "کل فیلم‌ها",
       value: summary.total,
       icon: MdOutlineLocalMovies,
       accent: "border-[#f5c518]/18 bg-[#f5c518]/10 text-[#f8d977]",
     },
     {
-      label: "در صف یا پردازش",
-      value: summary.processing,
-      icon: HiOutlineLightningBolt,
+      label: "پیش‌نویس‌ها",
+      value: summary.drafts,
+      icon: MdOutlineMovieFilter,
       accent: "border-[#38bdf8]/18 bg-[#38bdf8]/10 text-[#7dd3fc]",
     },
     {
-      label: "آماده پخش",
+      label: "آماده انتشار",
       value: summary.ready,
-      icon: MdOutlineOndemandVideo,
+      icon: MdOutlinePlaylistPlay,
       accent: "border-[#34d399]/18 bg-[#34d399]/10 text-[#86efac]",
     },
     {
       label: "منتشر شده",
       value: summary.published,
-      icon: MdOutlineMovieFilter,
+      icon: MdOutlineOndemandVideo,
       accent: "border-[#fb7185]/18 bg-[#fb7185]/10 text-[#fda4af]",
     },
   ];
@@ -296,8 +248,8 @@ export default function AllMoviesPage() {
   const publishStatusOptions = [
     {
       value: "",
-      label: "همه وضعیت های انتشار",
-      description: "نمایش همه فیلم ها بدون محدودیت انتشار",
+      label: "همه وضعیت‌های انتشار",
+      description: "نمایش همه فیلم‌ها بدون محدودیت انتشار",
     },
     ...options.publish_statuses.map((status) => ({
       value: status.value,
@@ -309,8 +261,8 @@ export default function AllMoviesPage() {
   const processingStatusOptions = [
     {
       value: "",
-      label: "همه وضعیت های پردازش",
-      description: "نمایش همه وضعیت های پردازش مدیا",
+      label: "همه وضعیت‌های آمادگی",
+      description: "نمایش همه فیلم‌ها از نظر آمادگی انتشار",
     },
     ...options.processing_statuses.map((status) => ({
       value: status.value,
@@ -325,15 +277,14 @@ export default function AllMoviesPage() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <span className="inline-flex rounded-full border border-[#f5c518]/25 bg-[#f5c518]/10 px-3 py-1 text-xs text-[#f8d977]">
-              مدیریت فیلم ها و جریان مدیا
+              مدیریت فیلم‌ها و انتشار
             </span>
             <h2 className="mt-5 text-3xl font-black tracking-tight text-white md:text-5xl">
-              ثبت منبع فایل، بررسی وضعیت HLS و حذف کامل خروجی ها
+              ثبت منبع فیلم، تکمیل متادیتا و انتشار با HLS دستی
             </h2>
             <p className="mt-5 text-base leading-8 text-[#dde7ed] md:text-lg">
-              هر فیلم به عنوان یک asset مدیریت شده ثبت می شود و ساختار نهایی آن
-              زیر <span className="text-[#f8d977]">{options.media_root}</span>{" "}
-              نگه داری می شود.
+              پردازش داخلی HLS از این پروژه حذف شده است. در این بخش فقط منبع فیلم،
+              متادیتای TMDB و مسیرهای دستی پخش و دانلود مدیریت می‌شوند.
             </p>
           </div>
 
@@ -363,13 +314,13 @@ export default function AllMoviesPage() {
         <div className="grid gap-4 xl:grid-cols-[1.4fr_0.9fr_0.9fr_auto]">
           <label className="block">
             <span className="mb-2 block text-sm text-[#8ea4b3]">
-              جست وجو بر اساس عنوان یا slug
+              جستجو بر اساس عنوان یا slug
             </span>
             <div className="relative">
               <input
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="مثلا inception یا dune-part-two"
+                placeholder="مثلاً inception یا dune-part-two"
                 className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 pr-11 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#f5c518]/50 focus:bg-white/[0.06]"
               />
               <HiOutlineSearch className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#7b909d]" />
@@ -389,7 +340,7 @@ export default function AllMoviesPage() {
 
           <label className="block">
             <span className="mb-2 block text-sm text-[#8ea4b3]">
-              وضعیت پردازش
+              آمادگی انتشار
             </span>
             <AdminSelect
               value={processingStatus}
@@ -413,10 +364,9 @@ export default function AllMoviesPage() {
       <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-xl font-bold text-white">فهرست فیلم ها</h3>
+            <h3 className="text-xl font-bold text-white">فهرست فیلم‌ها</h3>
             <p className="mt-2 text-sm leading-7 text-[#8ea4b3]">
-              از همین صفحه می توانی وضعیت پردازش را شروع کنی یا فیلم را با همه
-              خروجی های مدیریت شده اش حذف کنی.
+              از این صفحه وارد جزئیات و فرم یکپارچه انتشار/پیش‌نویس هر فیلم می‌شوی.
             </p>
           </div>
           <p className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-[#b6c5cf]">
@@ -424,11 +374,11 @@ export default function AllMoviesPage() {
           </p>
         </div>
 
-        {error && (
+        {error ? (
           <div className="mb-5 rounded-2xl border border-[#fb7185]/25 bg-[#fb7185]/10 px-4 py-3 text-sm text-[#fecdd3]">
             {error}
           </div>
-        )}
+        ) : null}
 
         {loading ? (
           <div className="grid gap-4 lg:grid-cols-2">
@@ -443,7 +393,7 @@ export default function AllMoviesPage() {
           <div className="rounded-[28px] border border-dashed border-white/12 bg-white/[0.02] px-6 py-12 text-center">
             <h4 className="text-xl font-bold text-white">فیلمی ثبت نشده است</h4>
             <p className="mt-3 text-sm leading-7 text-[#8ea4b3]">
-              اولین فیلم را ثبت کن تا جریان پردازش و مدیریت مدیا شروع شود.
+              اولین فیلم را ثبت کن تا جریان مدیریت محتوا شروع شود.
             </p>
             <Link
               href="/admin/content-management/movies/add"
@@ -458,10 +408,6 @@ export default function AllMoviesPage() {
             <div className="grid gap-4 lg:grid-cols-2">
               {movies.map((movie) => {
                 const publish = getPublishPresentation(movie.publish_status);
-                const processing = getProcessingPresentation(
-                  movie.processing_status
-                );
-                const isReady = movie.processing_status === "ready";
 
                 return (
                   <article
@@ -477,9 +423,7 @@ export default function AllMoviesPage() {
                             <h4 className="truncate text-2xl font-black tracking-tight text-white">
                               {movie.title}
                             </h4>
-                            <p className="mt-2 text-sm text-[#8ea4b3]">
-                              /{movie.slug}
-                            </p>
+                            <p className="mt-2 text-sm text-[#8ea4b3]">/{movie.slug}</p>
                           </div>
                           <div className="flex flex-wrap justify-end gap-2">
                             <span
@@ -487,76 +431,58 @@ export default function AllMoviesPage() {
                             >
                               {publish.label}
                             </span>
-                            <span
-                              className={`rounded-full border px-3 py-1 text-xs ${processing.className}`}
-                            >
-                              {processing.label}
-                            </span>
                           </div>
                         </div>
 
                         <p className="mt-4 line-clamp-2 min-h-[56px] text-sm leading-7 text-[#c7d5de]">
-                          {movie.synopsis || "برای این فیلم هنوز خلاصه ای ثبت نشده است."}
+                          {movie.synopsis || "برای این فیلم هنوز خلاصه‌ای ثبت نشده است."}
                         </p>
 
                         <div className="mt-4 flex flex-wrap gap-2">
                           <span className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5 text-xs text-[#d7e4eb]">
-                            ثبت: {formatPersianDate(movie.created_at)}
+                            ثبت: {formatGregorianDate(movie.created_at)}
                           </span>
-                          <span className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5 text-xs text-[#d7e4eb]">
-                            کیفیت ها: {movie.media_asset?.variants.length || 0}
-                          </span>
-                          {movie.has_dubbed_audio ? (
-                            <span className="rounded-full border border-[#38bdf8]/20 bg-[#38bdf8]/10 px-3 py-1.5 text-xs text-[#7dd3fc]">
-                              دوبله
+                          {movie.release_year ? (
+                            <span className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5 text-xs text-[#d7e4eb]">
+                              {movie.release_year}
                             </span>
                           ) : null}
                           {movie.has_subtitle ? (
-                            <span className="rounded-full border border-[#f5c518]/20 bg-[#f5c518]/10 px-3 py-1.5 text-xs text-[#f8d977]">
+                            <span className="rounded-full border border-[#f5c518]/25 bg-[#f5c518]/10 px-3 py-1.5 text-xs font-semibold text-[#f8d977]">
                               زیرنویس
+                            </span>
+                          ) : null}
+                          {movie.has_dubbed_audio ? (
+                            <span className="rounded-full border border-[#f5c518]/25 bg-[#f5c518]/10 px-3 py-1.5 text-xs font-semibold text-[#f8d977]">
+                              دوبله
                             </span>
                           ) : null}
                         </div>
 
-                        {movie.processing_error && (
+                        {movie.processing_error ? (
                           <div className="mt-4 rounded-2xl border border-[#fb7185]/25 bg-[#fb7185]/10 px-4 py-3 text-sm text-[#fecdd3]">
                             {movie.processing_error}
                           </div>
-                        )}
+                        ) : null}
 
                         <div className="mt-auto pt-5">
                           <div className="flex flex-wrap gap-3">
-                          <Link
-                            href={`/admin/content-management/movies/${movie.id}`}
-                            className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
-                          >
-                            جزئیات
-                          </Link>
-                          {!isReady ? (
+                            <Link
+                              href={`/admin/content-management/movies/${movie.id}/publication`}
+                              className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
+                            >
+                              <HiOutlinePencilAlt className="h-4 w-4" />
+                              ویرایش
+                            </Link>
                             <button
                               type="button"
-                              onClick={() => void handleQueueProcessing(movie.id)}
-                              disabled={
-                                processingMovieId === movie.id ||
-                                movie.processing_status === "queued" ||
-                                movie.processing_status === "processing"
-                              }
-                              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white transition hover:border-white/20 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => setDeleteTarget(movie)}
+                              disabled={isDeleting}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-[#fb7185]/20 bg-[#fb7185]/10 px-4 py-2.5 text-sm text-[#fecdd3] transition hover:border-[#fb7185]/35 hover:bg-[#fb7185]/16 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                              {processingMovieId === movie.id
-                                ? "در حال ارسال..."
-                                : "شروع پردازش HLS"}
+                              <HiOutlineTrash className="h-4 w-4" />
+                              حذف
                             </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteMovie(movie)}
-                            disabled={deletingMovieId === movie.id}
-                            className="inline-flex items-center gap-2 rounded-2xl border border-[#fb7185]/20 bg-[#fb7185]/10 px-4 py-2.5 text-sm text-[#fecdd3] transition hover:border-[#fb7185]/35 hover:bg-[#fb7185]/16 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <HiOutlineTrash className="h-4 w-4" />
-                            {deletingMovieId === movie.id ? "در حال حذف..." : "حذف کامل"}
-                          </button>
                           </div>
                         </div>
                       </div>
@@ -569,11 +495,24 @@ export default function AllMoviesPage() {
             <AdminPagination
               pagination={pagination}
               disabled={loading}
-              onPageChange={(page) => void loadMovies(page)}
+              onPageChange={setPage}
             />
           </>
         )}
       </section>
+
+      <AdminDeleteConfirmModal
+        open={deleteTarget !== null}
+        kind="movie"
+        title={deleteTarget?.title ?? ""}
+        loading={isDeleting}
+        onConfirm={() => void executeDeleteMovie()}
+        onCancel={() => {
+          if (!isDeleting) {
+            setDeleteTarget(null);
+          }
+        }}
+      />
     </div>
   );
 }
