@@ -115,6 +115,39 @@ export const GET_MOVIE = /* GraphQL */ `
           }
         }
       }
+      cached_avg_rating
+      reviews(first: 10, sort: NEWEST) {
+        reviews {
+          id
+          user {
+            id
+            name
+            avatar_url
+          }
+          rating
+          body
+          created_at
+          is_own
+        }
+        summary {
+          total_count
+          average_rating
+          distribution {
+            rating
+            count
+          }
+        }
+        paginatorInfo {
+          currentPage
+          lastPage
+          total
+        }
+        user_review {
+          id
+          rating
+          body
+        }
+      }
     }
   }
 `;
@@ -270,6 +303,39 @@ export const GET_SERIES_OVERVIEW = /* GraphQL */ `
           profile_url
         }
         gallery
+      }
+      cached_avg_rating
+      reviews(first: 10, sort: NEWEST) {
+        reviews {
+          id
+          user {
+            id
+            name
+            avatar_url
+          }
+          rating
+          body
+          created_at
+          is_own
+        }
+        summary {
+          total_count
+          average_rating
+          distribution {
+            rating
+            count
+          }
+        }
+        paginatorInfo {
+          currentPage
+          lastPage
+          total
+        }
+        user_review {
+          id
+          rating
+          body
+        }
       }
     }
   }

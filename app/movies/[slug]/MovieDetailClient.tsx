@@ -23,7 +23,7 @@ export default function MovieDetailClient({
     setLoadingSimilar(true);
 
     try {
-      const response = await moviesService.related(movie.slug, 8);
+      const response = await moviesService.related(movie.slug, 12);
       if (response.success && response.data?.movies) {
         setSimilarMovies(response.data.movies);
       }
@@ -43,6 +43,23 @@ export default function MovieDetailClient({
       similarLoading={loadingSimilar}
       onRequestSimilar={() => {
         void loadSimilar();
+      }}
+      reviewsProps={{
+        initialReviews: movie.reviews?.reviews ?? [],
+        initialSummary: movie.reviews?.summary ?? {
+          total_count: 0,
+          average_rating: 0,
+          distribution: Object.fromEntries(
+            Array.from({ length: 10 }, (_, index) => [String(index + 1), 0]),
+          ),
+        },
+        initialPaginator: movie.reviews?.paginatorInfo ?? {
+          currentPage: 1,
+          lastPage: 1,
+          total: 0,
+        },
+        userReview: movie.reviews?.user_review ?? null,
+        cachedAvgRating: movie.cached_avg_rating ?? null,
       }}
       similarItems={similarMovies.map((item) => ({
         id: item.id,

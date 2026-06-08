@@ -20,7 +20,7 @@ class ApiClient {
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
-    requestOptions?: { timeoutMs?: number },
+    requestOptions?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<ApiResponse<T>> {
     const token = tokenStorage.getToken();
 
@@ -35,6 +35,18 @@ class ApiClient {
     }
 
     const controller = new AbortController();
+    const externalSignal = requestOptions?.signal;
+
+    if (externalSignal?.aborted) {
+      return {
+        success: false,
+        message: 'درخواست لغو شد.',
+      };
+    }
+
+    const abortFromExternal = () => controller.abort();
+    externalSignal?.addEventListener('abort', abortFromExternal);
+
     const timeoutMs = requestOptions?.timeoutMs;
     const timeoutId =
       typeof timeoutMs === 'number' && timeoutMs > 0
@@ -85,6 +97,7 @@ class ApiClient {
         message: error instanceof Error ? error.message : 'Network error',
       };
     } finally {
+      externalSignal?.removeEventListener('abort', abortFromExternal);
       if (timeoutId !== null) {
         window.clearTimeout(timeoutId);
       }
@@ -93,7 +106,7 @@ class ApiClient {
 
   async get<T>(
     endpoint: string,
-    requestOptions?: { timeoutMs?: number },
+    requestOptions?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'GET' }, requestOptions);
   }
@@ -101,7 +114,7 @@ class ApiClient {
   async post<T>(
     endpoint: string,
     body?: unknown,
-    requestOptions?: { timeoutMs?: number },
+    requestOptions?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<ApiResponse<T>> {
     return this.request<T>(
       endpoint,
@@ -166,7 +179,7 @@ class ApiClient {
   async put<T>(
     endpoint: string,
     body?: unknown,
-    requestOptions?: { timeoutMs?: number },
+    requestOptions?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<ApiResponse<T>> {
     return this.request<T>(
       endpoint,

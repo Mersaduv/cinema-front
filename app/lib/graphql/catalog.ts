@@ -1,3 +1,5 @@
+// LEGACY — do not import. Catalog list pages use REST (see lib/catalog/rest.ts).
+
 import {
   graphqlMovieCardToCatalogItem,
   graphqlSeriesCardToCatalogItem,

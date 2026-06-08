@@ -1,5 +1,6 @@
 import { apiClient, type ApiResponse } from "./api";
 import type { PublicGenre } from "./movies";
+import type { ReviewsPayload } from "./reviews";
 
 export interface PublicSeriesActor {
   name: string | null;
@@ -95,6 +96,8 @@ export interface PublicSeries {
     actors: PublicSeriesActor[];
     gallery: string[];
   };
+  reviews?: ReviewsPayload;
+  cached_avg_rating?: number | null;
 }
 
 export const seriesService = {
@@ -117,7 +120,7 @@ export const seriesService = {
 
   async related(
     slug: string,
-    limit = 6,
+    limit = 12,
   ): Promise<ApiResponse<{ series: PublicSeries[] }>> {
     return apiClient.get<{ series: PublicSeries[] }>(
       `/series/${slug}/related?limit=${limit}`,

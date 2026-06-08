@@ -1,4 +1,5 @@
 import { apiClient, type ApiResponse } from "./api";
+import type { ReviewsPayload } from "./reviews";
 
 export interface PublicMovieActor {
   name: string | null;
@@ -89,6 +90,8 @@ export interface PublicMovie {
       bandwidth: number;
     }>;
   } | null;
+  reviews?: ReviewsPayload;
+  cached_avg_rating?: number | null;
 }
 
 export type PublicMovieListItem = {
@@ -111,7 +114,7 @@ export const moviesService = {
     return apiClient.get<{ movie: PublicMovie }>(`/movies/${slug}`);
   },
 
-  async related(slug: string, limit = 6): Promise<ApiResponse<{ movies: PublicMovieListItem[] }>> {
+  async related(slug: string, limit = 12): Promise<ApiResponse<{ movies: PublicMovieListItem[] }>> {
     return apiClient.get<{ movies: PublicMovieListItem[] }>(
       `/movies/${slug}/related?limit=${limit}`,
     );

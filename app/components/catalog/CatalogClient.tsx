@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useRef } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
 import useSWR from "swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CatalogPage from "./CatalogPage";
@@ -95,13 +95,24 @@ function CatalogClientInner({
   const initialSignature = useRef(
     catalogFiltersSignature(initialFilters, initialMeta.current_page || 1),
   );
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const { data, isLoading, isValidating } = useSWR(
     `${kind}:${fetchSignature}`,
     async () => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       const fetcher =
         kind === "movie" ? fetchMoviesCatalogRest : fetchSeriesCatalogRest;
-      const result = await fetcher(filters, page, 24);
+      const result = await fetcher(filters, page, 24, controller.signal);
       return {
         items: result.items,
         meta: result.meta,

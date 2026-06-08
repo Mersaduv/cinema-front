@@ -1,10 +1,44 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import ActorFilmographyRow from "../../components/actors/ActorFilmographyRow";
+import ActorHeroSection from "../../components/actors/ActorHeroSection";
+import { toCatalogItem } from "../../lib/catalog/rest";
 import { personsService, type PersonDetail } from "../../lib/persons";
+
+function ActorPageSkeleton() {
+  return (
+    <div className="min-h-screen bg-black">
+      <div className="relative overflow-hidden bg-black pt-28 md:pt-32">
+        <div className="absolute inset-0 animate-pulse bg-white/5" />
+        <div className="relative mx-auto flex max-w-[1820px] flex-col gap-8 px-4 pb-10 md:flex-row md:px-7 md:pb-14">
+          <div className="mx-auto aspect-[2/3] w-full max-w-[280px] animate-pulse rounded-2xl bg-white/10 md:mx-0" />
+          <div className="flex-1 space-y-4">
+            <div className="h-10 w-2/3 animate-pulse rounded-xl bg-white/10" />
+            <div className="space-y-2">
+              <div className="h-4 w-full animate-pulse rounded bg-white/8" />
+              <div className="h-4 w-full animate-pulse rounded bg-white/8" />
+              <div className="h-4 w-5/6 animate-pulse rounded bg-white/8" />
+              <div className="h-4 w-4/6 animate-pulse rounded bg-white/8" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="mx-auto max-w-[1820px] space-y-10 px-4 py-10 md:px-7">
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-white/10" />
+        <div className="flex gap-4 overflow-hidden">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div
+              key={`actor-skeleton-poster-${index}`}
+              className="aspect-[2/3] w-[160px] shrink-0 animate-pulse rounded-xl bg-white/10"
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ActorProfilePage() {
   const params = useParams<{ slug: string }>();
@@ -18,132 +52,69 @@ export default function ActorProfilePage() {
       if (!slug) {
         return;
       }
+
       setLoading(true);
       setError("");
-      const res = await personsService.fetchBySlug(slug);
-      if (!(res.success && res.data?.person)) {
-        setError(res.message || "اطلاعات یافت نشد.");
+
+      const response = await personsService.fetchBySlug(slug);
+
+      if (!(response.success && response.data?.person)) {
+        setError(response.message || "اطلاعات یافت نشد.");
         setPerson(null);
       } else {
-        setPerson(res.data.person);
+        setPerson(response.data.person);
       }
+
       setLoading(false);
     };
+
     void run();
   }, [slug]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#070b12] px-4 py-16 text-center text-white/70">
-        در حال بارگذاری…
-      </div>
-    );
+    return <ActorPageSkeleton />;
   }
 
   if (error || !person) {
     return (
-      <div className="min-h-screen bg-[#070b12] px-4 py-16 text-center text-red-300">
+      <div className="flex min-h-screen items-center justify-center bg-black px-4 text-center text-red-300">
         {error || "صفحه یافت نشد."}
       </div>
     );
   }
 
-  const hasWork =
-    person.cast_in_movies.length > 0 ||
-    person.cast_in_series.length > 0 ||
-    person.directing.length > 0;
+  const movies = person.cast_in_movies.map((row) =>
+    toCatalogItem(row as unknown as Record<string, unknown>, "has_dubbed_audio"),
+  );
+
+  const series = person.cast_in_series.map((row) =>
+    toCatalogItem(row as unknown as Record<string, unknown>, "has_dubbed"),
+  );
+
+  const hasWork = movies.length > 0 || series.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#070b12] text-white" dir="rtl">
-      <div className="mx-auto flex max-w-5xl flex-col gap-10 px-4 py-10 md:flex-row md:items-start">
-        <div className="mx-auto w-full max-w-xs shrink-0 md:mx-0">
-          <div className="aspect-[2/3] overflow-hidden rounded-3xl border border-white/10 bg-white/5">
-            {person.profile_url ? (
-              <Image
-                src={person.profile_url}
-                alt={person.name}
-                width={400}
-                height={600}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-5xl font-black text-white/30">
-                {person.name.charAt(0)}
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex-1 space-y-6">
-          <div>
-            <h1 className="text-3xl font-black md:text-4xl">{person.name}</h1>
-            {person.known_for_department ? (
-              <p className="mt-2 text-sm text-white/55">{person.known_for_department}</p>
-            ) : null}
-            <div className="mt-4 flex flex-wrap gap-4 text-sm text-white/70">
-              {person.birthday ? <span>زادروز: {person.birthday}</span> : null}
-              {person.place_of_birth ? <span>{person.place_of_birth}</span> : null}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-4 text-sm text-white/60">
-              <span>{person.stats.movies_on_platform} فیلم در این سایت</span>
-              <span>{person.stats.series_on_platform} سریال در این سایت</span>
-              {person.imdb_id ? (
-                <a
-                  className="text-sky-300 underline"
-                  href={`https://www.imdb.com/name/${person.imdb_id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  IMDb
-                </a>
-              ) : null}
-            </div>
-          </div>
-          <section>
-            <h2 className="text-lg font-bold text-white/90">درباره</h2>
-            <p className="mt-2 leading-8 text-white/75">
-              {person.biography?.trim() || "اطلاعاتی موجود نیست."}
-            </p>
-          </section>
-          {!hasWork ? (
-            <p className="text-white/55">این شخص هنوز فیلم یا سریالی در این سایت ندارد.</p>
-          ) : (
-            <section className="space-y-6">
-              {person.cast_in_movies.length > 0 ? (
-                <div>
-                  <h2 className="text-lg font-bold">فیلم‌ها</h2>
-                  <ul className="mt-3 space-y-2">
-                    {person.cast_in_movies.map((m) => (
-                      <li key={m.movie_id}>
-                        <Link href={`/movies/${m.slug}`} className="text-sky-300 hover:underline">
-                          {m.title}
-                        </Link>
-                        {m.release_year ? <span className="text-white/45"> ({m.release_year})</span> : null}
-                        {m.character ? (
-                          <span className="text-white/55"> — نقش: {m.character}</span>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {person.cast_in_series.length > 0 ? (
-                <div>
-                  <h2 className="text-lg font-bold">سریال‌ها</h2>
-                  <ul className="mt-3 space-y-2">
-                    {person.cast_in_series.map((s) => (
-                      <li key={s.series_id}>
-                        <span className="text-white/80">{s.title}</span>
-                        {s.character ? (
-                          <span className="text-white/55"> — نقش: {s.character}</span>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </section>
-          )}
-        </div>
+    <div className="min-h-screen bg-black text-white">
+      <ActorHeroSection
+        name={person.name}
+        biography={person.biography}
+        profileUrl={person.profile_url}
+      />
+
+      <div className="mx-auto max-w-[1820px] space-y-12 px-4 pb-16 pt-4 md:px-7 md:pb-20">
+        {movies.length > 0 ? (
+          <ActorFilmographyRow title={`فیلم های ${person.name}`} items={movies} kind="movie" />
+        ) : null}
+
+        {series.length > 0 ? (
+          <ActorFilmographyRow title={`سریال های ${person.name}`} items={series} kind="series" />
+        ) : null}
+
+        {!hasWork ? (
+          <p className="text-center text-sm text-white/50">
+            هنوز فیلم یا سریالی برای این بازیگر در سایت ثبت نشده است.
+          </p>
+        ) : null}
       </div>
     </div>
   );

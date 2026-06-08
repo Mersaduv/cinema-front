@@ -47,7 +47,7 @@ export default function SeriesDetailClient({
     setSimilarLoading(true);
 
     try {
-      const response = await seriesService.related(series.slug, 8);
+      const response = await seriesService.related(series.slug, 12);
       if (response.success && response.data?.series) {
         setSimilarSeries(response.data.series);
       }
@@ -64,6 +64,23 @@ export default function SeriesDetailClient({
     <ContentDetailPage
       kind="series"
       series={series}
+      reviewsProps={{
+        initialReviews: series.reviews?.reviews ?? [],
+        initialSummary: series.reviews?.summary ?? {
+          total_count: 0,
+          average_rating: 0,
+          distribution: Object.fromEntries(
+            Array.from({ length: 10 }, (_, index) => [String(index + 1), 0]),
+          ),
+        },
+        initialPaginator: series.reviews?.paginatorInfo ?? {
+          currentPage: 1,
+          lastPage: 1,
+          total: 0,
+        },
+        userReview: series.reviews?.user_review ?? null,
+        cachedAvgRating: series.cached_avg_rating ?? null,
+      }}
       similarItems={similarSeries.map((item) => ({
         id: item.id,
         title: item.title,

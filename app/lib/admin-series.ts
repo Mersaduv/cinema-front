@@ -175,8 +175,15 @@ export interface TmdbSeriesPayload {
   actors: AdminSeriesActor[];
   cast?: AdminSeriesCastPayload[];
   crew?: AdminSeriesCrewPayload[];
+  season_numbers?: number[];
   seasons: AdminSeriesSeason[];
 }
+
+export type FetchTmdbSeriesOptions = {
+  language?: string;
+  includeSeasons?: boolean;
+  signal?: AbortSignal;
+};
 
 export interface AdminSeriesSummary {
   total: number;
@@ -304,30 +311,39 @@ export const adminSeriesService = {
     return apiClient.get<{ series: AdminSeries }>(`/admin/series/${seriesId}`);
   },
 
-  async fetchTmdb(tmdbId: string | number, language = "fa-IR") {
+  async fetchTmdb(
+    tmdbId: string | number,
+    options: FetchTmdbSeriesOptions = {},
+  ) {
     const params = new URLSearchParams({
       tmdb_id: String(tmdbId),
-      language,
+      language: options.language ?? "fa-IR",
     });
+
+    if (options.includeSeasons === false) {
+      params.set("include_seasons", "0");
+    }
 
     return apiClient.get<{ series: TmdbSeriesPayload }>(
       `/admin/tmdb/tv/fetch?${params.toString()}`,
+      { signal: options.signal },
     );
   },
 
   async fetchTmdbSeason(
     tmdbId: string | number,
     seasonNumber: string | number,
-    language = "fa-IR",
+    options: { language?: string; signal?: AbortSignal } = {},
   ) {
     const params = new URLSearchParams({
       tmdb_id: String(tmdbId),
       season_number: String(seasonNumber),
-      language,
+      language: options.language ?? "fa-IR",
     });
 
     return apiClient.get<{ season: AdminSeriesSeason }>(
       `/admin/tmdb/tv/season/fetch?${params.toString()}`,
+      { signal: options.signal },
     );
   },
 

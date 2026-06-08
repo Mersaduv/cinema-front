@@ -30,6 +30,13 @@ import type {
   PublicSeriesEpisode,
   PublicSeriesSeason,
 } from "../../lib/series";
+import RelatedContentCarousel from "../catalog/RelatedContentCarousel";
+import ReviewsSection, {
+  defaultReviewPaginator,
+  defaultReviewSummary,
+} from "../reviews/ReviewsSection";
+import type { CatalogListItem } from "../../lib/catalog/rest";
+import type { Review, ReviewSummary } from "../../lib/reviews";
 
 function seasonRowKey(season: Pick<PublicSeriesSeason, "id" | "season_number">): string {
   return season.id > 0 ? String(season.id) : `season-${season.season_number}`;
@@ -148,6 +155,7 @@ export default function ContentDetailPage({
   similarLoading = false,
   onRequestEpisodes,
   onRequestSimilar,
+  reviewsProps,
 }: {
   kind: ContentKind;
   movie?: PublicMovie | null;
@@ -157,6 +165,13 @@ export default function ContentDetailPage({
   similarLoading?: boolean;
   onRequestEpisodes?: () => void;
   onRequestSimilar?: () => void;
+  reviewsProps?: {
+    initialReviews: Review[];
+    initialSummary: ReviewSummary;
+    initialPaginator: { currentPage: number; lastPage: number; total: number };
+    userReview: Review | null;
+    cachedAvgRating: number | null;
+  };
 }) {
   const pathname = usePathname();
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -998,95 +1013,41 @@ export default function ContentDetailPage({
 
         {activeTab === "similar" ? (
           <div className="pt-10">
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              {similarLoading ? (
-                Array.from({ length: 4 }).map((_, index) => (
-                  <div
-                    key={`similar-skeleton-${index}`}
-                    className="overflow-hidden rounded-[30px] border border-white/8 bg-white/[0.03]"
-                  >
-                    <div className="aspect-[16/10] animate-pulse bg-white/8" />
-                    <div className="space-y-3 p-5">
-                      <div className="h-6 w-2/3 animate-pulse rounded bg-white/10" />
-                      <div className="h-4 w-full animate-pulse rounded bg-white/8" />
-                    </div>
-                  </div>
-                ))
-              ) : similarItems.length > 0 ? (
-                similarItems.map((candidate) => {
-                  const visual =
-                    candidate.details.backdrop_url ||
-                    candidate.backdrop_url ||
-                    candidate.poster_url ||
-                    null;
-                  const href =
-                    kind === "series"
-                      ? `/series/${candidate.slug}`
-                      : `/movies/${candidate.slug}`;
-
-                  return (
-                    <Link
-                      key={candidate.id}
-                      href={href}
-                      className="overflow-hidden rounded-[30px] border border-white/8 bg-white/[0.03] transition hover:-translate-y-1 hover:border-white/16 hover:bg-white/[0.05]"
-                    >
-                      <div className="relative aspect-[16/10] bg-white/5">
-                        {visual ? (
-                          <Image
-                            src={visual}
-                            alt={candidate.title}
-                            fill
-                            sizes="(max-width: 768px) 100vw, 25vw"
-                            className="object-cover"
-                          />
-                        ) : null}
-                      </div>
-                      <div className="space-y-3 p-5">
-                        <h3 className="text-xl font-bold text-white">{candidate.title}</h3>
-                        <p className="line-clamp-2 text-sm leading-7 text-white/60">
-                          {candidate.synopsis ||
-                            "جزئیات بیشتری برای این عنوان ثبت نشده است."}
-                        </p>
-                      </div>
-                    </Link>
-                  );
-                })
-              ) : (
-                <div className="rounded-[30px] border border-dashed border-white/10 bg-white/[0.03] px-6 py-14 text-center text-white/45 sm:col-span-2 xl:col-span-4">
-                  هنوز مورد مشابهی ثبت نشده است.
-                </div>
+            <RelatedContentCarousel
+              title={kind === "series" ? "سریال‌های مشابه" : "فیلم‌های مشابه"}
+              kind={kind}
+              loading={similarLoading}
+              items={similarItems.map(
+                (candidate): CatalogListItem => ({
+                  id: candidate.id,
+                  title: candidate.title,
+                  slug: candidate.slug,
+                  synopsis: candidate.synopsis,
+                  release_year: candidate.release_year,
+                  poster_url: candidate.poster_url,
+                  backdrop_url: candidate.backdrop_url,
+                  rating: null,
+                  details: {
+                    genres: candidate.details.genres,
+                    backdrop_url: candidate.details.backdrop_url ?? candidate.backdrop_url,
+                  },
+                }),
               )}
-            </div>
+            />
           </div>
         ) : null}
 
-        {activeTab === "comments" ? (
-          <div className="grid gap-6 pt-10 xl:grid-cols-[0.72fr_1.28fr]">
-            <div className="rounded-[32px] border border-white/8 bg-white/[0.03] p-6">
-              <SectionTitle icon={<HiMiniChatBubbleLeftRight className="h-5 w-5" />}>
-                ثبت دیدگاه
-              </SectionTitle>
-              <textarea
-                className="mt-5 min-h-44 w-full rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-white/86 outline-none transition focus:border-[#ef4444]"
-                placeholder="نظر خود را درباره این عنوان بنویسید..."
-              />
-              <button
-                type="button"
-                className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#ef4444] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#dc2626]"
-              >
-                ارسال دیدگاه
-                <HiMiniPlay className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="rounded-[32px] border border-white/8 bg-white/[0.03] p-6">
-              <SectionTitle icon={<HiMiniChatBubbleLeftRight className="h-5 w-5" />}>
-                دیدگاه ها
-              </SectionTitle>
-              <div className="mt-5 rounded-[24px] border border-dashed border-white/10 bg-white/[0.02] px-6 py-14 text-center text-white/45">
-                هنوز دیدگاهی برای این عنوان ثبت نشده است.
-              </div>
-            </div>
+        {activeTab === "comments" && slug ? (
+          <div className="pt-10">
+            <ReviewsSection
+              contentType={kind}
+              slug={slug}
+              initialReviews={reviewsProps?.initialReviews ?? []}
+              initialSummary={reviewsProps?.initialSummary ?? defaultReviewSummary()}
+              initialPaginator={reviewsProps?.initialPaginator ?? defaultReviewPaginator()}
+              userReview={reviewsProps?.userReview ?? null}
+              cachedAvgRating={reviewsProps?.cachedAvgRating ?? null}
+            />
           </div>
         ) : null}
       </section>

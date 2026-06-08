@@ -61,7 +61,7 @@ function buildQueryParams(
   return params.toString();
 }
 
-function toCatalogItem(
+export function toCatalogItem(
   row: Record<string, unknown>,
   dubbedKey: "has_dubbed" | "has_dubbed_audio",
 ): CatalogListItem {

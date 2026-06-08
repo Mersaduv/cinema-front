@@ -1,5 +1,6 @@
 import type { PublicMovie } from "../movies";
 import type { PublicSeries, PublicSeriesSeason } from "../series";
+import type { ReviewsPayload } from "../reviews";
 
 type GraphqlMovieDetail = {
   id: string;
@@ -51,6 +52,36 @@ type GraphqlMovieDetail = {
       hls_url?: string | null;
       downloads?: Array<{ quality: string; url: string }>;
     } | null;
+  } | null;
+  cached_avg_rating?: number | null;
+  reviews?: GraphqlReviewsPayload | null;
+};
+
+type GraphqlReviewsPayload = {
+  reviews?: Array<{
+    id: string;
+    user: { id: string; name: string; avatar_url?: string | null };
+    rating: number;
+    body?: string | null;
+    created_at: string;
+    is_own: boolean;
+  }>;
+  summary?: {
+    total_count: number;
+    average_rating: number;
+    distribution:
+      | Record<string, number>
+      | Array<{ rating: number; count: number }>;
+  };
+  paginatorInfo?: {
+    currentPage: number;
+    lastPage: number;
+    total: number;
+  };
+  user_review?: {
+    id: string;
+    rating: number;
+    body?: string | null;
   } | null;
 };
 
@@ -111,7 +142,61 @@ export type GraphqlSeriesOverview = {
     }>;
     gallery?: string[];
   };
+  cached_avg_rating?: number | null;
+  reviews?: GraphqlReviewsPayload | null;
 };
+
+function mapGraphqlReviews(payload?: GraphqlReviewsPayload | null): ReviewsPayload | undefined {
+  if (!payload) {
+    return undefined;
+  }
+
+  const mapReview = (
+    row: NonNullable<GraphqlReviewsPayload["reviews"]>[number] | NonNullable<GraphqlReviewsPayload["user_review"]>,
+    includeUser = true,
+  ) => {
+    const user = "user" in row && row.user ? row.user : { id: "0", name: "", avatar_url: null };
+
+    return {
+      id: Number(row.id),
+      user: {
+        id: Number(user.id),
+        name: user.name,
+        avatar_url: user.avatar_url ?? null,
+      },
+      rating: Number(row.rating),
+      body: ("body" in row ? row.body : null) ?? null,
+      created_at: "created_at" in row ? row.created_at : "",
+      is_own: "is_own" in row ? Boolean(row.is_own) : false,
+    };
+  };
+
+  const distribution = Array.isArray(payload.summary?.distribution)
+    ? Object.fromEntries(
+        payload.summary.distribution.map((bucket) => [
+          String(bucket.rating),
+          bucket.count,
+        ]),
+      )
+    : (payload.summary?.distribution ?? Object.fromEntries(
+        Array.from({ length: 10 }, (_, index) => [String(index + 1), 0]),
+      ));
+
+  return {
+    reviews: (payload.reviews ?? []).map((row) => mapReview(row)),
+    summary: {
+      total_count: payload.summary?.total_count ?? 0,
+      average_rating: payload.summary?.average_rating ?? 0,
+      distribution,
+    },
+    user_review: payload.user_review ? mapReview(payload.user_review, false) : null,
+    paginatorInfo: payload.paginatorInfo ?? {
+      currentPage: 1,
+      lastPage: 1,
+      total: 0,
+    },
+  };
+}
 
 export type GraphqlSeriesListItem = {
   id: string;
@@ -217,6 +302,8 @@ export function graphqlMovieToPublic(movie: GraphqlMovieDetail): PublicMovie {
           variants: [],
         }
       : null,
+    reviews: mapGraphqlReviews(movie.reviews),
+    cached_avg_rating: movie.cached_avg_rating ?? null,
   };
 }
 
@@ -336,6 +423,8 @@ export function graphqlSeriesOverviewToPublic(
       })) ?? [],
     seasons,
     details,
+    reviews: mapGraphqlReviews(series.reviews),
+    cached_avg_rating: series.cached_avg_rating ?? null,
   };
 }
 

@@ -1,4 +1,5 @@
 import { apiClient, type ApiResponse } from "./api";
+import type { CatalogListItem } from "./catalog/rest";
 
 export interface PersonDetail {
   id: number;
@@ -18,24 +19,8 @@ export interface PersonDetail {
     movies_on_platform: number;
     series_on_platform: number;
   };
-  cast_in_movies: Array<{
-    movie_id: number;
-    title: string;
-    slug: string;
-    release_year: number | null;
-    character: string | null;
-    poster_url: string | null;
-    cast_order: number;
-  }>;
-  cast_in_series: Array<{
-    series_id: number;
-    title: string;
-    slug: string;
-    release_year: number | null;
-    character: string | null;
-    poster_url: string | null;
-    cast_order: number;
-  }>;
+  cast_in_movies: CatalogListItem[];
+  cast_in_series: CatalogListItem[];
   directing: Array<{
     kind: string;
     title: string;

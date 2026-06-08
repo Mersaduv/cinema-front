@@ -13,7 +13,8 @@ export default function AppChrome({
   const isWatchRoute = pathname?.startsWith("/watch/");
   const isPublicDetailRoute =
     (pathname?.startsWith("/movies/") && pathname.split("/").length === 3) ||
-    (pathname?.startsWith("/series/") && pathname.split("/").length === 3);
+    (pathname?.startsWith("/series/") && pathname.split("/").length === 3) ||
+    (pathname?.startsWith("/actors/") && pathname.split("/").length === 3);
   const shouldHideHeader = isAdminRoute || isWatchRoute;
   const shouldOverlayHeader = isPublicDetailRoute;
 
