@@ -8,6 +8,7 @@ export interface ApiResponse<T> {
   message?: string;
   data?: T;
   errors?: Record<string, string[]>;
+  pipeline_status?: string;
 }
 
 class ApiClient {

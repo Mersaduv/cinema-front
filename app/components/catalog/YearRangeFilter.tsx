@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import FilterDropdown from "./FilterDropdown";
 
+const SLIDER_WIDTH_PX = 288;
+const THUMB_SIZE_PX = 32;
+const THUMB_RADIUS_PX = THUMB_SIZE_PX / 2;
+
 function toPersianYear(year: number): string {
   const persianDigits = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
   return String(year)
@@ -12,6 +16,33 @@ function toPersianYear(year: number): string {
 }
 
 type ActiveThumb = "low" | "high" | null;
+
+function YearThumb({
+  percent,
+  year,
+  onPointerDown,
+}: {
+  percent: number;
+  year: number;
+  onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`سال ${toPersianYear(year)}`}
+      className="absolute top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 touch-none border-0 bg-transparent p-0"
+      style={{ left: `${percent}%` }}
+      onPointerDown={onPointerDown}
+    >
+      <span className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 whitespace-nowrap text-sm font-semibold text-white">
+        {toPersianYear(year)}
+      </span>
+      <span className="relative flex h-8 w-8 items-center justify-center rounded-full border-[3px] border-white bg-white shadow-[0_2px_12px_rgba(0,0,0,0.45)]">
+        <span className="h-3 w-3 rounded-full bg-[#2563eb]" />
+      </span>
+    </button>
+  );
+}
 
 export default function YearRangeFilter({
   min = 1900,
@@ -54,8 +85,10 @@ export default function YearRangeFilter({
       if (!track) {
         return min;
       }
+
       const rect = track.getBoundingClientRect();
-      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(rect.width, 1)));
+
       return clampYear(Math.round(min + ratio * (max - min)));
     },
     [clampYear, min, max],
@@ -133,7 +166,7 @@ export default function YearRangeFilter({
   };
 
   const startThumbDrag = (
-    event: React.PointerEvent<HTMLDivElement>,
+    event: React.PointerEvent<HTMLButtonElement>,
     thumb: ActiveThumb,
   ) => {
     event.stopPropagation();
@@ -145,53 +178,44 @@ export default function YearRangeFilter({
     <FilterDropdown
       label="سال ساخت"
       valueLabel="سال ساخت"
-      minWidth="320px"
-      panelClassName="p-5"
+      minWidth={`${SLIDER_WIDTH_PX + 40}px`}
+      panelClassName="px-5 py-6"
+      panelOverflow="visible"
     >
-      <div className="select-none touch-none">
-        <div
-          ref={trackRef}
-          className="relative mx-1 mt-12 mb-12 h-4 cursor-pointer rounded-full bg-white/10"
-          onPointerDown={onTrackPointerDown}
-        >
+      <div
+        className="mx-auto box-border select-none touch-none"
+        style={{
+          width: SLIDER_WIDTH_PX,
+          paddingInline: THUMB_RADIUS_PX,
+        }}
+      >
+        <div className="relative h-10 pt-10 pb-3">
           <div
-            className="pointer-events-none absolute top-0 h-4 rounded-full bg-[#2563eb]"
-            style={{
-              left: `${lowPercent}%`,
-              width: `${Math.max(highPercent - lowPercent, 0)}%`,
-            }}
-          />
-
-          <div
-            className="absolute top-1/2 z-20 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${lowPercent}%` }}
-            onPointerDown={(event) => startThumbDrag(event, "low")}
+            ref={trackRef}
+            className="relative h-4 cursor-pointer"
+            onPointerDown={onTrackPointerDown}
           >
-            <span className="pointer-events-none absolute bottom-full left-1/2 mb-2.5 -translate-x-1/2 whitespace-nowrap text-sm font-semibold text-white">
-              {toPersianYear(low)}
-            </span>
-            <span className="pointer-events-none absolute top-full left-1/2 mt-2.5 -translate-x-1/2 whitespace-nowrap text-sm font-semibold text-white">
-              {toPersianYear(low)}
-            </span>
-            <span className="relative flex h-8 w-8 items-center justify-center rounded-full border-[3px] border-white bg-white shadow-[0_2px_12px_rgba(0,0,0,0.45)]">
-              <span className="h-3 w-3 rounded-full bg-[#2563eb]" />
-            </span>
-          </div>
+            <div className="absolute top-0 right-0 left-0 h-4 rounded-full bg-white/10" />
 
-          <div
-            className="absolute top-1/2 z-20 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${highPercent}%` }}
-            onPointerDown={(event) => startThumbDrag(event, "high")}
-          >
-            <span className="pointer-events-none absolute bottom-full left-1/2 mb-2.5 -translate-x-1/2 whitespace-nowrap text-sm font-semibold text-white">
-              {toPersianYear(high)}
-            </span>
-            <span className="pointer-events-none absolute top-full left-1/2 mt-2.5 -translate-x-1/2 whitespace-nowrap text-sm font-semibold text-white">
-              {toPersianYear(high)}
-            </span>
-            <span className="relative flex h-8 w-8 items-center justify-center rounded-full border-[3px] border-white bg-white shadow-[0_2px_12px_rgba(0,0,0,0.45)]">
-              <span className="h-3 w-3 rounded-full bg-[#2563eb]" />
-            </span>
+            <div
+              className="pointer-events-none absolute top-0 h-4 rounded-full bg-[#2563eb]"
+              style={{
+                left: `${lowPercent}%`,
+                width: `${Math.max(highPercent - lowPercent, 0)}%`,
+              }}
+            />
+
+            <YearThumb
+              percent={lowPercent}
+              year={low}
+              onPointerDown={(event) => startThumbDrag(event, "low")}
+            />
+
+            <YearThumb
+              percent={highPercent}
+              year={high}
+              onPointerDown={(event) => startThumbDrag(event, "high")}
+            />
           </div>
         </div>
       </div>

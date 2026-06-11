@@ -1,7 +1,10 @@
 import { localizeGenreLabels } from "../../../../lib/genre-labels";
 import { resolveEpisodeTitle } from "../../../../lib/episode-title";
 import { filterLatinPersonNameList, resolveLatinPersonName } from "../../../../lib/person-name";
-import { mergeSeasonEpisodeSynopsisFromTmdb } from "../../../../lib/series-synopsis-helper";
+import {
+  mergeSeasonEpisodeSynopsisFromTmdb,
+  resolveTmdbMainSynopsis,
+} from "../../../../lib/series-synopsis-helper";
 import { sortCastByOrder } from "../../../../lib/cast-utils";
 import type {
   AdminSeriesActor,
@@ -63,6 +66,7 @@ export type SeriesFormState = {
   slug: string;
   original_title: string;
   synopsis: string;
+  synopsis_en: string;
   first_air_date: string;
   last_air_date: string;
   release_year: string;
@@ -393,7 +397,12 @@ function applyTmdbSeriesLevelFields(
         current.title,
         payload.tmdb_id ? `series-${payload.tmdb_id}` : null,
       ) || current.slug,
-    synopsis: payload.synopsis || current.synopsis,
+    ...mergeSeasonEpisodeSynopsisFromTmdb(
+      resolveTmdbMainSynopsis(payload),
+      payload.synopsis_en,
+      current.synopsis,
+      current.synopsis_en,
+    ),
     first_air_date: payload.first_air_date || current.first_air_date,
     last_air_date: payload.last_air_date || current.last_air_date,
     release_year: payload.release_year ? String(payload.release_year) : current.release_year,

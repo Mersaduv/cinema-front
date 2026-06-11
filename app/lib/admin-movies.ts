@@ -1,6 +1,13 @@
 import { apiClient, type ApiResponse } from "./api";
+import type { ResponsiveImageAsset } from "./cinema-image";
 
 export type PublishStatus = "draft" | "scheduled" | "published";
+export type PipelineStatus =
+  | "idle"
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed";
 export type ProcessingStatus =
   | "pending"
   | "queued"
@@ -81,6 +88,7 @@ export interface AdminMovieMetadata {
     languages: string[];
     countries: string[];
     actors: TmdbActor[];
+    synopsis_en?: string | null;
   };
   playback: {
     hls_url: string | null;
@@ -100,6 +108,8 @@ export interface AdminMovie {
   provider_name: string | null;
   poster_path: string | null;
   poster_url: string | null;
+  poster_image?: ResponsiveImageAsset | null;
+  backdrop_image?: ResponsiveImageAsset | null;
   trailer_path: string | null;
   trailer_url: string | null;
   has_dubbed_audio: boolean;
@@ -117,6 +127,7 @@ export interface AdminMovie {
   age_rating: string | null;
   cast_members: string[];
   publish_status: PublishStatus;
+  pipeline_status?: PipelineStatus;
   processing_status: ProcessingStatus;
   processing_error: string | null;
   scheduled_for: string | null;
@@ -330,11 +341,20 @@ export interface TmdbSearchResult {
   title: string | null;
   original_title: string | null;
   synopsis: string | null;
+  synopsis_en?: string | null;
+  overview?: string | null;
   release_year: number | null;
   rating: number | null;
   poster_url: string | null;
   backdrop_url: string | null;
 }
+
+export type TmdbBelongsToCollection = {
+  tmdb_collection_id: number;
+  name: string;
+  poster_url?: string | null;
+  backdrop_url?: string | null;
+};
 
 export interface TmdbMoviePayload extends TmdbSearchResult {
   imdb_id: string | null;
@@ -356,6 +376,7 @@ export interface TmdbMoviePayload extends TmdbSearchResult {
   actors: TmdbActor[];
   cast?: TmdbCastMember[];
   crew?: TmdbCrewMember[];
+  belongs_to_collection?: TmdbBelongsToCollection | null;
 }
 
 export interface MovieCastApiRow {
@@ -636,6 +657,17 @@ export const adminMoviesService = {
 
     return apiClient.get<{ movie: TmdbMoviePayload }>(
       `/admin/tmdb/fetch?${params.toString()}`
+    );
+  },
+
+  async ingestTmdbImages(
+    payload: import("./admin-tmdb-image-ingest").IngestTmdbImagesPayload,
+    options: { signal?: AbortSignal } = {},
+  ) {
+    return apiClient.post<import("./admin-tmdb-image-ingest").IngestTmdbImagesResult>(
+      "/admin/movies/ingest-tmdb-images",
+      payload,
+      { signal: options.signal, timeoutMs: 120_000 },
     );
   },
 

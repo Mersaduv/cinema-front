@@ -3,6 +3,10 @@
 :root {
   --background: #05070b;
   --foreground: #f6f7fb;
+  --accent: #f5c518;
+  --accent-hover: #e8bb0d;
+  --accent-soft: #f8d977;
+  --accent-foreground: #12100a;
 }
 
 @theme inline {
@@ -17,7 +21,7 @@ html {
 
 body {
   background:
-    radial-gradient(circle at top, rgba(239, 68, 68, 0.08), transparent 32%),
+    radial-gradient(circle at top, rgba(245, 197, 24, 0.06), transparent 32%),
     linear-gradient(180deg, #06090e 0%, #05070b 100%);
   color: var(--foreground);
   font-family: var(--font-iran-sans-x), "Arial", "Helvetica", sans-serif;

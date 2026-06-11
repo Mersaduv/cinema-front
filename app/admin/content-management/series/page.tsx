@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
@@ -25,6 +23,8 @@ import { formatGregorianDate } from "../../../lib/date-format";
 import { translateProductionStatus } from "../../../lib/production-status";
 import { apiClient } from "../../../lib/api";
 import { adminApiErrorMessage, unwrapAdminListPayload } from "../../../lib/admin-api";
+import { ContentStatusBadge } from "../../../components/admin/ContentStatusBadge";
+import { PosterImage } from "../../../components/images";
 import {
   adminSeriesService,
   type AdminSeries,
@@ -32,7 +32,6 @@ import {
   type AdminSeriesOptionsResponse,
   type AdminSeriesPagination,
   type AdminSeriesSummary,
-  type SeriesPublishStatus,
 } from "../../../lib/admin-series";
 
 const emptySummary: AdminSeriesSummary = {
@@ -57,34 +56,15 @@ const emptyOptions: AdminSeriesOptionsResponse = {
   catalog_visibility: [],
 };
 
-function getPublishPresentation(status: SeriesPublishStatus) {
-  switch (status) {
-    case "published":
-      return {
-        label: "منتشر شده",
-        className: "border-[#34d399]/25 bg-[#34d399]/10 text-[#86efac]",
-      };
-    case "scheduled":
-      return {
-        label: "زمان بندی شده",
-        className: "border-[#38bdf8]/25 bg-[#38bdf8]/10 text-[#7dd3fc]",
-      };
-    default:
-      return {
-        label: "پیش نویس",
-        className: "border-[#f5c518]/25 bg-[#f5c518]/10 text-[#f8d977]",
-      };
-  }
-}
-
 function SeriesPoster({ series }: { series: AdminSeries }) {
-  if (series.poster_url) {
+  if (series.poster_url || series.poster_image) {
     return (
-      <div className="h-48 w-32 shrink-0 overflow-hidden rounded-[24px] border border-white/10 bg-[#071019] shadow-[0_16px_36px_rgba(0,0,0,0.28)]">
-        <img
+      <div className="relative h-48 w-32 shrink-0 overflow-hidden rounded-[24px] border border-white/10 bg-[#071019] shadow-[0_16px_36px_rgba(0,0,0,0.28)]">
+        <PosterImage
+          title={series.title}
+          image={series.poster_image}
           src={series.poster_url}
-          alt={series.title}
-          className="h-full w-full object-cover"
+          usage="catalog-poster"
           loading="lazy"
         />
       </div>
@@ -129,8 +109,9 @@ export default function AllSeriesPage() {
       return payload;
     },
     {
-      revalidateOnFocus: false,
-      dedupingInterval: 30_000,
+      revalidateOnFocus: true,
+      revalidateOnMount: true,
+      dedupingInterval: 0,
       keepPreviousData: true,
     },
   );
@@ -159,6 +140,23 @@ export default function AllSeriesPage() {
 
     return () => window.clearTimeout(timer);
   }, [searchInput]);
+
+  useEffect(() => {
+    const hasProcessingItems = seriesItems.some(
+      (item) =>
+        item.pipeline_status === "pending" || item.pipeline_status === "running",
+    );
+
+    if (!hasProcessingItems) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void mutate();
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [seriesItems, mutate]);
 
   const handleResetFilters = () => {
     setSearchInput("");
@@ -408,8 +406,6 @@ export default function AllSeriesPage() {
           <>
             <div className="grid gap-4 lg:grid-cols-2">
               {seriesItems.map((series) => {
-                const publish = getPublishPresentation(series.publish_status);
-
                 return (
                   <article
                     key={series.id}
@@ -427,11 +423,7 @@ export default function AllSeriesPage() {
                             <p className="mt-2 text-sm text-[#8ea4b3]">/{series.slug}</p>
                           </div>
                           <div className="flex flex-wrap justify-end gap-2">
-                            <span
-                              className={`rounded-full border px-3 py-1 text-xs ${publish.className}`}
-                            >
-                              {publish.label}
-                            </span>
+                            <ContentStatusBadge item={series} />
                             {series.is_featured ? (
                               <span className="rounded-full border border-[#fb7185]/25 bg-[#fb7185]/10 px-3 py-1 text-xs text-[#fda4af]">
                                 ویژه

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" role="img" aria-label="Backdrop placeholder">
+  <rect width="1920" height="1080" fill="#0a0d12"/>
+  <rect x="120" y="180" width="1680" height="720" rx="24" fill="#141a24"/>
+  <circle cx="960" cy="480" r="80" fill="#1f2835"/>
+  <rect x="560" y="620" width="800" height="24" rx="12" fill="#1f2835"/>
+</svg>

@@ -1,5 +1,8 @@
 export type CatalogSearchParamsInput = Record<string, string | string[] | undefined>;
 
+export const MAX_CATALOG_GENRES = 3;
+export const MAX_CATALOG_COUNTRIES = 3;
+
 export type CatalogFiltersState = {
   search: string;
   sort: string;
@@ -9,6 +12,17 @@ export type CatalogFiltersState = {
   year_from: number | null;
   year_to: number | null;
   min_rating: string;
+};
+
+export const EMPTY_CATALOG_FILTERS: CatalogFiltersState = {
+  search: "",
+  sort: "",
+  genres: [],
+  countries: [],
+  languages: [],
+  year_from: null,
+  year_to: null,
+  min_rating: "",
 };
 
 function first(value: string | string[] | undefined): string {
@@ -53,11 +67,13 @@ export function parseCatalogFilters(query: CatalogSearchParamsInput): CatalogFil
   const genreIds = toArray(query.genre_ids);
   const legacyGenres = toArray(query.genres);
 
+  const genres = (genreIds.length > 0 ? genreIds : legacyGenres).slice(0, MAX_CATALOG_GENRES);
+
   return {
     search: first(query.search),
     sort: first(query.sort ?? query.sort_by),
-    genres: genreIds.length > 0 ? genreIds : legacyGenres,
-    countries,
+    genres,
+    countries: countries.slice(0, MAX_CATALOG_COUNTRIES),
     languages,
     year_from:
       toOptionalNumber(query.year_from) ??
@@ -74,9 +90,9 @@ export function buildCatalogQueryString(
   const params = new URLSearchParams();
   if (state.search.trim()) params.set("search", state.search.trim());
   if (state.sort) params.set("sort", state.sort);
-  state.genres.forEach((genreId) => params.append("genre_ids", genreId));
-  state.countries.forEach((iso) => params.append("countries", iso));
-  state.languages.forEach((iso) => params.append("languages", iso));
+  if (state.genres.length) params.set("genre_ids", state.genres.join(","));
+  if (state.countries.length) params.set("countries", state.countries.join(","));
+  if (state.languages.length) params.set("languages", state.languages.join(","));
   if (state.year_from) params.set("year_from", String(state.year_from));
   if (state.year_to) params.set("year_to", String(state.year_to));
   if (state.min_rating) params.set("min_rating", state.min_rating);

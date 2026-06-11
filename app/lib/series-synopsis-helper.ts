@@ -14,6 +14,20 @@ export type SeasonEpisodeSynopsisFields = {
   synopsis_en: string;
 };
 
+/** TMDB payloads may expose localized text as synopsis and/or overview. */
+export function resolveTmdbMainSynopsis(payload: {
+  synopsis?: string | null;
+  overview?: string | null;
+}): string | null | undefined {
+  const synopsis = typeof payload.synopsis === "string" ? payload.synopsis.trim() : "";
+  if (synopsis) {
+    return synopsis;
+  }
+
+  const overview = typeof payload.overview === "string" ? payload.overview.trim() : "";
+  return overview || null;
+}
+
 /** Normalize API/DB values for the editor (no client-side translation). */
 export function normalizeSeasonEpisodeSynopsis(
   synopsis: string | null | undefined,

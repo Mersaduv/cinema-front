@@ -1,12 +1,20 @@
 import { apiClient, type ApiResponse } from "./api";
+import type { ResponsiveImageAsset } from "./cinema-image";
 import { cleanPayload, logPayloadSize } from "./clean-payload";
 
 export type SeriesPublishStatus = "draft" | "scheduled" | "published";
+export type SeriesPipelineStatus =
+  | "idle"
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed";
 
 export interface AdminSeriesActor {
   name: string | null;
   character: string | null;
   profile_url: string | null;
+  profile_image?: ResponsiveImageAsset | null;
   tmdb_person_id?: number | null;
   credit_id?: string | null;
   order?: number | null;
@@ -19,6 +27,7 @@ export type AdminSeriesCastPayload = {
   name: string;
   character: string;
   profile_url?: string | null;
+  profile_image?: ResponsiveImageAsset | null;
   credit_id?: string | null;
   order?: number;
   known_for_department?: string;
@@ -31,6 +40,7 @@ export type AdminSeriesCrewPayload = {
   job: string;
   department: string;
   profile_url?: string | null;
+  profile_image?: ResponsiveImageAsset | null;
   credit_id?: string | null;
 };
 
@@ -45,6 +55,7 @@ export interface AdminSeriesEpisode {
   air_date?: string | null;
   duration_minutes?: number | null;
   still_url?: string | null;
+  still_image?: ResponsiveImageAsset | null;
   source_method?: "upload" | "embed" | "url" | "hls";
   video_url?: string | null;
   embed_url?: string | null;
@@ -65,6 +76,7 @@ export interface AdminSeriesSeason {
   air_date?: string | null;
   episode_count?: number | null;
   poster_url?: string | null;
+  poster_image?: ResponsiveImageAsset | null;
   hls_base_url?: string | null;
   episodes: AdminSeriesEpisode[];
 }
@@ -88,7 +100,9 @@ export interface AdminSeries {
   network: string | null;
   provider_name: string | null;
   poster_url: string | null;
+  poster_image?: ResponsiveImageAsset | null;
   backdrop_url: string | null;
+  backdrop_image?: ResponsiveImageAsset | null;
   trailer_url: string | null;
   homepage_url: string | null;
   hls_base_url: string | null;
@@ -98,6 +112,7 @@ export interface AdminSeries {
   catalog_visibility: string;
   is_featured: boolean;
   publish_status: SeriesPublishStatus;
+  pipeline_status?: SeriesPipelineStatus;
   scheduled_for: string | null;
   published_at: string | null;
   metadata: {
@@ -117,6 +132,7 @@ export interface AdminSeries {
       languages: string[];
       countries: string[];
       actors: AdminSeriesActor[];
+      synopsis_en?: string | null;
       exclusions?: {
         season_numbers?: number[];
         episodes?: Array<{ season_number: number; episode_number: number }>;
@@ -150,6 +166,8 @@ export interface TmdbSeriesPayload {
   original_title: string | null;
   original_language: string | null;
   synopsis: string | null;
+  synopsis_en?: string | null;
+  overview?: string | null;
   poster_url: string | null;
   backdrop_url: string | null;
   trailer_url: string | null;
@@ -218,6 +236,7 @@ export interface AdminSeriesPayload {
   slug?: string;
   original_title?: string;
   synopsis?: string;
+  synopsis_en?: string | null;
   first_air_date?: string | null;
   last_air_date?: string | null;
   release_year?: number | null;
@@ -327,6 +346,17 @@ export const adminSeriesService = {
     return apiClient.get<{ series: TmdbSeriesPayload }>(
       `/admin/tmdb/tv/fetch?${params.toString()}`,
       { signal: options.signal },
+    );
+  },
+
+  async ingestTmdbImages(
+    payload: import("./admin-tmdb-image-ingest").IngestTmdbImagesPayload,
+    options: { signal?: AbortSignal } = {},
+  ) {
+    return apiClient.post<import("./admin-tmdb-image-ingest").IngestTmdbImagesResult>(
+      "/admin/series/ingest-tmdb-images",
+      payload,
+      { signal: options.signal, timeoutMs: 120_000 },
     );
   },
 

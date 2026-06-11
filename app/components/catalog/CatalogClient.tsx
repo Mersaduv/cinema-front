@@ -10,6 +10,7 @@ import type { CatalogFiltersState } from "../../lib/catalog/search-params";
 import {
   buildCatalogQueryString,
   catalogFiltersSignature,
+  EMPTY_CATALOG_FILTERS,
   parseCatalogFilters,
   parseSearchParamsRecord,
 } from "../../lib/catalog/search-params";
@@ -19,22 +20,25 @@ import {
   type CatalogListItem,
   type PaginationMeta,
 } from "../../lib/catalog/rest";
+import {
+  LATEST_CATALOG_FILTERS,
+  LATEST_FETCH_POOL,
+  pickLatestSliderItems,
+} from "../../lib/catalog/latest";
 import type { FilterOptions } from "../../lib/filter-options";
 
 export default function CatalogClient({
   kind,
-  title,
-  description,
   initialItems,
+  initialLatestItems,
   initialMeta,
   initialFilters,
   filterOptions,
   initialError,
 }: {
   kind: "movie" | "series";
-  title: string;
-  description: string;
   initialItems: CatalogListItem[];
+  initialLatestItems: CatalogListItem[];
   initialMeta: PaginationMeta;
   initialFilters: CatalogFiltersState;
   filterOptions: FilterOptions;
@@ -44,9 +48,8 @@ export default function CatalogClient({
     <Suspense fallback={null}>
       <CatalogClientInner
         kind={kind}
-        title={title}
-        description={description}
         initialItems={initialItems}
+        initialLatestItems={initialLatestItems}
         initialMeta={initialMeta}
         initialFilters={initialFilters}
         filterOptions={filterOptions}
@@ -58,18 +61,16 @@ export default function CatalogClient({
 
 function CatalogClientInner({
   kind,
-  title,
-  description,
   initialItems,
+  initialLatestItems,
   initialMeta,
   initialFilters,
   filterOptions,
   initialError,
 }: {
   kind: "movie" | "series";
-  title: string;
-  description: string;
   initialItems: CatalogListItem[];
+  initialLatestItems: CatalogListItem[];
   initialMeta: PaginationMeta;
   initialFilters: CatalogFiltersState;
   filterOptions: FilterOptions;
@@ -95,6 +96,7 @@ function CatalogClientInner({
   const initialSignature = useRef(
     catalogFiltersSignature(initialFilters, initialMeta.current_page || 1),
   );
+  const isInitialQuery = fetchSignature === initialSignature.current;
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -120,17 +122,17 @@ function CatalogClientInner({
       };
     },
     {
-      fallbackData:
-        fetchSignature === initialSignature.current
-          ? {
-              items: initialItems,
-              meta: initialMeta,
-              error: initialError,
-            }
-          : undefined,
+      fallbackData: isInitialQuery
+        ? {
+            items: initialItems,
+            meta: initialMeta,
+            error: initialError,
+          }
+        : undefined,
       keepPreviousData: true,
-      revalidateOnFocus: false,
-      dedupingInterval: 60_000,
+      revalidateOnMount: true,
+      revalidateOnFocus: true,
+      dedupingInterval: 0,
     },
   );
 
@@ -164,12 +166,36 @@ function CatalogClientInner({
       ? () => onPageChange(page + 1)
       : undefined;
 
+  const { data: latestData, isLoading: latestLoading } = useSWR(
+    `${kind}:latest-slider`,
+    async () => {
+      const fetcher =
+        kind === "movie" ? fetchMoviesCatalogRest : fetchSeriesCatalogRest;
+      const result = await fetcher(LATEST_CATALOG_FILTERS, 1, LATEST_FETCH_POOL);
+      return {
+        ...result,
+        items: pickLatestSliderItems(result.items),
+      };
+    },
+    {
+      fallbackData: { items: initialLatestItems, meta: initialMeta, error: "" },
+      revalidateOnFocus: false,
+      dedupingInterval: 60_000,
+    },
+  );
+
+  const latestItems = latestData?.items ?? initialLatestItems;
+
+  const clearAllFilters = useCallback(() => {
+    applyFilters(EMPTY_CATALOG_FILTERS);
+  }, [applyFilters]);
+
   return (
     <CatalogPage
       kind={kind}
-      title={title}
-      description={description}
       items={items}
+      latestItems={latestItems}
+      latestLoading={latestLoading && latestItems.length === 0}
       loading={loading}
       error={error}
       meta={meta}
@@ -180,23 +206,13 @@ function CatalogClientInner({
             filters={filters}
             filterOptions={filterOptions}
             onFiltersChange={applyFilters}
+            onClearAll={clearAllFilters}
           />
           <ActiveFilterChips
             filters={filters}
             filterOptions={filterOptions}
             onChange={applyFilters}
-            onClearAll={() =>
-              applyFilters({
-                search: "",
-                sort: "",
-                genres: [],
-                countries: [],
-                languages: [],
-                year_from: null,
-                year_to: null,
-                min_rating: "",
-              })
-            }
+            onClearAll={clearAllFilters}
           />
         </>
       }

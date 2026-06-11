@@ -3,11 +3,12 @@ import {
   graphqlSeriesOverviewToPublic,
   type GraphqlSeriesOverview,
 } from "../../lib/graphql/adapters";
+import { normalizeImageAsset, pickImageSrc } from "../../lib/cinema-image";
 import { graphqlRequest } from "../../lib/graphql/server";
 import { GET_SERIES_OVERVIEW } from "../../lib/graphql/queries";
 import SeriesDetailClient from "./SeriesDetailClient";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -30,7 +31,10 @@ export async function generateMetadata({
       title: series.title,
       description: series.synopsis?.slice(0, 160),
       openGraph: {
-        images: series.poster_url ? [series.poster_url] : [],
+        images: [
+          pickImageSrc(normalizeImageAsset(series.poster_image), series.poster_url) ??
+            series.poster_url,
+        ].filter(Boolean) as string[],
       },
     };
   } catch {

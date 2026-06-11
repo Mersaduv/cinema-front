@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -15,7 +14,6 @@ import {
   HiOutlineBookmark,
   HiOutlineCollection,
   HiOutlineFilm,
-  HiOutlineUserGroup,
 } from "react-icons/hi";
 import HeroTrailerBackground from "./HeroTrailerBackground";
 import EpisodeDownloadMenu from "./EpisodeDownloadMenu";
@@ -30,13 +28,27 @@ import type {
   PublicSeriesEpisode,
   PublicSeriesSeason,
 } from "../../lib/series";
-import RelatedContentCarousel from "../catalog/RelatedContentCarousel";
+import AuthRequiredDialog from "../auth/AuthRequiredDialog";
+import RelatedContentSlider from "../catalog/RelatedContentSlider";
+import CastSlider from "./CastSlider";
+import SaveFeedbackToast from "./SaveFeedbackToast";
+import {
+  BackdropImage,
+  EpisodeStillImage,
+  PosterImage,
+} from "../images";
+import {
+  pickBackdropFromItem,
+  pickPosterFromItem,
+  type ResponsiveImageAsset,
+} from "../../lib/cinema-image";
 import ReviewsSection, {
   defaultReviewPaginator,
   defaultReviewSummary,
 } from "../reviews/ReviewsSection";
 import type { CatalogListItem } from "../../lib/catalog/rest";
 import type { Review, ReviewSummary } from "../../lib/reviews";
+import { isWatchlisted, toggleWatchlist } from "../../lib/watchlist";
 
 function seasonRowKey(season: Pick<PublicSeriesSeason, "id" | "season_number">): string {
   return season.id > 0 ? String(season.id) : `season-${season.season_number}`;
@@ -57,21 +69,8 @@ type CastRow = {
   name: string | null;
   character: string | null;
   profile_url: string | null;
+  profile_image?: ResponsiveImageAsset | null;
   slug?: string | null;
-};
-
-type SimilarItem = {
-  id: number;
-  title: string;
-  slug: string;
-  synopsis: string | null;
-  poster_url: string | null;
-  backdrop_url: string | null;
-  release_year: number | null;
-  details: {
-    genres: string[];
-    backdrop_url?: string | null;
-  };
 };
 
 function formatDuration(seconds: number | null, runtimeMinutes: number | null) {
@@ -160,7 +159,7 @@ export default function ContentDetailPage({
   kind: ContentKind;
   movie?: PublicMovie | null;
   series?: PublicSeries | null;
-  similarItems: SimilarItem[];
+  similarItems: CatalogListItem[];
   episodesLoading?: boolean;
   similarLoading?: boolean;
   onRequestEpisodes?: () => void;
@@ -174,10 +173,13 @@ export default function ContentDetailPage({
   };
 }) {
   const pathname = usePathname();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<DetailTabKey>("details");
-  const [isSaved, setIsSaved] = useState(false);
+  const [watchlistVersion, setWatchlistVersion] = useState(0);
   const [showAuthRequiredModal, setShowAuthRequiredModal] = useState(false);
+  const [saveToast, setSaveToast] = useState<{ message: string; saved: boolean } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (activeTab === "episodes" && kind === "series") {
@@ -194,10 +196,34 @@ export default function ContentDetailPage({
 
   const title = kind === "movie" ? movie?.title : series?.title;
   const slug = kind === "movie" ? movie?.slug : series?.slug;
+  const contentId = kind === "movie" ? movie?.id : series?.id;
   const originalTitle = kind === "movie" ? movie?.original_title : series?.original_title;
   const synopsis = kind === "movie" ? movie?.synopsis : series?.synopsis;
   const releaseYear = kind === "movie" ? movie?.release_year : series?.release_year;
-  const posterUrl = kind === "movie" ? movie?.poster_url : series?.poster_url;
+  const posterInput =
+    kind === "movie"
+      ? {
+        poster_image: movie?.poster_image,
+        poster_url: movie?.poster_url,
+        backdrop_url: movie?.details.backdrop_url,
+        backdrop_image: movie?.backdrop_image,
+      }
+      : {
+        poster_image: series?.poster_image,
+        poster_url: series?.poster_url,
+        backdrop_url: series?.backdrop_url ?? series?.details.backdrop_url,
+        backdrop_image: series?.backdrop_image,
+      };
+  const posterResolved = pickPosterFromItem(posterInput);
+  const backdropResolved = pickBackdropFromItem({
+    backdrop_image:
+      kind === "movie" ? movie?.backdrop_image : series?.backdrop_image,
+    backdrop_url:
+      kind === "movie"
+        ? movie?.details.backdrop_url ?? movie?.poster_url
+        : series?.details.backdrop_url || series?.backdrop_url || series?.poster_url,
+    poster_url: posterInput.poster_url,
+  });
   const trailerUrl = kind === "movie" ? movie?.trailer_url : series?.trailer_url;
   const ageRating = kind === "movie" ? movie?.age_rating : series?.age_rating;
   const rawGenres =
@@ -208,25 +234,20 @@ export default function ContentDetailPage({
   const movieProducerLabel =
     kind === "movie"
       ? (
-          movie?.provider_name ||
-          movie?.details.network ||
-          ""
-        ).trim()
+        movie?.provider_name ||
+        movie?.details.network ||
+        ""
+      ).trim()
       : "";
   const seriesProducerLabel =
     kind === "series"
       ? (
-          series?.provider_name ||
-          series?.network ||
-          series?.details.creators?.[0] ||
-          ""
-        ).trim()
+        series?.provider_name ||
+        series?.network ||
+        series?.details.creators?.[0] ||
+        ""
+      ).trim()
       : "";
-  const backdropUrl =
-    kind === "movie"
-      ? movie?.details.backdrop_url ?? movie?.poster_url ?? null
-      : series?.details.backdrop_url || series?.backdrop_url || series?.poster_url;
-
   const tabs = useMemo(() => buildTabs(kind), [kind]);
 
   const castRows = useMemo((): CastRow[] => {
@@ -238,7 +259,10 @@ export default function ContentDetailPage({
       }
       if ((movie.details.actors ?? []).length) {
         return (movie.details.actors ?? []).slice(0, 20).map((actor) => ({
-          ...actor,
+          name: actor.name,
+          character: actor.character,
+          profile_url: actor.profile_url,
+          profile_image: actor.profile_image ?? null,
           slug: null,
         }));
       }
@@ -251,12 +275,36 @@ export default function ContentDetailPage({
     }
 
     if (kind === "series" && series) {
+      const metadataActors = series.details.actors ?? [];
+
       if (series.cast?.length) {
         return sortCastByOrder(series.cast)
           .filter((row) => row.name)
-          .slice(0, 20);
+          .slice(0, 20)
+          .map((row) => {
+            const metadataActor = metadataActors.find((actor) => actor.name === row.name);
+
+            if (
+              row.profile_image?.original?.startsWith("/images/") ||
+              row.profile_image?.src?.startsWith("/images/") ||
+              row.profile_url?.startsWith("/images/")
+            ) {
+              return row;
+            }
+
+            if (!metadataActor) {
+              return row;
+            }
+
+            return {
+              ...row,
+              profile_url: metadataActor.profile_url ?? row.profile_url,
+              profile_image: metadataActor.profile_image ?? row.profile_image ?? null,
+            };
+          });
       }
-      return (series.details.actors ?? []).slice(0, 20).map((actor) => ({
+
+      return metadataActors.slice(0, 20).map((actor) => ({
         ...actor,
         slug: null,
       }));
@@ -373,36 +421,69 @@ export default function ContentDetailPage({
     kind === "movie"
       ? Boolean(movie?.has_subtitle || movie?.subtitle_source_url)
       : Boolean(
-          series?.has_subtitle ||
-            seasons.some((season) =>
-              (season.episodes || []).some((episode) => Boolean(episode.subtitle_url)),
-            ),
-        );
+        series?.has_subtitle ||
+        seasons.some((season) =>
+          (season.episodes || []).some((episode) => Boolean(episode.subtitle_url)),
+        ),
+      );
   const hasDubbedAudio =
     kind === "movie"
       ? Boolean(
-          movie?.has_dubbed_audio ||
-            movie?.audio_tracks?.some((track) => track.language === "fa"),
-        )
+        movie?.has_dubbed_audio ||
+        movie?.audio_tracks?.some((track) => track.language === "fa"),
+      )
       : Boolean(
-          series?.has_dubbed ||
-            seasons.some((season) =>
-              (season.episodes || []).some((episode) => Boolean(episode.dubbed_audio_url)),
-            ),
-        );
+        series?.has_dubbed ||
+        seasons.some((season) =>
+          (season.episodes || []).some((episode) => Boolean(episode.dubbed_audio_url)),
+        ),
+      );
+
+  const isSaved = useMemo(() => {
+    void watchlistVersion;
+
+    if (!isAuthenticated || !user || !contentId) {
+      return false;
+    }
+
+    return isWatchlisted(user.id, kind, contentId);
+  }, [isAuthenticated, user, contentId, kind, watchlistVersion]);
 
   const toggleSave = () => {
     if (authLoading) {
       return;
     }
 
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user) {
       setShowAuthRequiredModal(true);
       return;
     }
 
-    setIsSaved((current) => !current);
+    if (!contentId || !title || !slug) {
+      return;
+    }
+
+    const result = toggleWatchlist(user.id, {
+      kind,
+      id: contentId,
+      slug,
+      title,
+      poster_url: posterInput.poster_url,
+      release_year: releaseYear,
+    });
+
+    setWatchlistVersion((current) => current + 1);
+    setSaveToast({
+      saved: result.saved,
+      message: result.saved
+        ? "به لیست «بعداً ببینم» اضافه شد."
+        : "از لیست «بعداً ببینم» حذف شد.",
+    });
   };
+
+  const releaseYearLabel =
+    releaseYear != null ? String(releaseYear) : null;
+  const ageRatingLabel = ageRating?.trim() || null;
 
   if (!title || !slug) {
     return null;
@@ -412,7 +493,10 @@ export default function ContentDetailPage({
     <div className="bg-[#05070b] text-white">
       <section className="relative min-h-screen overflow-hidden">
         <HeroTrailerBackground
-          coverUrl={backdropUrl ?? null}
+          coverUrl={backdropResolved.src}
+          coverImage={
+            kind === "movie" ? movie?.backdrop_image : series?.backdrop_image
+          }
           trailerUrl={trailerUrl ?? null}
           alt={title}
         />
@@ -421,23 +505,26 @@ export default function ContentDetailPage({
 
         <div className="relative z-10 flex min-h-screen flex-col">
           <div className="mx-auto grid w-full max-w-[1820px] flex-1 items-end gap-8 px-4 pb-16 pt-28 md:px-7 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] lg:gap-12">
-            {posterUrl ? (
+            {posterResolved.src ? (
               <div className="mx-auto w-full max-w-[280px] lg:mx-0">
                 <div className="relative aspect-[2/3] overflow-hidden rounded-[32px] border border-white/10 bg-white/5 shadow-[0_30px_70px_rgba(0,0,0,0.45)]">
-                  <Image
-                    src={posterUrl}
-                    alt={title}
-                    fill
-                    priority
-                    sizes="(max-width: 1024px) 280px, 300px"
-                    className="object-cover"
+                  <PosterImage
+                    title={title}
+                    image={
+                      kind === "movie" ? movie?.poster_image : series?.poster_image
+                    }
+                    src={posterResolved.src}
+                    fallbackUrl={posterInput.backdrop_url}
+                    usage="detail-poster"
+                    loading="eager"
                   />
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={toggleSave}
-                    className="inline-flex items-center justify-center gap-2 rounded-[24px] border border-white/8 bg-white/8 px-4 text-sm font-semibold text-white transition hover:bg-white/12"
+                    disabled={authLoading}
+                    className="inline-flex items-center justify-center gap-2 rounded-[24px] border border-white/8 bg-white/8 px-4 text-sm font-semibold text-white transition hover:bg-white/12 disabled:cursor-wait disabled:opacity-60"
                     aria-label={isSaved ? "حذف از لیست ذخیره" : "ذخیره محتوا"}
                   >
                     {isSaved ? (
@@ -461,7 +548,25 @@ export default function ContentDetailPage({
             ) : null}
 
             <div className="min-w-0 space-y-6">
-              <h1 className="text-4xl font-black leading-tight md:text-6xl">{title}</h1>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+                  <h1 className="text-4xl font-black leading-tight md:text-6xl">{title}</h1>
+                  {releaseYearLabel || ageRatingLabel ? (
+                    <div className="flex flex-wrap items-center gap-2 text-base font-semibold text-white/58 md:text-xl">
+                      {releaseYearLabel ? (
+                        <span className="rounded-full border border-white/12 bg-black/30 px-3 py-1 pt-1.5">
+                          {releaseYearLabel}
+                        </span>
+                      ) : null}
+                      {ageRatingLabel ? (
+                        <span className="rounded-full border border-[#f97316]/35 bg-[#f97316]/12 text-[#fdba74] h-[40px] flex items-center justify-center px-3 pt-0.5">
+                          {ageRatingLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
 
               {originalTitle ? (
                 <p className="text-lg text-white/56">{originalTitle}</p>
@@ -471,14 +576,14 @@ export default function ContentDetailPage({
                 {(
                   kind === "movie" && movie?.genres?.length
                     ? movie.genres.map((genre) => ({
+                      id: genre.id,
+                      label: genre.name,
+                    }))
+                    : kind === "series" && series?.genres?.length
+                      ? series.genres.map((genre) => ({
                         id: genre.id,
                         label: genre.name,
                       }))
-                    : kind === "series" && series?.genres?.length
-                      ? series.genres.map((genre) => ({
-                          id: genre.id,
-                          label: genre.name,
-                        }))
                       : []
                 )
                   .slice(0, 4)
@@ -497,9 +602,7 @@ export default function ContentDetailPage({
                 <span className="rounded-full border border-white/12 bg-black/30 px-3 py-1.5">
                   کشور: {countriesLabel || "نامشخص"}
                 </span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 text-sm text-white/84">
+                <span className="text-white/35">|</span>
                 <span className="text-white/62">زبان:</span>
                 {languageItems.length > 0 ? (
                   languageItems.map((lang) => (
@@ -519,18 +622,8 @@ export default function ContentDetailPage({
 
               <div className="flex flex-wrap gap-2">
                 {rating ? (
-                  <span className="rounded-full bg-[#eab308] px-3 py-1.5 text-sm font-black text-black">
+                  <span className="rounded-full bg-[#eab308] px-3 py-1.5 pt-2 text-sm font-black text-black">
                     IMDb {rating.toFixed(1)}
-                  </span>
-                ) : null}
-                {hasSubtitle ? (
-                  <span className="rounded-lg border border-[#f5c518]/30 bg-[#f5c518]/10 px-2.5 py-1.5 text-sm font-semibold text-[#f8d977] backdrop-blur">
-                    زیرنویس فارسی
-                  </span>
-                ) : null}
-                {hasDubbedAudio ? (
-                  <span className="rounded-lg border border-[#f5c518]/30 bg-[#f5c518]/10 px-2.5 py-1.5 text-sm font-semibold text-[#f8d977] backdrop-blur">
-                    دوبله فارسی
                   </span>
                 ) : null}
                 {kind === "movie" && movieProducerLabel ? (
@@ -548,33 +641,31 @@ export default function ContentDetailPage({
                     {series.status_label_fa}
                   </span>
                 ) : null}
-              </div>
 
-              <div className="flex flex-wrap gap-3 text-sm text-white/78 md:text-base">
-                <span className="rounded-full bg-white/8 px-4 py-2">
-                  {releaseYear || "سال نامشخص"}
-                </span>
-                <span className="rounded-full bg-[#f97316]/18 px-4 py-2 text-[#fdba74]">
-                  {ageRating || "16+"}
-                </span>
-              </div>
-
-              <div className="mt-8 max-w-3xl text-base leading-8 text-white/78 md:text-lg">
-                {synopsis || `برای این ${kind === "series" ? "سریال" : "فیلم"} هنوز خلاصه‌ای ثبت نشده است.`}
+                {hasSubtitle ? (
+                  <span className="rounded-lg border border-[#f5c518]/30 bg-[#f5c518]/10 px-2.5 py-1.5 text-sm font-semibold text-[#f8d977] backdrop-blur">
+                    زیرنویس فارسی
+                  </span>
+                ) : null}
+                {hasDubbedAudio ? (
+                  <span className="rounded-lg border border-[#f5c518]/30 bg-[#f5c518]/10 px-2.5 py-1.5 text-sm font-semibold text-[#f8d977] backdrop-blur">
+                    دوبله فارسی
+                  </span>
+                ) : null}
               </div>
 
               <div className="flex flex-wrap items-center gap-4 pt-2">
                 <Link
                   href={primaryWatchHref}
-                  className="inline-flex items-center gap-3 rounded-2xl bg-[#ef4444] px-8 py-4 text-lg font-black text-white shadow-[0_24px_50px_rgba(239,68,68,0.28)] transition hover:bg-[#dc2626]"
+                  className="inline-flex items-center gap-3 rounded-2xl bg-[#f5c518] px-8 py-4 text-lg font-black text-[#12100a] shadow-[0_24px_50px_rgba(245,197,24,0.22)] transition hover:bg-[#e8bb0d]"
                 >
                   {kind === "series" ? "تماشای قسمت ۱" : "تماشا کنید"}
                   <HiMiniPlay className="h-6 w-6" />
                 </Link>
 
                 {kind === "movie" &&
-                movie?.download_links &&
-                Object.keys(movie.download_links).length > 0 ? (
+                  movie?.download_links &&
+                  Object.keys(movie.download_links).length > 0 ? (
                   <EpisodeDownloadMenu downloadLinks={movie.download_links} align="right" />
                 ) : null}
 
@@ -592,39 +683,21 @@ export default function ContentDetailPage({
         </div>
       </section>
 
-      {showAuthRequiredModal ? (
-        <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#090d12] p-6 text-right shadow-[0_24px_80px_rgba(0,0,0,0.5)]">
-            <h3 className="text-xl font-black text-white">نیاز به ورود</h3>
-            <p className="mt-3 text-sm leading-7 text-white/70">
-              لطفاً برای دسترسی به این بخش ابتدا وارد حساب کاربری تان شوید.
-            </p>
-            <div className="mt-6 flex items-center gap-3">
-              <Link
-                href={`/login${pathname ? `?redirect=${encodeURIComponent(pathname)}` : ""}`}
-                className="inline-flex flex-1 items-center justify-center rounded-2xl bg-[#f5c518] px-4 py-3 text-sm font-black text-[#081018] transition hover:bg-[#e8bb0d]"
-              >
-                ورود
-              </Link>
-              <button
-                type="button"
-                onClick={() => setShowAuthRequiredModal(false)}
-                className="inline-flex flex-1 items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-              >
-                انصراف
-              </button>
-            </div>
-            <p className="mt-4 text-sm text-white/60">
-              حساب کاربری ندارید؟
-              <Link
-                href={`/signup${pathname ? `?redirect=${encodeURIComponent(pathname)}` : ""}`}
-                className="mr-1 text-[#f5c518] transition hover:text-[#f8d977]"
-              >
-                ثبت نام
-              </Link>
-            </p>
-          </div>
-        </div>
+      <AuthRequiredDialog
+        open={showAuthRequiredModal}
+        onClose={() => setShowAuthRequiredModal(false)}
+        redirectPath={pathname}
+        title="برای ذخیره، ابتدا عضو شوید"
+        description="برای افزودن این عنوان به لیست «بعداً ببینم» باید ابتدا در سایت ثبت‌نام کنید یا وارد حساب کاربری خود شوید."
+        featureLabel="ذخیره فیلم و سریال"
+      />
+
+      {saveToast ? (
+        <SaveFeedbackToast
+          message={saveToast.message}
+          saved={saveToast.saved}
+          onDismiss={() => setSaveToast(null)}
+        />
       ) : null}
 
       <section
@@ -638,11 +711,10 @@ export default function ContentDetailPage({
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`border-b-2 pb-3 font-semibold transition ${
-                  activeTab === tab.key
-                    ? "border-[#ef4444] text-[#ef4444]"
+                className={`border-b-2 pb-3 font-semibold transition ${activeTab === tab.key
+                    ? "border-[#f5c518] text-[#f8d977]"
                     : "border-transparent text-white/72 hover:text-white"
-                }`}
+                  }`}
               >
                 {tab.label}
               </button>
@@ -662,60 +734,9 @@ export default function ContentDetailPage({
               </p>
             </section>
 
-           
 
-            <section className="space-y-7">
-              <SectionTitle icon={<HiOutlineUserGroup className="h-5 w-5" />}>
-                {kind === "series" ? "بازیگران سریال" : "بازیگران فیلم"}
-              </SectionTitle>
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-                {castRows.map((actor, index) => {
-                  const inner = (
-                    <>
-                      <div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-white/8">
-                        {actor.profile_url ? (
-                          <Image
-                            src={actor.profile_url}
-                            alt={actor.name || "actor"}
-                            width={96}
-                            height={96}
-                            className="h-24 w-24 object-cover"
-                          />
-                        ) : (
-                          <span className="text-2xl font-black text-white/55">
-                            {(actor.name || title).charAt(0)}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="mt-4 text-base font-bold text-white">
-                        {actor.name || "بازیگر"}
-                      </h3>
-                      <p className="mt-1 text-sm text-white/42">
-                        {actor.character ? `در نقش ${actor.character}` : "نقش ثبت نشده"}
-                      </p>
-                    </>
-                  );
 
-                  return (
-                    <div
-                      key={`${actor.name || "actor"}-${index}`}
-                      className="rounded-[30px] border border-white/8 bg-white/[0.03] p-4 text-center"
-                    >
-                      {actor.slug ? (
-                        <Link
-                          href={`/actors/${actor.slug}`}
-                          className="block text-inherit no-underline"
-                        >
-                          {inner}
-                        </Link>
-                      ) : (
-                        inner
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+            <CastSlider cast={castRows} />
 
             <section className="space-y-7">
               <SectionTitle icon={<HiOutlineCollection className="h-5 w-5" />}>
@@ -725,34 +746,6 @@ export default function ContentDetailPage({
                 {crewHighlights.map((item) => (
                   <InfoCard key={item.label} label={item.label} value={item.value} />
                 ))}
-              </div>
-            </section>
-
-            <section className="space-y-7">
-              <SectionTitle icon={<HiOutlineFilm className="h-5 w-5" />}>
-                پیش نمایش و عکس‌ها
-              </SectionTitle>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {galleryImages.length > 0 ? (
-                  galleryImages.slice(0, 4).map((image, index) => (
-                    <div
-                      key={`${image}-${index}`}
-                      className="relative aspect-[16/10] overflow-hidden rounded-[28px] border border-white/8 bg-white/5"
-                    >
-                      <Image
-                        src={image}
-                        alt={`${title} gallery ${index + 1}`}
-                        fill
-                        sizes="(max-width: 768px) 100vw, 25vw"
-                        className="object-cover transition duration-500 hover:scale-105"
-                      />
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-[28px] border border-dashed border-white/10 bg-white/[0.03] px-5 py-12 text-center text-white/45 md:col-span-2 xl:col-span-4">
-                    هنوز تصویری برای این بخش ثبت نشده است.
-                  </div>
-                )}
               </div>
             </section>
           </div>
@@ -771,11 +764,10 @@ export default function ContentDetailPage({
                         key={seasonRowKey(season)}
                         type="button"
                         onClick={() => setSelectedSeasonNumber(season.season_number)}
-                        className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
-                          activeSeason?.season_number === season.season_number
-                            ? "bg-[#ef4444] text-white"
+                        className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${activeSeason?.season_number === season.season_number
+                            ? "bg-[#f5c518] text-[#12100a]"
                             : "border border-white/10 bg-white/[0.04] text-white/75 hover:bg-white/[0.08]"
-                        }`}
+                          }`}
                       >
                         فصل {season.season_number}
                       </button>
@@ -795,7 +787,7 @@ export default function ContentDetailPage({
                     <button
                       type="button"
                       onClick={() => setEpisodeViewMode("grid")}
-                      className={`inline-flex items-center justify-center rounded-full p-2.5 transition ${episodeViewMode === "grid" ? "bg-[#ef4444] text-white" : "border border-white/10 bg-white/[0.04] text-white/60 hover:text-white"}`}
+                      className={`inline-flex items-center justify-center rounded-full p-2.5 transition ${episodeViewMode === "grid" ? "bg-[#f5c518] text-[#12100a]" : "border border-white/10 bg-white/[0.04] text-white/60 hover:text-white"}`}
                       title="نمایش شبکه‌ای"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M4.25 2A2.25 2.25 0 002 4.25v2.5A2.25 2.25 0 004.25 9h2.5A2.25 2.25 0 009 6.75v-2.5A2.25 2.25 0 006.75 2h-2.5zm0 9A2.25 2.25 0 002 13.25v2.5A2.25 2.25 0 004.25 18h2.5A2.25 2.25 0 009 15.75v-2.5A2.25 2.25 0 006.75 11h-2.5zm9-9A2.25 2.25 0 0011 4.25v2.5A2.25 2.25 0 0013.25 9h2.5A2.25 2.25 0 0018 6.75v-2.5A2.25 2.25 0 0015.75 2h-2.5zm0 9A2.25 2.25 0 0011 13.25v2.5A2.25 2.25 0 0013.25 18h2.5A2.25 2.25 0 0018 15.75v-2.5A2.25 2.25 0 0015.75 11h-2.5z" clipRule="evenodd" /></svg>
@@ -803,7 +795,7 @@ export default function ContentDetailPage({
                     <button
                       type="button"
                       onClick={() => setEpisodeViewMode("list")}
-                      className={`inline-flex items-center justify-center rounded-full p-2.5 transition ${episodeViewMode === "list" ? "bg-[#ef4444] text-white" : "border border-white/10 bg-white/[0.04] text-white/60 hover:text-white"}`}
+                      className={`inline-flex items-center justify-center rounded-full p-2.5 transition ${episodeViewMode === "list" ? "bg-[#f5c518] text-[#12100a]" : "border border-white/10 bg-white/[0.04] text-white/60 hover:text-white"}`}
                       title="نمایش لیستی"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M2 3.75A.75.75 0 012.75 3h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 3.75zm0 4.167a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75zm0 4.166a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75zm0 4.167a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" /></svg>
@@ -832,13 +824,16 @@ export default function ContentDetailPage({
                           >
                             <div className="relative aspect-video overflow-hidden bg-white/5">
                               <div className="absolute inset-0 transition-transform duration-300 group-hover:scale-[1.04]">
-                                {episode.still_url ? (
-                                  <Image
+                                {episode.still_url || episode.still_image ? (
+                                  <EpisodeStillImage
+                                    seriesTitle={title}
+                                    seasonNumber={episode.season_number}
+                                    episodeNumber={episode.episode_number}
+                                    image={episode.still_image}
                                     src={episode.still_url}
-                                    alt={episodeTitle}
-                                    fill
+                                    usage="episode-card"
                                     sizes="(max-width: 768px) 100vw, 25vw"
-                                    className="object-cover"
+                                    loading="lazy"
                                   />
                                 ) : (
                                   <div className="flex h-full items-center justify-center text-sm text-white/30">
@@ -852,7 +847,7 @@ export default function ContentDetailPage({
                                   href={episodeWatchHref(series.slug, episode)}
                                   className="absolute inset-0 z-10 flex items-center justify-center opacity-0 transition group-hover:opacity-100"
                                 >
-                                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#ef4444] text-white shadow-lg">
+                                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#f5c518] text-[#12100a] shadow-lg">
                                     <HiMiniPlay className="h-5 w-5" />
                                   </span>
                                 </Link>
@@ -890,7 +885,7 @@ export default function ContentDetailPage({
                                 {episode.hls_url ? (
                                   <Link
                                     href={episodeWatchHref(series.slug, episode)}
-                                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#ef4444] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#dc2626]"
+                                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#f5c518] px-4 py-2 text-xs font-bold text-[#12100a] transition hover:bg-[#e8bb0d]"
                                   >
                                     <HiMiniPlay className="h-3.5 w-3.5" />
                                     پخش
@@ -901,7 +896,7 @@ export default function ContentDetailPage({
                                   </span>
                                 )}
                                 {episode.download_links &&
-                                Object.keys(episode.download_links).length > 0 ? (
+                                  Object.keys(episode.download_links).length > 0 ? (
                                   <EpisodeDownloadMenu
                                     downloadLinks={episode.download_links}
                                     align="right"
@@ -933,14 +928,17 @@ export default function ContentDetailPage({
                             className="flex flex-col gap-4 rounded-[28px] border border-white/8 bg-white/[0.03] p-4 transition hover:border-white/14 hover:bg-white/[0.045] md:flex-row md:items-center"
                           >
                             <div className="flex min-w-0 flex-1 items-center gap-4">
-                              {episode.still_url ? (
+                              {episode.still_url || episode.still_image ? (
                                 <div className="relative h-24 w-40 shrink-0 overflow-hidden rounded-2xl bg-white/5">
-                                  <Image
+                                  <EpisodeStillImage
+                                    seriesTitle={title}
+                                    seasonNumber={episode.season_number}
+                                    episodeNumber={episode.episode_number}
+                                    image={episode.still_image}
                                     src={episode.still_url}
-                                    alt={episodeTitle}
-                                    fill
+                                    usage="episode-card"
                                     sizes="160px"
-                                    className="object-cover"
+                                    loading="lazy"
                                   />
                                 </div>
                               ) : (
@@ -980,12 +978,12 @@ export default function ContentDetailPage({
                               {episode.hls_url ? (
                                 <>
                                   {episode.download_links &&
-                                  Object.keys(episode.download_links).length > 0 ? (
+                                    Object.keys(episode.download_links).length > 0 ? (
                                     <EpisodeDownloadMenu downloadLinks={episode.download_links} />
                                   ) : null}
                                   <Link
                                     href={episodeWatchHref(series.slug, episode)}
-                                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#ef4444] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#dc2626]"
+                                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#f5c518] px-6 py-3 text-sm font-bold text-[#12100a] transition hover:bg-[#e8bb0d]"
                                   >
                                     پخش
                                     <HiMiniPlay className="h-4 w-4" />
@@ -1013,26 +1011,11 @@ export default function ContentDetailPage({
 
         {activeTab === "similar" ? (
           <div className="pt-10">
-            <RelatedContentCarousel
+            <RelatedContentSlider
               title={kind === "series" ? "سریال‌های مشابه" : "فیلم‌های مشابه"}
               kind={kind}
               loading={similarLoading}
-              items={similarItems.map(
-                (candidate): CatalogListItem => ({
-                  id: candidate.id,
-                  title: candidate.title,
-                  slug: candidate.slug,
-                  synopsis: candidate.synopsis,
-                  release_year: candidate.release_year,
-                  poster_url: candidate.poster_url,
-                  backdrop_url: candidate.backdrop_url,
-                  rating: null,
-                  details: {
-                    genres: candidate.details.genres,
-                    backdrop_url: candidate.details.backdrop_url ?? candidate.backdrop_url,
-                  },
-                }),
-              )}
+              items={similarItems}
             />
           </div>
         ) : null}
@@ -1064,9 +1047,9 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ef4444]/12 text-[#f87171]">
+      {/* <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f5c518]/12 text-[#f87171]">
         {icon}
-      </span>
+      </span> */}
       <h2 className="text-2xl font-black text-white md:text-[2rem]">{children}</h2>
     </div>
   );

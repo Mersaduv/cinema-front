@@ -23,6 +23,7 @@ import PublishOutcomeModal, {
   type PublishOutcomeStatus,
 } from "../../../../components/admin/PublishOutcomeModal";
 import TmdbPreviewSkeleton from "../../../../components/admin/TmdbPreviewSkeleton";
+import { BackdropImage, PosterImage } from "../../../../components/images";
 
 import { sortCastByOrder, sortCastRows } from "../../../../lib/cast-utils";
 import {
@@ -31,16 +32,31 @@ import {
   resolveLatinPersonName,
   sanitizeLatinPersonName,
 } from "../../../../lib/person-name";
+import { revalidateAdminMoviesList } from "../../../../lib/admin-movies-revalidate";
+import { revalidatePublicMoviePages } from "../../../../lib/catalog/revalidate";
 import {
   adminMoviesService,
   type AdminMovie,
   type PublishStatus,
   type TmdbActor,
+  type TmdbBelongsToCollection,
   type TmdbMoviePayload,
 } from "../../../../lib/admin-movies";
 import { apiDateTimeToInputValue, toDateTimeInputValue } from "../../../../lib/date-format";
 import { localizeGenreLabels } from "../../../../lib/genre-labels";
+import {
+  mergeSeasonEpisodeSynopsisFromTmdb,
+  normalizeSeasonEpisodeSynopsis,
+  resolveTmdbMainSynopsis,
+} from "../../../../lib/series-synopsis-helper";
 import { normalizeListItemLabel, normalizeStringList } from "../../../../lib/list-item-label";
+import {
+  buildMovieTmdbImageIngestPayload,
+  finalizeTmdbImageIngestMessage,
+  mergeIngestedActorProfiles,
+  withTmdbImageProcessingMessage,
+} from "../../../../lib/admin-tmdb-image-ingest";
+import { pickAdminPreviewImageSrc } from "../../../../lib/cinema-image";
 import {
   inferDownloadQualityFromPath,
   looksLikeHlsPackagePath,
@@ -141,6 +157,7 @@ type MovieEditorFormState = {
   original_title: string;
   slug: string;
   synopsis: string;
+  synopsis_en: string;
   age_rating: string;
   release_year: string;
   tmdb_id: string;
@@ -167,6 +184,7 @@ type MovieEditorFormState = {
   countries: string[];
   actors: TmdbActor[];
   crew: MovieCrewFormRow[];
+  belongs_to_collection: TmdbBelongsToCollection | null;
 };
 
 type MovieEditorTextField = Exclude<
@@ -211,6 +229,7 @@ function createInitialFormState(): MovieEditorFormState {
     original_title: "",
     slug: "",
     synopsis: "",
+    synopsis_en: "",
     age_rating: "",
     release_year: "",
     tmdb_id: "",
@@ -237,6 +256,7 @@ function createInitialFormState(): MovieEditorFormState {
     countries: [],
     actors: [],
     crew: [],
+    belongs_to_collection: null,
   };
 }
 
@@ -341,6 +361,7 @@ export default function MovieEditorForm({
   const [submitStep, setSubmitStep] = useState<string | null>(null);
   const [searchingTmdb, setSearchingTmdb] = useState(false);
   const [fetchingTmdb, setFetchingTmdb] = useState(false);
+  const [ingestingTmdbImages, setIngestingTmdbImages] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [searchMessage, setSearchMessage] = useState("");
@@ -354,6 +375,7 @@ export default function MovieEditorForm({
     countries: "",
   });
   const latestTmdbRequestRef = useRef("");
+  const tmdbImageIngestAbortRef = useRef<AbortController | null>(null);
   const formTopRef = useRef<HTMLDivElement | null>(null);
   const movieFormBodyFingerprintRef = useRef("");
   const pendingNavigationRef = useRef<string | null>(null);
@@ -410,6 +432,10 @@ export default function MovieEditorForm({
           credit_id: c.credit_id || null,
         }));
         setMovie(nextMovie);
+        const synopsisFields = normalizeSeasonEpisodeSynopsis(
+          nextMovie.synopsis,
+          nextMovie.metadata?.tmdb?.synopsis_en,
+        );
         const loadedForm = {
           tmdb_query: nextMovie.metadata?.tmdb?.tmdb_id
             ? String(nextMovie.metadata.tmdb.tmdb_id)
@@ -417,7 +443,8 @@ export default function MovieEditorForm({
           title: nextMovie.title || nextMovie.original_title || "",
           original_title: nextMovie.original_title || "",
           slug: nextMovie.slug || "",
-          synopsis: nextMovie.synopsis || "",
+          synopsis: synopsisFields.synopsis,
+          synopsis_en: synopsisFields.synopsis_en,
           age_rating: nextMovie.age_rating || "",
           release_year: nextMovie.release_year ? String(nextMovie.release_year) : "",
           tmdb_id: nextMovie.metadata?.tmdb?.tmdb_id
@@ -428,8 +455,14 @@ export default function MovieEditorForm({
             typeof nextMovie.metadata?.tmdb?.rating === "number"
               ? String(nextMovie.metadata.tmdb.rating)
               : "",
-          poster_url: nextMovie.metadata?.tmdb?.poster_url || nextMovie.poster_url || "",
-          backdrop_url: nextMovie.metadata?.tmdb?.backdrop_url || "",
+          poster_url:
+            nextMovie.poster_image?.original?.startsWith("/images/")
+              ? nextMovie.poster_image.original.split("?")[0]
+              : nextMovie.metadata?.tmdb?.poster_url || nextMovie.poster_url || "",
+          backdrop_url:
+            nextMovie.backdrop_image?.original?.startsWith("/images/")
+              ? nextMovie.backdrop_image.original.split("?")[0]
+              : nextMovie.metadata?.tmdb?.backdrop_url || "",
           trailer_url:
             nextMovie.metadata?.tmdb?.trailer_url || nextMovie.trailer_url || "",
           hls_url:
@@ -889,7 +922,12 @@ export default function MovieEditorForm({
           current.title,
           payload.tmdb_id ? `movie-${payload.tmdb_id}` : null
         ) || current.slug,
-      synopsis: payload.synopsis || current.synopsis,
+      ...mergeSeasonEpisodeSynopsisFromTmdb(
+        resolveTmdbMainSynopsis(payload),
+        payload.synopsis_en,
+        current.synopsis,
+        current.synopsis_en,
+      ),
       release_year: payload.release_year ? String(payload.release_year) : current.release_year,
       tmdb_id: payload.tmdb_id ? String(payload.tmdb_id) : current.tmdb_id,
       imdb_id: payload.imdb_id || current.imdb_id,
@@ -931,10 +969,59 @@ export default function MovieEditorForm({
         : current.countries,
       actors: nextActors,
       crew: nextCrew.length ? nextCrew : current.crew,
+      belongs_to_collection: payload.belongs_to_collection ?? null,
     }));
 
     setActiveTab("details");
   };
+
+  async function ingestTmdbImagesAfterSync(payload: TmdbMoviePayload) {
+    tmdbImageIngestAbortRef.current?.abort();
+    const abortController = new AbortController();
+    tmdbImageIngestAbortRef.current = abortController;
+    const { signal } = abortController;
+
+    setIngestingTmdbImages(true);
+    setSearchMessage((current) =>
+      withTmdbImageProcessingMessage(current, "پردازش تصاویر در حال انجام است."),
+    );
+
+    try {
+      const response = await adminMoviesService.ingestTmdbImages(
+        buildMovieTmdbImageIngestPayload(payload, movie?.id ?? movieId ?? null),
+        { signal },
+      );
+
+      if (signal.aborted || !response.success || !response.data) {
+        return;
+      }
+
+      const data = response.data;
+
+      setForm((current) => ({
+        ...current,
+        poster_url:
+          data.poster_url?.startsWith("/images/") ? data.poster_url : current.poster_url,
+        backdrop_url:
+          data.backdrop_url?.startsWith("/images/") ? data.backdrop_url : current.backdrop_url,
+        actors: data.actors?.length
+          ? mergeIngestedActorProfiles(current.actors, data.actors)
+          : current.actors,
+      }));
+
+      if ((data.stats?.succeeded ?? 0) > 0) {
+        setSearchMessage((current) => finalizeTmdbImageIngestMessage(current));
+      }
+    } catch (ingestError) {
+      if (ingestError instanceof Error && ingestError.name === "AbortError") {
+        return;
+      }
+    } finally {
+      if (!signal.aborted) {
+        setIngestingTmdbImages(false);
+      }
+    }
+  }
 
   async function fetchAndApplyTmdb(tmdbId: string, nextMessage?: string) {
     const requestKey = String(tmdbId);
@@ -952,7 +1039,10 @@ export default function MovieEditorForm({
     if (response.success && response.data) {
       applyTmdbMovie(response.data.movie, requestKey);
       setLastFetchedTmdbCode(String(response.data.movie.tmdb_id ?? requestKey));
-      setSearchMessage(nextMessage || "اطلاعات فیلم از TMDB روی فرم اعمال شد.");
+      setSearchMessage(
+        nextMessage || "اطلاعات فیلم از TMDB روی فرم اعمال شد؛ پردازش تصاویر در حال انجام است.",
+      );
+      void ingestTmdbImagesAfterSync(response.data.movie);
     } else {
       const firstError = response.errors
         ? Object.values(response.errors)[0]?.[0]
@@ -1169,6 +1259,33 @@ export default function MovieEditorForm({
       }
     });
 
+    formData.append("publish_status", publishStatus);
+    if (publishStatus === "scheduled" && scheduledFor.trim()) {
+      formData.append("scheduled_for", scheduledFor);
+    }
+
+    if (form.belongs_to_collection?.tmdb_collection_id) {
+      formData.append(
+        "belongs_to_collection[tmdb_collection_id]",
+        String(form.belongs_to_collection.tmdb_collection_id),
+      );
+      if (form.belongs_to_collection.name) {
+        formData.append("belongs_to_collection[name]", form.belongs_to_collection.name);
+      }
+      if (form.belongs_to_collection.poster_url) {
+        formData.append(
+          "belongs_to_collection[poster_url]",
+          form.belongs_to_collection.poster_url,
+        );
+      }
+      if (form.belongs_to_collection.backdrop_url) {
+        formData.append(
+          "belongs_to_collection[backdrop_url]",
+          form.belongs_to_collection.backdrop_url,
+        );
+      }
+    }
+
     form.crew.forEach((member, index) => {
       if (!member.name.trim()) {
         return;
@@ -1224,6 +1341,10 @@ export default function MovieEditorForm({
       setPublishOutcomeOpen(true);
       setActiveTab("publish");
       pendingNavigationRef.current = "/admin/content-management/movies";
+      void Promise.all([
+        revalidateAdminMoviesList(),
+        revalidatePublicMoviePages(updatedMovie.slug, movie?.slug, form.slug),
+      ]);
     } else {
       setError(publishResponse.message || "ذخیره وضعیت انتشار انجام نشد.");
     }
@@ -1237,8 +1358,13 @@ export default function MovieEditorForm({
     pendingNavigationRef.current = null;
 
     if (nextPath) {
-      router.replace(nextPath);
-      router.refresh();
+      void Promise.all([
+        revalidateAdminMoviesList(),
+        revalidatePublicMoviePages(movie?.slug, form.slug),
+      ]).finally(() => {
+        router.replace(nextPath);
+        router.refresh();
+      });
     }
   };
 
@@ -1351,8 +1477,45 @@ export default function MovieEditorForm({
       let savedMovie = saveResponse.data.movie;
       setMovie(savedMovie);
 
+      const processedPoster =
+        savedMovie.poster_image?.original?.startsWith("/images/")
+          ? savedMovie.poster_image.original
+          : savedMovie.poster_url?.startsWith("/images/")
+            ? savedMovie.poster_url
+            : null;
+      const processedBackdrop =
+        savedMovie.backdrop_image?.original?.startsWith("/images/")
+          ? savedMovie.backdrop_image.original
+          : savedMovie.backdrop_url?.startsWith("/images/")
+            ? savedMovie.backdrop_url.split("?")[0]
+            : null;
+
+      if (processedPoster || processedBackdrop) {
+        setForm((current) => ({
+          ...current,
+          ...(processedPoster ? { poster_url: processedPoster } : {}),
+          ...(processedBackdrop ? { backdrop_url: processedBackdrop } : {}),
+        }));
+      }
+
+      const openedPipeline =
+        saveResponse.pipeline_status === "pending" ||
+        saveResponse.pipeline_status === "running";
+
+      if (openedPipeline) {
+        await Promise.all([
+          revalidateAdminMoviesList(),
+          revalidatePublicMoviePages(savedMovie.slug, movie?.slug, form.slug),
+        ]);
+        router.push("/admin/content-management/movies");
+        router.refresh();
+        return;
+      }
+
       const needsBackgroundHlsVerify =
-        savedMovie.processing_status === "queued" && publishStatus === "published";
+        savedMovie.processing_status === "queued" &&
+        publishStatus === "published" &&
+        !openedPipeline;
 
       const applyPublishOutcome = (updatedMovie: AdminMovie) => {
         setMovie(updatedMovie);
@@ -1364,6 +1527,10 @@ export default function MovieEditorForm({
         setPublishOutcomeOpen(true);
         setActiveTab("publish");
         pendingNavigationRef.current = "/admin/content-management/movies";
+        void Promise.all([
+          revalidateAdminMoviesList(),
+          revalidatePublicMoviePages(updatedMovie.slug, movie?.slug, form.slug),
+        ]);
       };
 
       const runPublishStatusUpdate = async (movieId: number) => {
@@ -1441,13 +1608,24 @@ export default function MovieEditorForm({
 
   const playbackUrl =
     form.hls_url || movie?.metadata?.playback?.hls_url || movie?.media_asset?.master_playlist_url || "";
-  const isTmdbLoading = searchingTmdb || fetchingTmdb;
+  const isTmdbLoading = searchingTmdb || fetchingTmdb || ingestingTmdbImages;
+  const previewPosterImage = movie?.poster_image ?? null;
+  const previewBackdropImage = movie?.backdrop_image ?? null;
   const previewPosterUrl =
-    form.poster_url ||
-    movie?.metadata?.tmdb?.poster_url ||
-    movie?.poster_url ||
-    "";
-  const previewBackdropUrl = form.backdrop_url || movie?.metadata?.tmdb?.backdrop_url || "";
+    pickAdminPreviewImageSrc(
+      previewPosterImage,
+      form.poster_url,
+      movie?.metadata?.tmdb?.poster_url,
+      movie?.poster_url,
+      movie?.metadata?.tmdb?.poster_source_url,
+    ) ?? "";
+  const previewBackdropUrl =
+    pickAdminPreviewImageSrc(
+      previewBackdropImage,
+      form.backdrop_url,
+      movie?.metadata?.tmdb?.backdrop_url,
+      movie?.metadata?.tmdb?.backdrop_source_url,
+    ) ?? "";
   const productionStatusLabel =
     translateProductionStatus(form.production_status) ||
     form.production_status ||
@@ -1478,9 +1656,15 @@ export default function MovieEditorForm({
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={() =>
-                router.push("/admin/content-management/movies")
-              }
+              onClick={() => {
+                void Promise.all([
+                  revalidateAdminMoviesList(),
+                  revalidatePublicMoviePages(movie?.slug, form.slug),
+                ]).finally(() => {
+                  router.push("/admin/content-management/movies");
+                  router.refresh();
+                });
+              }}
               className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm text-white transition hover:border-white/20 hover:bg-white/[0.08]"
             >
               بازگشت
@@ -1504,6 +1688,12 @@ export default function MovieEditorForm({
         status={publishOutcomeStatus}
         onClose={handlePublishOutcomeClose}
       />
+
+      {movie?.pipeline_status === "failed" ? (
+        <div className="rounded-2xl border border-[#fb7185]/25 bg-[#fb7185]/10 px-4 py-3 text-sm text-[#fecdd3]">
+          آخرین پردازش انتشار ناموفق بود. مشکل را برطرف کنید و دوباره ذخیره کنید.
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-2xl border border-[#fb7185]/25 bg-[#fb7185]/10 px-4 py-3 text-sm text-[#fecdd3]">
@@ -1727,6 +1917,11 @@ export default function MovieEditorForm({
                     onChange={(event) => handleChange("synopsis", event.target.value)}
                     className="w-full rounded-[26px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-8 text-white outline-none transition focus:border-[#f5c518]/45"
                   />
+                  {form.synopsis_en.trim() ? (
+                    <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
+                      متن انگلیسی TMDB: {form.synopsis_en}
+                    </p>
+                  ) : null}
                 </label>
 
                 <div className="grid gap-4 lg:grid-cols-2">
@@ -2175,22 +2370,26 @@ export default function MovieEditorForm({
                   <TmdbPreviewSkeleton className="rounded-none border-0" heightClass="h-[26rem]" />
                 ) : previewBackdropUrl || previewPosterUrl ? (
                   <div className="relative h-[26rem] overflow-hidden">
-                    {previewBackdropUrl ? (
-                      <img
-                        src={previewBackdropUrl}
-                        alt={form.title || "Backdrop preview"}
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
+                    {previewBackdropUrl || previewBackdropImage ? (
+                      <div className="absolute inset-0">
+                        <BackdropImage
+                          title={form.title || "Movie"}
+                          image={previewBackdropImage}
+                          src={previewBackdropUrl}
+                          usage="detail-backdrop"
+                        />
+                      </div>
                     ) : null}
                     <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,16,25,0.08),rgba(7,16,25,0.88)_62%,rgba(7,16,25,0.98))]" />
                     <div className="relative flex h-full flex-col justify-end p-5">
                       <div className="flex items-end gap-4">
                         <div className="h-40 w-28 overflow-hidden rounded-[22px] border border-white/10 bg-[#071019] shadow-[0_20px_40px_rgba(0,0,0,0.32)]">
-                          {previewPosterUrl ? (
-                            <img
+                          {previewPosterUrl || previewPosterImage ? (
+                            <PosterImage
+                              title={form.title || "Movie"}
+                              image={previewPosterImage}
                               src={previewPosterUrl}
-                              alt={form.title || "Poster preview"}
-                              className="h-full w-full object-cover"
+                              usage="detail-poster"
                             />
                           ) : (
                             <div className="flex h-full items-center justify-center px-3 text-center text-xs text-[#8ea4b3]">

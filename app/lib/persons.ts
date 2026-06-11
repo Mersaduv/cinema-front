@@ -1,5 +1,6 @@
 import { apiClient, type ApiResponse } from "./api";
 import type { CatalogListItem } from "./catalog/rest";
+import type { ResponsiveImageAsset } from "./cinema-image";
 
 export interface PersonDetail {
   id: number;
@@ -12,6 +13,9 @@ export interface PersonDetail {
   known_for_department: string | null;
   gender: number | null;
   profile_url: string | null;
+  profile_blur_url?: string | null;
+  profile_srcset?: string | null;
+  profile_image?: ResponsiveImageAsset | null;
   imdb_id: string | null;
   stats: {
     movies_count: number;

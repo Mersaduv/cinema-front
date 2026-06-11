@@ -1,3 +1,18 @@
+const RESPONSIVE_IMAGE_FIELDS = /* GraphQL */ `
+  original
+  blur
+  src
+  srcset_string
+  width
+  height
+  mime_type
+  srcset {
+    url
+    width
+    descriptor
+  }
+`;
+
 /** Catalog — MovieCard only (low complexity). */
 export const GET_MOVIES_LIST = /* GraphQL */ `
   query GetMoviesList(
@@ -60,6 +75,12 @@ export const GET_MOVIE = /* GraphQL */ `
       age_rating
       poster_url
       backdrop_url
+      poster_image {
+        ${RESPONSIVE_IMAGE_FIELDS}
+      }
+      backdrop_image {
+        ${RESPONSIVE_IMAGE_FIELDS}
+      }
       trailer_url
       has_dubbed_audio
       has_subtitle
@@ -85,6 +106,9 @@ export const GET_MOVIE = /* GraphQL */ `
           name
           character
           profile_url
+          profile_image {
+            ${RESPONSIVE_IMAGE_FIELDS}
+          }
         }
         gallery
       }
@@ -95,6 +119,9 @@ export const GET_MOVIE = /* GraphQL */ `
           slug
           name
           profile_url
+          profile_image {
+            ${RESPONSIVE_IMAGE_FIELDS}
+          }
         }
       }
       crew {
@@ -208,6 +235,14 @@ export const GET_SERIES_LIST = /* GraphQL */ `
         has_dubbed
         list_meta {
           status_label_fa
+          poster_url
+          backdrop_url
+          poster_image {
+            ${RESPONSIVE_IMAGE_FIELDS}
+          }
+          backdrop_image {
+            ${RESPONSIVE_IMAGE_FIELDS}
+          }
           genres
           rating
           detail_backdrop_url
@@ -262,6 +297,12 @@ export const GET_SERIES_OVERVIEW = /* GraphQL */ `
       }
       poster_url
       backdrop_url
+      poster_image {
+        ${RESPONSIVE_IMAGE_FIELDS}
+      }
+      backdrop_image {
+        ${RESPONSIVE_IMAGE_FIELDS}
+      }
       trailer_url
       age_rating
       has_subtitle
@@ -277,6 +318,9 @@ export const GET_SERIES_OVERVIEW = /* GraphQL */ `
         slug
         character_name
         profile_url
+        profile_image {
+          ${RESPONSIVE_IMAGE_FIELDS}
+        }
         order
       }
       crew {
@@ -285,6 +329,9 @@ export const GET_SERIES_OVERVIEW = /* GraphQL */ `
         job
         department
         profile_url
+        profile_image {
+          ${RESPONSIVE_IMAGE_FIELDS}
+        }
       }
       details {
         backdrop_url
@@ -301,6 +348,9 @@ export const GET_SERIES_OVERVIEW = /* GraphQL */ `
           name
           character
           profile_url
+          profile_image {
+            ${RESPONSIVE_IMAGE_FIELDS}
+          }
         }
         gallery
       }

@@ -9,11 +9,15 @@ export default function ActiveFilterChips({
   filterOptions,
   onChange,
   onClearAll,
+  lockedGenres = [],
+  lockedGenreLabels = {},
 }: {
   filters: CatalogFiltersState;
   filterOptions: FilterOptions;
   onChange: (next: CatalogFiltersState) => void;
   onClearAll: () => void;
+  lockedGenres?: string[];
+  lockedGenreLabels?: Record<string, string>;
 }) {
   const allGenres =
     filterOptions.catalog_genres ?? [
@@ -33,17 +37,21 @@ export default function ActiveFilterChips({
     filterOptions.languages.map((language) => [language.iso, language.name]),
   );
 
-  const chips: Array<{ key: string; label: string; remove: () => void }> = [];
+  const chips: Array<{ key: string; label: string; locked?: boolean; remove?: () => void }> = [];
 
   filters.genres.forEach((slug) => {
+    const locked = lockedGenres.includes(slug);
     chips.push({
       key: `genre-${slug}`,
-      label: genreLabel.get(slug) ?? slug,
-      remove: () =>
-        onChange({
-          ...filters,
-          genres: filters.genres.filter((item) => item !== slug),
-        }),
+      label: lockedGenreLabels[slug] ?? genreLabel.get(slug) ?? slug,
+      locked,
+      remove: locked
+        ? undefined
+        : () =>
+            onChange({
+              ...filters,
+              genres: filters.genres.filter((item) => item !== slug),
+            }),
     });
   });
 
@@ -93,17 +101,26 @@ export default function ActiveFilterChips({
 
   return (
     <div className="flex flex-wrap items-center justify-start gap-2">
-      {chips.map((chip) => (
-        <button
-          key={chip.key}
-          type="button"
-          onClick={chip.remove}
-          className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 text-xs text-white/85 hover:bg-white/10"
-        >
-          <HiXMark className="h-3.5 w-3.5" />
-          <span>{chip.label}</span>
-        </button>
-      ))}
+      {chips.map((chip) =>
+        chip.locked ? (
+          <span
+            key={chip.key}
+            className="inline-flex items-center gap-1 rounded-full border border-[#a855f7]/25 bg-[#a855f7]/10 px-3 py-1 text-xs text-[#e9d5ff]"
+          >
+            <span>{chip.label}</span>
+          </span>
+        ) : (
+          <button
+            key={chip.key}
+            type="button"
+            onClick={chip.remove}
+            className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 text-xs text-white/85 hover:bg-white/10"
+          >
+            <HiXMark className="h-3.5 w-3.5" />
+            <span>{chip.label}</span>
+          </button>
+        ),
+      )}
       <button
         type="button"
         onClick={onClearAll}

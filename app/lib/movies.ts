@@ -1,10 +1,12 @@
 import { apiClient, type ApiResponse } from "./api";
+import type { ResponsiveImageAsset } from "./cinema-image";
 import type { ReviewsPayload } from "./reviews";
 
 export interface PublicMovieActor {
   name: string | null;
   character: string | null;
   profile_url: string | null;
+  profile_image?: ResponsiveImageAsset | null;
 }
 
 export interface PublicMovieCastMember {
@@ -12,6 +14,7 @@ export interface PublicMovieCastMember {
   name: string | null;
   character: string | null;
   profile_url: string | null;
+  profile_image?: ResponsiveImageAsset | null;
   slug?: string | null;
 }
 
@@ -43,6 +46,8 @@ export interface PublicMovie {
   duration_seconds: number | null;
   provider_name: string | null;
   poster_url: string | null;
+  poster_image?: ResponsiveImageAsset | null;
+  backdrop_image?: ResponsiveImageAsset | null;
   trailer_url: string | null;
   has_dubbed_audio: boolean;
   audio_tracks: Array<{

@@ -1,6 +1,29 @@
+import {
+  normalizeImageAsset,
+  pickImageSrc,
+  pickProfileImageSrc,
+  type ResponsiveImageAsset,
+} from "../cinema-image";
 import type { PublicMovie } from "../movies";
 import type { PublicSeries, PublicSeriesSeason } from "../series";
-import type { ReviewsPayload } from "../reviews";
+import type { Review, ReviewsPayload } from "../reviews";
+
+type GraphqlResponsiveImage = {
+  original?: string | null;
+  blur?: string | null;
+  src?: string | null;
+  srcset?: Array<{ url: string; width: number; descriptor?: string }>;
+  srcset_string?: string | null;
+  width?: number | null;
+  height?: number | null;
+  mime_type?: string | null;
+};
+
+function mapResponsiveImage(
+  image?: GraphqlResponsiveImage | null,
+): ResponsiveImageAsset | null {
+  return normalizeImageAsset(image);
+}
 
 type GraphqlMovieDetail = {
   id: string;
@@ -13,6 +36,8 @@ type GraphqlMovieDetail = {
   age_rating?: string | null;
   poster_url?: string | null;
   backdrop_url?: string | null;
+  poster_image?: GraphqlResponsiveImage | null;
+  backdrop_image?: GraphqlResponsiveImage | null;
   trailer_url?: string | null;
   has_dubbed_audio: boolean;
   has_subtitle: boolean;
@@ -34,18 +59,29 @@ type GraphqlMovieDetail = {
       name?: string | null;
       character?: string | null;
       profile_url?: string | null;
+      profile_image?: GraphqlResponsiveImage | null;
     }>;
     gallery?: string[];
   } | null;
   cast?: Array<{
     character_name?: string | null;
     order?: number | null;
-    person: { slug: string; name: string; profile_url?: string | null };
+    person: {
+      slug: string;
+      name: string;
+      profile_url?: string | null;
+      profile_image?: GraphqlResponsiveImage | null;
+    };
   }>;
   crew?: Array<{
     job: string;
     department?: string | null;
-    person: { slug: string; name: string; profile_url?: string | null };
+    person: {
+      slug: string;
+      name: string;
+      profile_url?: string | null;
+      profile_image?: GraphqlResponsiveImage | null;
+    };
   }>;
   metadata?: {
     playback?: {
@@ -104,6 +140,8 @@ export type GraphqlSeriesOverview = {
   genre_tags?: Array<{ id: string; slug: string; name: string }>;
   poster_url?: string | null;
   backdrop_url?: string | null;
+  poster_image?: GraphqlResponsiveImage | null;
+  backdrop_image?: GraphqlResponsiveImage | null;
   trailer_url?: string | null;
   age_rating?: string | null;
   has_subtitle?: boolean;
@@ -115,6 +153,7 @@ export type GraphqlSeriesOverview = {
     slug?: string | null;
     character_name?: string | null;
     profile_url?: string | null;
+    profile_image?: GraphqlResponsiveImage | null;
     order?: number | null;
   }>;
   crew?: Array<{
@@ -123,6 +162,7 @@ export type GraphqlSeriesOverview = {
     job?: string | null;
     department?: string | null;
     profile_url?: string | null;
+    profile_image?: GraphqlResponsiveImage | null;
   }>;
   details: {
     backdrop_url?: string | null;
@@ -139,6 +179,7 @@ export type GraphqlSeriesOverview = {
       name?: string | null;
       character?: string | null;
       profile_url?: string | null;
+      profile_image?: GraphqlResponsiveImage | null;
     }>;
     gallery?: string[];
   };
@@ -166,6 +207,11 @@ function mapGraphqlReviews(payload?: GraphqlReviewsPayload | null): ReviewsPaylo
       },
       rating: Number(row.rating),
       body: ("body" in row ? row.body : null) ?? null,
+      status: "status" in row ? (row.status as Review["status"]) : undefined,
+      is_pending:
+        "is_pending" in row
+          ? Boolean(row.is_pending)
+          : "status" in row && row.status === "pending",
       created_at: "created_at" in row ? row.created_at : "",
       is_own: "is_own" in row ? Boolean(row.is_own) : false,
     };
@@ -213,6 +259,10 @@ export type GraphqlSeriesListItem = {
   number_of_episodes?: number | null;
   list_meta?: {
     status_label_fa?: string | null;
+    poster_url?: string | null;
+    backdrop_url?: string | null;
+    poster_image?: GraphqlResponsiveImage | null;
+    backdrop_image?: GraphqlResponsiveImage | null;
     genres?: string[];
     rating?: number | null;
     detail_backdrop_url?: string | null;
@@ -243,7 +293,10 @@ export function graphqlMovieToPublic(movie: GraphqlMovieDetail): PublicMovie {
         name: genre.name,
         slug: genre.slug,
       })) ?? [],
-    poster_url: movie.poster_url ?? null,
+    poster_image: mapResponsiveImage(movie.poster_image),
+    backdrop_image: mapResponsiveImage(movie.backdrop_image),
+    poster_url:
+      pickImageSrc(movie.poster_image, movie.poster_url) ?? movie.poster_url ?? null,
     trailer_url: movie.trailer_url ?? null,
     has_dubbed_audio: movie.has_dubbed_audio,
     audio_tracks: [],
@@ -252,25 +305,45 @@ export function graphqlMovieToPublic(movie: GraphqlMovieDetail): PublicMovie {
     age_rating: movie.age_rating ?? null,
     cast_members: [],
     cast:
-      movie.cast?.map((row) => ({
-        name: row.person.name,
-        slug: row.person.slug,
-        character: row.character_name ?? null,
-        profile_url: row.person.profile_url ?? null,
-        order: row.order ?? null,
-      })) ?? [],
+      movie.cast?.map((row) => {
+        const profileImage = mapResponsiveImage(row.person.profile_image);
+        const metadataActor = movie.details?.actors?.find(
+          (actor) => actor.name && actor.name === row.person.name,
+        );
+        const metadataProfileImage = mapResponsiveImage(metadataActor?.profile_image);
+
+        return {
+          name: row.person.name,
+          slug: row.person.slug,
+          character: row.character_name ?? null,
+          profile_url:
+            pickProfileImageSrc(metadataProfileImage, metadataActor?.profile_url) ??
+            pickProfileImageSrc(profileImage, row.person.profile_url),
+          profile_image: metadataProfileImage ?? profileImage,
+          order: row.order ?? null,
+        };
+      }) ?? [],
     crew:
-      movie.crew?.map((row) => ({
-        name: row.person.name,
-        slug: row.person.slug,
-        job: row.job,
-        department: row.department ?? null,
-        profile_url: row.person.profile_url ?? null,
-      })) ?? [],
+      movie.crew?.map((row) => {
+        const profileImage = mapResponsiveImage(row.person.profile_image);
+
+        return {
+          name: row.person.name,
+          slug: row.person.slug,
+          job: row.job,
+          department: row.department ?? null,
+          profile_url: pickProfileImageSrc(profileImage, row.person.profile_url),
+          profile_image: profileImage,
+        };
+      }) ?? [],
     publish_status: "published",
     download_links: downloadRecord,
     details: {
-      backdrop_url: movie.backdrop_url ?? movie.poster_url ?? null,
+      backdrop_url:
+        pickImageSrc(movie.backdrop_image, movie.backdrop_url, movie.poster_url) ??
+        movie.backdrop_url ??
+        movie.poster_url ??
+        null,
       rating: details?.rating ?? null,
       original_language: details?.original_language ?? null,
       network: details?.network ?? null,
@@ -281,16 +354,26 @@ export function graphqlMovieToPublic(movie: GraphqlMovieDetail): PublicMovie {
       languages: details?.languages ?? [],
       countries: details?.countries ?? [],
       actors:
-        details?.actors?.map((actor) => ({
-          name: actor.name ?? null,
-          character: actor.character ?? null,
-          profile_url: actor.profile_url ?? null,
-        })) ??
-        movie.cast?.map((row) => ({
-          name: row.person.name,
-          character: row.character_name ?? null,
-          profile_url: row.person.profile_url ?? null,
-        })) ??
+        details?.actors?.map((actor) => {
+          const profileImage = mapResponsiveImage(actor.profile_image);
+
+          return {
+            name: actor.name ?? null,
+            character: actor.character ?? null,
+            profile_url: pickProfileImageSrc(profileImage, actor.profile_url),
+            profile_image: profileImage,
+          };
+        }) ??
+        movie.cast?.map((row) => {
+          const profileImage = mapResponsiveImage(row.person.profile_image);
+
+          return {
+            name: row.person.name,
+            character: row.character_name ?? null,
+            profile_url: pickProfileImageSrc(profileImage, row.person.profile_url),
+            profile_image: profileImage,
+          };
+        }) ??
         [],
       gallery: details?.gallery ?? (movie.poster_url ? [movie.poster_url] : []),
     },
@@ -343,11 +426,16 @@ function mapSeriesDetails(
     countries: details.countries ?? [],
     network: details.network ?? null,
     actors:
-      details.actors?.map((actor) => ({
-        name: actor.name ?? null,
-        character: actor.character ?? null,
-        profile_url: actor.profile_url ?? null,
-      })) ?? [],
+      details.actors?.map((actor) => {
+        const profileImage = mapResponsiveImage(actor.profile_image);
+
+        return {
+          name: actor.name ?? null,
+          character: actor.character ?? null,
+          profile_url: pickProfileImageSrc(profileImage, actor.profile_url),
+          profile_image: profileImage,
+        };
+      }) ?? [],
     gallery: details.gallery ?? [],
   };
 }
@@ -399,27 +487,48 @@ export function graphqlSeriesOverviewToPublic(
         name: genre.name,
         slug: genre.slug,
       })) ?? [],
-    poster_url: series.poster_url ?? null,
-    backdrop_url: series.backdrop_url ?? null,
+    poster_image: mapResponsiveImage(series.poster_image),
+    backdrop_image: mapResponsiveImage(series.backdrop_image),
+    poster_url:
+      pickImageSrc(series.poster_image, series.poster_url) ?? series.poster_url ?? null,
+    backdrop_url:
+      pickImageSrc(series.backdrop_image, series.backdrop_url) ??
+      series.backdrop_url ??
+      null,
     trailer_url: series.trailer_url ?? null,
     age_rating: series.age_rating ?? null,
     has_subtitle: series.has_subtitle ?? false,
     has_dubbed: series.has_dubbed ?? false,
     cast:
-      series.cast?.map((row) => ({
-        name: row.name ?? null,
-        slug: row.slug ?? null,
-        character: row.character_name ?? null,
-        profile_url: row.profile_url ?? null,
-        order: row.order ?? null,
-      })) ?? [],
+      series.cast?.map((row) => {
+        const profileImage = mapResponsiveImage(row.profile_image);
+        const metadataActor = series.details?.actors?.find(
+          (actor) => actor.name && actor.name === row.name,
+        );
+        const metadataProfileImage = mapResponsiveImage(metadataActor?.profile_image);
+
+        return {
+          name: row.name ?? null,
+          slug: row.slug ?? null,
+          character: row.character_name ?? null,
+          profile_url:
+            pickProfileImageSrc(metadataProfileImage, metadataActor?.profile_url) ??
+            pickProfileImageSrc(profileImage, row.profile_url),
+          profile_image: metadataProfileImage ?? profileImage,
+          order: row.order ?? null,
+        };
+      }) ?? [],
     crew:
       series.crew?.map((row) => ({
         name: row.name ?? null,
         slug: row.slug ?? null,
         job: row.job ?? null,
         department: row.department ?? null,
-        profile_url: row.profile_url ?? null,
+        profile_url:
+          pickImageSrc(mapResponsiveImage(row.profile_image), row.profile_url) ??
+          row.profile_url ??
+          null,
+        profile_image: mapResponsiveImage(row.profile_image),
       })) ?? [],
     seasons,
     details,
@@ -495,6 +604,10 @@ export function graphqlMovieCardToCatalogItem(movie: GraphqlMovieListItem): Cata
 
 export function graphqlSeriesCardToCatalogItem(series: GraphqlSeriesListItem) {
   const meta = series.list_meta;
+  const posterImage = mapResponsiveImage(meta?.poster_image);
+  const backdropImage = mapResponsiveImage(meta?.backdrop_image);
+  const backdrop =
+    meta?.backdrop_url ?? series.backdrop_url ?? meta?.detail_backdrop_url ?? null;
 
   return {
     id: Number(series.id),
@@ -502,14 +615,20 @@ export function graphqlSeriesCardToCatalogItem(series: GraphqlSeriesListItem) {
     slug: series.slug,
     synopsis: series.synopsis ?? null,
     release_year: series.release_year ?? null,
-    poster_url: series.poster_url ?? null,
-    backdrop_url: series.backdrop_url ?? meta?.detail_backdrop_url ?? null,
+    poster_url:
+      pickImageSrc(posterImage, meta?.poster_url ?? series.poster_url) ??
+      meta?.poster_url ??
+      series.poster_url ??
+      null,
+    poster_image: posterImage,
+    backdrop_url: pickImageSrc(backdropImage, backdrop) ?? backdrop,
+    backdrop_image: backdropImage,
     status_label_fa: meta?.status_label_fa ?? null,
     has_subtitle: series.has_subtitle ?? false,
     has_dubbed: series.has_dubbed ?? false,
     details: {
       genres: meta?.genres ?? [],
-      backdrop_url: meta?.detail_backdrop_url ?? series.backdrop_url ?? null,
+      backdrop_url: pickImageSrc(backdropImage, backdrop) ?? backdrop,
       rating: meta?.rating ?? null,
     },
   };

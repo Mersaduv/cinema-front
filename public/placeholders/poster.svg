@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" role="img" aria-label="Poster placeholder">
+  <rect width="400" height="600" fill="#12161f"/>
+  <rect x="40" y="80" width="320" height="440" rx="16" fill="#1e2530"/>
+  <circle cx="200" cy="260" r="48" fill="#2a3444"/>
+  <rect x="100" y="360" width="200" height="12" rx="6" fill="#2a3444"/>
+  <rect x="130" y="390" width="140" height="10" rx="5" fill="#232b38"/>
+</svg>

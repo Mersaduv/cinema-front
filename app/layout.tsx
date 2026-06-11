@@ -64,11 +64,14 @@ const iranSansX = localFont({
   ],
   variable: "--font-iran-sans-x",
   display: "swap",
-  preload: true,
+  preload: false,
   fallback: ["Arial", "Helvetica", "sans-serif"],
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "Cinema",
   description: "پلتفرم نمایش و مدیریت فیلم و سریال",
 };
@@ -79,7 +82,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="fa" dir="rtl" data-scroll-behavior="smooth">
       <body className={`${iranSansX.variable} font-sans antialiased`}>
         <AuthProvider>
           <AppChrome>{children}</AppChrome>

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 import ContentDetailPage from "../../components/content/ContentDetailPage";
+import { toCatalogItem } from "../../lib/catalog/rest";
 import { moviesService, type PublicMovie, type PublicMovieListItem } from "../../lib/movies";
 
 export default function MovieDetailClient({
@@ -9,7 +11,24 @@ export default function MovieDetailClient({
 }: {
   movie: PublicMovie;
 }) {
-  const [movie] = useState(initialMovie);
+  const { data: movie = initialMovie } = useSWR(
+    `movie:detail:${initialMovie.slug}`,
+    async () => {
+      const response = await moviesService.show(initialMovie.slug);
+      if (response.success && response.data?.movie) {
+        return response.data.movie;
+      }
+
+      return initialMovie;
+    },
+    {
+      fallbackData: initialMovie,
+      revalidateOnMount: true,
+      revalidateOnFocus: true,
+      dedupingInterval: 0,
+    },
+  );
+
   const [similarMovies, setSimilarMovies] = useState<PublicMovieListItem[]>([]);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
   const similarRequestedRef = useRef(false);
@@ -23,7 +42,7 @@ export default function MovieDetailClient({
     setLoadingSimilar(true);
 
     try {
-      const response = await moviesService.related(movie.slug, 12);
+      const response = await moviesService.related(movie.slug, 18);
       if (response.success && response.data?.movies) {
         setSimilarMovies(response.data.movies);
       }
@@ -32,9 +51,26 @@ export default function MovieDetailClient({
     }
   }, [movie.slug]);
 
-  useEffect(() => {
-    void loadSimilar();
-  }, [loadSimilar]);
+  const reviewsProps = useMemo(
+    () => ({
+      initialReviews: movie.reviews?.reviews ?? [],
+      initialSummary: movie.reviews?.summary ?? {
+        total_count: 0,
+        average_rating: 0,
+        distribution: Object.fromEntries(
+          Array.from({ length: 10 }, (_, index) => [String(index + 1), 0]),
+        ),
+      },
+      initialPaginator: movie.reviews?.paginatorInfo ?? {
+        currentPage: 1,
+        lastPage: 1,
+        total: 0,
+      },
+      userReview: movie.reviews?.user_review ?? null,
+      cachedAvgRating: movie.cached_avg_rating ?? null,
+    }),
+    [movie],
+  );
 
   return (
     <ContentDetailPage
@@ -44,33 +80,10 @@ export default function MovieDetailClient({
       onRequestSimilar={() => {
         void loadSimilar();
       }}
-      reviewsProps={{
-        initialReviews: movie.reviews?.reviews ?? [],
-        initialSummary: movie.reviews?.summary ?? {
-          total_count: 0,
-          average_rating: 0,
-          distribution: Object.fromEntries(
-            Array.from({ length: 10 }, (_, index) => [String(index + 1), 0]),
-          ),
-        },
-        initialPaginator: movie.reviews?.paginatorInfo ?? {
-          currentPage: 1,
-          lastPage: 1,
-          total: 0,
-        },
-        userReview: movie.reviews?.user_review ?? null,
-        cachedAvgRating: movie.cached_avg_rating ?? null,
-      }}
-      similarItems={similarMovies.map((item) => ({
-        id: item.id,
-        title: item.title,
-        slug: item.slug,
-        synopsis: item.synopsis,
-        poster_url: item.poster_url,
-        backdrop_url: item.details.backdrop_url,
-        release_year: item.release_year,
-        details: item.details,
-      }))}
+      reviewsProps={reviewsProps}
+      similarItems={similarMovies.map((item) =>
+        toCatalogItem(item as unknown as Record<string, unknown>, "has_dubbed_audio"),
+      )}
     />
   );
 }

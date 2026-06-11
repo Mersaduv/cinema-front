@@ -1,4 +1,5 @@
 import { apiClient, type ApiResponse } from "./api";
+import type { ResponsiveImageAsset } from "./cinema-image";
 import type { PublicGenre } from "./movies";
 import type { ReviewsPayload } from "./reviews";
 
@@ -6,6 +7,7 @@ export interface PublicSeriesActor {
   name: string | null;
   character: string | null;
   profile_url: string | null;
+  profile_image?: ResponsiveImageAsset | null;
 }
 
 export interface PublicSeriesCastMember {
@@ -13,6 +15,7 @@ export interface PublicSeriesCastMember {
   name: string | null;
   character: string | null;
   profile_url: string | null;
+  profile_image?: ResponsiveImageAsset | null;
   slug?: string | null;
   order?: number | null;
 }
@@ -23,6 +26,7 @@ export interface PublicSeriesCrewMember {
   job: string | null;
   department: string | null;
   profile_url: string | null;
+  profile_image?: ResponsiveImageAsset | null;
   slug?: string | null;
 }
 
@@ -36,6 +40,7 @@ export interface PublicSeriesEpisode {
   air_date: string | null;
   duration_minutes: number | null;
   still_url: string | null;
+  still_image?: ResponsiveImageAsset | null;
   hls_url: string | null;
   download_links?: Record<string, string>;
   subtitle_url: string | null;
@@ -50,6 +55,7 @@ export interface PublicSeriesSeason {
   air_date: string | null;
   episode_count: number | null;
   poster_url: string | null;
+  poster_image?: ResponsiveImageAsset | null;
   episodes: PublicSeriesEpisode[];
 }
 
@@ -71,7 +77,9 @@ export interface PublicSeries {
   network: string | null;
   provider_name?: string | null;
   poster_url: string | null;
+  poster_image?: ResponsiveImageAsset | null;
   backdrop_url: string | null;
+  backdrop_image?: ResponsiveImageAsset | null;
   trailer_url: string | null;
   age_rating: string | null;
   genres?: PublicGenre[];

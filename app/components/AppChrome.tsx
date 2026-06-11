@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Footer from "./Footer";
 import Header from "./Header";
 
 export default function AppChrome({
@@ -24,11 +25,12 @@ export default function AppChrome({
       <div
         className={
           shouldHideHeader || shouldOverlayHeader
-            ? "min-h-screen"
-            : "min-h-screen pt-[138px] xl:pt-[92px]"
+            ? "flex min-h-screen flex-col"
+            : "flex min-h-screen flex-col pt-[138px] xl:pt-[81px]"
         }
       >
-        {children}
+        <main className="flex-1">{children}</main>
+        {!shouldHideHeader ? <Footer /> : null}
       </div>
     </>
   );

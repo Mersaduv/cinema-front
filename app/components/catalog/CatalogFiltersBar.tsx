@@ -5,11 +5,19 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { HiMagnifyingGlass } from "react-icons/hi2";
 import CountryFilterDropdown from "./CountryFilterDropdown";
 import FilterDropdown from "./FilterDropdown";
+import AnimationSubtypeFilter from "./AnimationSubtypeFilter";
 import GenreFilterDropdown from "./GenreFilterDropdown";
 import YearRangeFilter from "./YearRangeFilter";
+import {
+  DEFAULT_ANIMATION_SUBTYPES,
+  type SelectableAnimationSubtype,
+} from "../../lib/catalog/animation";
 import FilterCheckbox from "../ui/FilterCheckbox";
 import type { CatalogFiltersState } from "../../lib/catalog/search-params";
-import { buildCatalogQueryString } from "../../lib/catalog/search-params";
+import {
+  buildCatalogQueryString,
+  EMPTY_CATALOG_FILTERS,
+} from "../../lib/catalog/search-params";
 import type { FilterOptions } from "../../lib/filter-options";
 import { buildGenreFilterOptions } from "../../lib/catalog/genre-filter-options";
 
@@ -28,11 +36,21 @@ export default function CatalogFiltersBar({
   filters,
   filterOptions,
   onFiltersChange,
+  hideGenreFilter = false,
+  animationSubtypeMode = false,
+  animationSubtypes = DEFAULT_ANIMATION_SUBTYPES,
+  onAnimationSubtypesChange,
+  onClearAll,
 }: {
   kind: "movie" | "series";
   filters: CatalogFiltersState;
   filterOptions: FilterOptions;
   onFiltersChange?: (next: CatalogFiltersState) => void;
+  hideGenreFilter?: boolean;
+  animationSubtypeMode?: boolean;
+  animationSubtypes?: SelectableAnimationSubtype[];
+  onAnimationSubtypesChange?: (subtypes: SelectableAnimationSubtype[]) => void;
+  onClearAll?: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -110,16 +128,19 @@ export default function CatalogFiltersBar({
   };
 
   const clearAll = () => {
-    commit({
-      search: "",
-      sort: "",
-      genres: [],
-      countries: [],
-      languages: [],
-      year_from: null,
-      year_to: null,
-      min_rating: "",
-    });
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+
+    setState(EMPTY_CATALOG_FILTERS);
+
+    if (onClearAll) {
+      onClearAll();
+      return;
+    }
+
+    commit(EMPTY_CATALOG_FILTERS);
   };
 
   const imdbLabel =
@@ -129,15 +150,28 @@ export default function CatalogFiltersBar({
     "مرتب‌سازی براساس";
 
   return (
-    <div dir="rtl" className="mb-4 space-y-3">
-      <div className="hidden lg:block">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-          <GenreFilterDropdown
-            options={genreOptions}
-            value={state.genres}
-            onChange={(genres) => commit({ ...state, genres })}
-            placeholder="ژانر"
-          />
+    <div dir="rtl" className="relative z-30 space-y-3 overflow-visible">
+      <div className="hidden overflow-visible lg:block">
+        <div
+          className={`grid grid-cols-2 gap-2 overflow-visible sm:grid-cols-3 ${
+            animationSubtypeMode || !hideGenreFilter ? "xl:grid-cols-5" : "xl:grid-cols-4"
+          }`}
+        >
+          {animationSubtypeMode && onAnimationSubtypesChange ? (
+            <AnimationSubtypeFilter
+              value={animationSubtypes}
+              onChange={onAnimationSubtypesChange}
+            />
+          ) : null}
+
+          {hideGenreFilter ? null : (
+            <GenreFilterDropdown
+              options={genreOptions}
+              value={state.genres}
+              onChange={(genres) => commit({ ...state, genres })}
+              placeholder="ژانر"
+            />
+          )}
 
           <FilterDropdown label="امتیاز IMDB" valueLabel={imdbLabel} minWidth="240px">
             <div className="p-2">
@@ -191,42 +225,52 @@ export default function CatalogFiltersBar({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="relative min-w-[240px] flex-1">
+          <button
+            type="button"
+            onClick={clearAll}
+            className="order-2 shrink-0 rounded-xl border border-white/12 bg-[#0d1118] px-5 py-3.5 text-sm text-white/80 transition hover:border-white/25 hover:bg-white/[0.04] lg:order-2"
+          >
+            حذف همه فیلترها
+          </button>
+          <div className="relative order-1 min-w-[240px] flex-1 lg:order-1">
             <HiMagnifyingGlass className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
             <input
               value={state.search}
               onChange={(event) => commitSearch(event.target.value)}
               placeholder="جستجو..."
-              className="w-full rounded-xl border border-white/10 bg-[#1a1f2e] py-3.5 pr-10 pl-4 text-right text-sm text-white outline-none placeholder:text-white/35 focus:border-[#f5c518]/60"
+              className="w-full rounded-xl border border-white/10 bg-[#0d1118] py-3.5 pr-10 pl-4 text-right text-sm text-white outline-none placeholder:text-white/35 focus:border-[#3b82f6]/50"
             />
           </div>
-          <button
-            type="button"
-            onClick={clearAll}
-            className="shrink-0 rounded-xl border border-white/15 bg-[#1a1f2e] px-5 py-3.5 text-sm text-white/85 transition hover:border-[#f5c518]/40 hover:bg-white/5"
-          >
-            حذف همه فیلترها
-          </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 lg:hidden">
-        <button
-          type="button"
-          onClick={() => navigateContentType(kind === "movie" ? "series" : "movie")}
-          className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/80"
-        >
-          {kind === "movie" ? "سریال" : "فیلم"}
-        </button>
-      </div>
+      {!animationSubtypeMode ? (
+        <div className="flex flex-wrap gap-2 lg:hidden">
+          <button
+            type="button"
+            onClick={() => navigateContentType(kind === "movie" ? "series" : "movie")}
+            className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/80"
+          >
+            {kind === "movie" ? "سریال" : "فیلم"}
+          </button>
+        </div>
+      ) : null}
 
-      <div className="space-y-2 lg:hidden">
-        <GenreFilterDropdown
-          options={genreOptions}
-          value={state.genres}
-          onChange={(genres) => commit({ ...state, genres })}
-          placeholder="ژانر"
-        />
+      <div className="relative z-30 space-y-2 overflow-visible lg:hidden">
+        {animationSubtypeMode && onAnimationSubtypesChange ? (
+          <AnimationSubtypeFilter
+            value={animationSubtypes}
+            onChange={onAnimationSubtypesChange}
+          />
+        ) : null}
+        {hideGenreFilter ? null : (
+          <GenreFilterDropdown
+            options={genreOptions}
+            value={state.genres}
+            onChange={(genres) => commit({ ...state, genres })}
+            placeholder="ژانر"
+          />
+        )}
         <CountryFilterDropdown
           options={countryOptions}
           value={state.countries}
@@ -240,6 +284,13 @@ export default function CatalogFiltersBar({
           to={state.year_to}
           onChange={(year_from, year_to) => commit({ ...state, year_from, year_to })}
         />
+        <button
+          type="button"
+          onClick={clearAll}
+          className="w-full rounded-xl border border-white/12 bg-[#0d1118] px-5 py-3.5 text-sm text-white/80 transition hover:border-white/25 hover:bg-white/[0.04]"
+        >
+          حذف همه فیلترها
+        </button>
       </div>
     </div>
   );

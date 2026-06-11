@@ -126,38 +126,50 @@ export default function ReviewsSection({
   };
 
   return (
-    <section dir="rtl" aria-labelledby="reviews-heading" className="space-y-8">
-      <h2 id="reviews-heading" className="text-2xl font-black text-white">
-        نظرات کاربران
-      </h2>
+    <section
+      dir="rtl"
+      aria-labelledby="reviews-heading"
+      className="mx-auto max-w-3xl space-y-6"
+    >
+      <div className="space-y-2">
+        <h2 id="reviews-heading" className="text-2xl font-black text-white">
+          دیدگاه کاربران
+        </h2>
+        <p className="text-sm text-white/45">
+          امتیاز و نظرات تاییدشده کاربران درباره این اثر
+        </p>
+      </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-        <div className="rounded-[32px] border border-white/8 bg-white/[0.03] p-6">
-          <RatingSummaryBar cachedAvgRating={cachedAvgRating} summary={summary} />
-        </div>
+      <RatingSummaryBar cachedAvgRating={cachedAvgRating} summary={summary} />
 
-        <div className="rounded-[32px] border border-white/8 bg-white/[0.03] p-6">
-          {showForm || !userReview ? (
-            <ReviewForm
-              contentType={contentType}
-              slug={slug}
-              userReview={userReview}
-              onSuccess={handleReviewSuccess}
-              onCancel={userReview ? () => setShowForm(false) : undefined}
-            />
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-white/65">شما قبلاً برای این عنوان نظر ثبت کرده‌اید.</p>
-              <button
-                type="button"
-                onClick={() => setShowForm(true)}
-                className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-bold text-white transition hover:border-white/30"
-              >
-                ویرایش نظر
-              </button>
+      <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-5 sm:p-6">
+        {showForm || !userReview ? (
+          <ReviewForm
+            contentType={contentType}
+            slug={slug}
+            userReview={userReview}
+            onSuccess={handleReviewSuccess}
+            onCancel={userReview ? () => setShowForm(false) : undefined}
+          />
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-[20px] border border-white/8 bg-white/[0.02] px-4 py-3">
+              <p className="text-sm text-white/70">شما قبلاً برای این عنوان نظر ثبت کرده‌اید.</p>
+              {userReview.is_pending || userReview.status === "pending" ? (
+                <p className="mt-1 text-xs text-white/50">
+                  نظر شما در صف بررسی است و پس از تایید برای همه نمایش داده می‌شود.
+                </p>
+              ) : null}
             </div>
-          )}
-        </div>
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-bold text-white transition hover:border-white/30 hover:bg-white/[0.04]"
+            >
+              ویرایش نظر
+            </button>
+          </div>
+        )}
       </div>
 
       <ReviewList
@@ -187,13 +199,16 @@ export default function ReviewsSection({
           aria-modal="true"
           aria-label="تأیید حذف نظر"
         >
-          <div dir="rtl" className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#111] p-6">
+          <div
+            dir="rtl"
+            className="w-full max-w-md rounded-[28px] border border-[#f5c518]/20 bg-[#111] p-6"
+          >
             <p className="text-white">آیا از حذف نظر خود مطمئن هستید؟</p>
             <div className="mt-5 flex gap-3">
               <button
                 type="button"
                 onClick={handleDelete}
-                className="rounded-2xl bg-[#ef4444] px-5 py-3 text-sm font-bold text-white"
+                className="rounded-2xl bg-[#c99212] px-5 py-3 text-sm font-bold text-[#12100a] transition hover:bg-[#f5c518]"
               >
                 حذف
               </button>

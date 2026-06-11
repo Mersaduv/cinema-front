@@ -1,7 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { HeroBackdropImage } from "../images";
+import type { ResponsiveImageAsset } from "../../lib/cinema-image";
 import {
   HiMiniPause,
   HiMiniPlay,
@@ -53,10 +54,12 @@ function postYouTubeCommand(
 
 export default function HeroTrailerBackground({
   coverUrl,
+  coverImage,
   trailerUrl,
   alt,
 }: {
   coverUrl: string | null;
+  coverImage?: ResponsiveImageAsset | null;
   trailerUrl: string | null;
   alt: string;
 }) {
@@ -163,17 +166,19 @@ export default function HeroTrailerBackground({
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#05070b]">
-      {coverUrl ? (
-        <Image
-          src={coverUrl}
-          alt={alt}
-          fill
-          priority
-          sizes="100vw"
-          className={`object-cover object-center transition-opacity duration-1000 ${
+      {coverUrl || coverImage ? (
+        <div
+          className={`absolute inset-0 transition-opacity duration-1000 ${
             coverVisible ? "opacity-100" : "opacity-0"
           }`}
-        />
+        >
+          <HeroBackdropImage
+            title={alt}
+            image={coverImage}
+            src={coverUrl}
+            priority
+          />
+        </div>
       ) : (
         <div className="absolute inset-0 bg-[#05070b]" />
       )}

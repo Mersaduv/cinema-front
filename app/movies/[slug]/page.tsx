@@ -4,7 +4,7 @@ import { graphqlRequest } from "../../lib/graphql/server";
 import { GET_MOVIE } from "../../lib/graphql/queries";
 import MovieDetailClient from "./MovieDetailClient";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,

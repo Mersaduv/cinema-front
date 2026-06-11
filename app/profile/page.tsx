@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "../components/ProtectedRoute";
+import ProfileWatchlistPanel from "../components/profile/ProfileWatchlistPanel";
 import { useAuth } from "../contexts/AuthContext";
+import { watchlistCount } from "../lib/watchlist";
 import {
   HiOutlineViewGrid,
   HiOutlineTicket,
@@ -22,6 +24,16 @@ export default function ProfilePage() {
   const router = useRouter();
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(true);
   const [activeMenu, setActiveMenu] = useState("dashboard");
+  const [savedCount, setSavedCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) {
+      setSavedCount(0);
+      return;
+    }
+
+    setSavedCount(watchlistCount(user.id));
+  }, [user, activeMenu]);
 
   const handleDismissWelcome = () => {
     setShowWelcomeMessage(false);
@@ -55,12 +67,28 @@ export default function ProfilePage() {
     },
   ];
 
-  const stats = [
-    { label: "دیدگاه های شما", icon: MdComment, count: 0 },
-    { label: "لیست بعداً ببینم", icon: MdBookmark, count: 0 },
-    { label: "تیکت های پاسخ داده شده", icon: HiOutlineTicket, count: 0 },
-    { label: "تیکت های منتظر پاسخ", icon: HiOutlineTicket, count: 0 },
-  ];
+  const stats = useMemo(
+    () => [
+      { label: "دیدگاه های شما", icon: MdComment, count: 0 },
+      { label: "لیست بعداً ببینم", icon: MdBookmark, count: savedCount },
+      { label: "تیکت های پاسخ داده شده", icon: HiOutlineTicket, count: 0 },
+      { label: "تیکت های منتظر پاسخ", icon: HiOutlineTicket, count: 0 },
+    ],
+    [savedCount],
+  );
+
+  const pageTitle =
+    activeMenu === "watchlist"
+      ? "لیست بعداً ببینم"
+      : activeMenu === "tickets"
+        ? "تیکت‌ها"
+        : activeMenu === "requests"
+          ? "درخواست‌ها"
+          : activeMenu === "comments"
+            ? "دیدگاه‌ها"
+            : activeMenu === "edit-profile"
+              ? "ویرایش پروفایل"
+              : "داشبورد";
 
   const getCurrentDate = () => {
     return new Intl.DateTimeFormat("en-GB", {
@@ -162,12 +190,17 @@ export default function ProfilePage() {
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto px-6 py-8">
             <div className="mb-6">
-              <h1 className="text-4xl font-bold text-white mb-2">
-                به پنل کاربری خوش آمدید 👋
-              </h1>
+              <h1 className="mb-2 text-4xl font-bold text-white">{pageTitle}</h1>
+              {activeMenu === "dashboard" ? (
+                <p className="text-gray-400">به پنل کاربری خوش آمدید 👋</p>
+              ) : null}
             </div>
 
-            {showWelcomeMessage && (
+            {activeMenu === "watchlist" && user ? (
+              <ProfileWatchlistPanel userId={user.id} />
+            ) : null}
+
+            {activeMenu === "dashboard" && showWelcomeMessage && (
               <div className="mb-8 bg-[#1f1f1f] border border-[#2f2f2f] rounded-lg p-6 relative">
                 <button
                   onClick={handleDismissWelcome}
@@ -191,6 +224,7 @@ export default function ProfilePage() {
               </div>
             )}
 
+            {activeMenu === "dashboard" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               {stats.map((stat, index) => {
                 const Icon = stat.icon;
@@ -217,7 +251,9 @@ export default function ProfilePage() {
                 );
               })}
             </div>
+            ) : null}
 
+            {activeMenu === "dashboard" ? (
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-white">
@@ -240,7 +276,9 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+            ) : null}
 
+            {activeMenu === "dashboard" ? (
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-white">
@@ -262,6 +300,13 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+            ) : null}
+
+            {activeMenu !== "dashboard" && activeMenu !== "watchlist" ? (
+              <div className="rounded-xl border border-[#2f2f2f] bg-[#1f1f1f] p-12 text-center text-gray-400">
+                این بخش به‌زودی فعال می‌شود.
+              </div>
+            ) : null}
           </div>
         </main>
       </div>

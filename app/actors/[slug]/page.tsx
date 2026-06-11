@@ -99,6 +99,7 @@ export default function ActorProfilePage() {
         name={person.name}
         biography={person.biography}
         profileUrl={person.profile_url}
+        profileImage={person.profile_image}
       />
 
       <div className="mx-auto max-w-[1820px] space-y-12 px-4 pb-16 pt-4 md:px-7 md:pb-20">

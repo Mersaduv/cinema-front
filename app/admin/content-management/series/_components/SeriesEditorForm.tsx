@@ -28,6 +28,7 @@ import PublishOutcomeModal, {
   type PublishOutcomeStatus,
 } from "../../../../components/admin/PublishOutcomeModal";
 import TmdbPreviewSkeleton from "../../../../components/admin/TmdbPreviewSkeleton";
+import { BackdropImage, PersonProfileImage, PosterImage } from "../../../../components/images";
 import SeriesFormStatusPanel from "../../../../components/admin/SeriesFormStatusPanel";
 import {
   adminMoviesService,
@@ -49,6 +50,18 @@ import {
   shouldCascadeReplaceEpisode,
   toMasterPlaylistUrl,
 } from "../../../../lib/series-hls-paths";
+import {
+  applyIngestedPrimaryImages,
+  applyIngestedSeasonImages,
+  buildSeriesPrimaryIngestSource,
+  buildSeriesSeasonIngestSource,
+  buildSeriesTmdbImageIngestPayload,
+  finalizeTmdbImageIngestMessage,
+  mergeIngestedActorProfiles,
+  withTmdbImageProcessingMessage,
+  type IngestTmdbImagesResult,
+} from "../../../../lib/admin-tmdb-image-ingest";
+import { pickAdminPreviewImageSrc } from "../../../../lib/cinema-image";
 import { sortCastByOrder, sortCastRows } from "../../../../lib/cast-utils";
 import {
   formatEpisodeHeading,
@@ -130,6 +143,8 @@ function episodeDownloadMapFromRows(rows: EpisodeDownloadLinkRow[]): Record<stri
     return accumulator;
   }, {});
 }
+import { revalidateAdminSeriesList } from "../../../../lib/admin-series-revalidate";
+import { revalidatePublicSeriesPages } from "../../../../lib/catalog/revalidate";
 import {
   adminSeriesService,
   type AdminSeries,
@@ -559,6 +574,7 @@ function createInitialFormState(): SeriesFormState {
     slug: "",
     original_title: "",
     synopsis: "",
+    synopsis_en: "",
     first_air_date: "",
     last_air_date: "",
     release_year: "",
@@ -619,6 +635,7 @@ function normalizeActor(actor: AdminSeriesActor): AdminSeriesActor | null {
     name,
     character,
     profile_url: profileUrl,
+    profile_image: actor.profile_image ?? null,
     tmdb_person_id: actor.tmdb_person_id ?? null,
     credit_id: actor.credit_id?.trim() || null,
     order: typeof actor.order === "number" ? actor.order : null,
@@ -658,11 +675,17 @@ function nullableString(value: string) {
 }
 
 function mapSeriesToForm(series: AdminSeries): SeriesFormState {
+  const synopsisFields = normalizeSeasonEpisodeSynopsis(
+    series.synopsis,
+    series.metadata?.tmdb?.synopsis_en,
+  );
+
   return {
     title: series.title || "",
     slug: series.slug || "",
     original_title: series.original_title || "",
-    synopsis: series.synopsis || "",
+    synopsis: synopsisFields.synopsis,
+    synopsis_en: synopsisFields.synopsis_en,
     first_air_date: series.first_air_date || "",
     last_air_date: series.last_air_date || "",
     release_year: series.release_year ? String(series.release_year) : "",
@@ -676,8 +699,14 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
       : "",
     network: series.network || "",
     provider_name: series.provider_name || "",
-    poster_url: series.poster_url || "",
-    backdrop_url: series.backdrop_url || "",
+    poster_url:
+      series.poster_image?.original?.startsWith("/images/")
+        ? series.poster_image.original.split("?")[0]
+        : series.poster_url || series.metadata?.tmdb?.poster_url || "",
+    backdrop_url:
+      series.backdrop_image?.original?.startsWith("/images/")
+        ? series.backdrop_image.original.split("?")[0]
+        : series.backdrop_url || series.metadata?.tmdb?.backdrop_url || "",
     trailer_url: series.trailer_url || "",
     homepage_url: series.homepage_url || "",
     age_rating: series.age_rating || "",
@@ -706,6 +735,7 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
             name: c.name || null,
             character: c.character || null,
             profile_url: c.profile_url || null,
+            profile_image: c.profile_image ?? null,
             tmdb_person_id: c.tmdb_person_id ?? null,
             credit_id: c.credit_id || null,
             order: typeof c.order === "number" ? c.order : null,
@@ -721,6 +751,7 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
       job: c.job || "",
       department: c.department || "",
       profile_url: c.profile_url || null,
+      profile_image: c.profile_image ?? null,
       credit_id: c.credit_id || null,
     })),
     hls_base_url: series.hls_base_url || "",
@@ -850,6 +881,7 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
     slug: buildSlug(form.slug, form.original_title, form.title, form.tmdb_id ? `series-${form.tmdb_id}` : null),
     original_title: nullableString(form.original_title),
     synopsis: nullableString(form.synopsis),
+    synopsis_en: nullableString(form.synopsis_en) || null,
     first_air_date: nullableString(form.first_air_date) || null,
     last_air_date: nullableString(form.last_air_date) || null,
     release_year: nullableNumber(form.release_year),
@@ -888,6 +920,7 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
       name: a.name || "",
       character: a.character || "",
       profile_url: a.profile_url || null,
+      profile_image: a.profile_image ?? null,
       credit_id: a.credit_id || null,
       order: a.order ?? idx,
       known_for_department: a.known_for_department || "Acting",
@@ -942,6 +975,7 @@ export default function SeriesEditorForm({
   const [searchMessage, setSearchMessage] = useState("");
   const [searchingTmdb, setSearchingTmdb] = useState(false);
   const [fetchingTmdb, setFetchingTmdb] = useState(false);
+  const [ingestingTmdbImages, setIngestingTmdbImages] = useState(false);
   const [tmdbSyncState, setTmdbSyncState] = useState<TmdbSyncState>(initialTmdbSyncState);
   const [lastFetchedTmdbCode, setLastFetchedTmdbCode] = useState("");
   const [statusOptions, setStatusOptions] = useState(defaultStatusOptions);
@@ -960,6 +994,7 @@ export default function SeriesEditorForm({
   const [episodeHlsSyncPending, setEpisodeHlsSyncPending] = useState<Record<string, boolean>>({});
   const [seriesHlsSyncMessage, setSeriesHlsSyncMessage] = useState("");
   const tmdbAbortControllerRef = useRef<AbortController | null>(null);
+  const tmdbImageIngestAbortRef = useRef<AbortController | null>(null);
   const episodeHlsBatchDebounceTimerRef = useRef<number | null>(null);
   const episodeHlsBatchPreviousComparablesRef = useRef<Map<string, string> | null>(null);
   const episodeHlsSyncGenerationRef = useRef<Record<string, number>>({});
@@ -1083,8 +1118,24 @@ export default function SeriesEditorForm({
     [form.seasons],
   );
 
-  const previewPosterUrl = form.poster_url.trim();
-  const previewBackdropUrl = form.backdrop_url.trim();
+  const previewPosterImage = series?.poster_image ?? null;
+  const previewBackdropImage = series?.backdrop_image ?? null;
+  const previewPosterUrl =
+    pickAdminPreviewImageSrc(
+      previewPosterImage,
+      form.poster_url.trim(),
+      series?.poster_url,
+      series?.metadata?.tmdb?.poster_url,
+      series?.metadata?.tmdb?.poster_source_url,
+    ) ?? "";
+  const previewBackdropUrl =
+    pickAdminPreviewImageSrc(
+      previewBackdropImage,
+      form.backdrop_url.trim(),
+      series?.backdrop_url,
+      series?.metadata?.tmdb?.backdrop_url,
+      series?.metadata?.tmdb?.backdrop_source_url,
+    ) ?? "";
   const sortedActorsWithIndex = useMemo(() => {
     const rows = form.actors
       .map((actor, index) => {
@@ -1259,12 +1310,138 @@ export default function SeriesEditorForm({
     }, 800);
   };
 
+  function beginTmdbImageIngestSession() {
+    tmdbImageIngestAbortRef.current?.abort();
+    const abortController = new AbortController();
+    tmdbImageIngestAbortRef.current = abortController;
+
+    return abortController;
+  }
+
+  async function requestSeriesImageIngest(
+    payload: ReturnType<typeof buildSeriesTmdbImageIngestPayload>,
+    signal: AbortSignal,
+  ): Promise<IngestTmdbImagesResult | null> {
+    const response = await adminSeriesService.ingestTmdbImages(payload, { signal });
+
+    if (signal.aborted || !response.success || !response.data) {
+      return null;
+    }
+
+    return response.data;
+  }
+
+  async function runSeriesPrimaryImageIngest(
+    formSnapshot: SeriesFormState,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const data = await requestSeriesImageIngest(
+      buildSeriesTmdbImageIngestPayload({
+        entityId: seriesId ?? null,
+        ...buildSeriesPrimaryIngestSource(formSnapshot),
+        includeSeasons: false,
+      }),
+      signal,
+    );
+
+    if (!data) {
+      return;
+    }
+
+    setForm((current) => {
+      const withPrimary = applyIngestedPrimaryImages(current, data);
+
+      return {
+        ...withPrimary,
+        actors: data.actors?.length
+          ? mergeIngestedActorProfiles(withPrimary.actors, data.actors)
+          : withPrimary.actors,
+      };
+    });
+  }
+
+  async function runSeriesSeasonImageIngest(
+    season: SeasonDraft,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const data = await requestSeriesImageIngest(
+      buildSeriesTmdbImageIngestPayload({
+        entityId: seriesId ?? null,
+        ...buildSeriesSeasonIngestSource(season),
+        includeSeasons: true,
+      }),
+      signal,
+    );
+
+    if (!data) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      seasons: applyIngestedSeasonImages(current.seasons, data.seasons),
+    }));
+  }
+
+  async function runSeriesImageIngestPipeline(
+    formSnapshot: SeriesFormState,
+    signal: AbortSignal,
+    scope: "primary-only" | "seasons-only" | "full",
+    seasons?: SeasonDraft[],
+    options: { announceStart?: boolean; announceComplete?: boolean } = {},
+  ): Promise<void> {
+    const announceStart = options.announceStart ?? true;
+    const announceComplete = options.announceComplete ?? true;
+
+    if (announceStart) {
+      setIngestingTmdbImages(true);
+      setSearchMessage((current) =>
+        withTmdbImageProcessingMessage(current, "پردازش تصاویر در حال انجام است."),
+      );
+    }
+
+    try {
+      if (scope === "primary-only" || scope === "full") {
+        await runSeriesPrimaryImageIngest(formSnapshot, signal);
+      }
+
+      if (signal.aborted) {
+        return;
+      }
+
+      if (scope === "seasons-only" || scope === "full") {
+        const targetSeasons = seasons ?? formSnapshot.seasons;
+
+        for (const season of targetSeasons) {
+          if (signal.aborted) {
+            return;
+          }
+
+          await runSeriesSeasonImageIngest(season, signal);
+        }
+      }
+
+      if (!signal.aborted && announceComplete) {
+        setSearchMessage((current) => finalizeTmdbImageIngestMessage(current));
+      }
+    } catch (ingestError) {
+      if (ingestError instanceof Error && ingestError.name === "AbortError") {
+        return;
+      }
+    } finally {
+      if (!signal.aborted && announceComplete) {
+        setIngestingTmdbImages(false);
+      }
+    }
+  }
+
   async function fetchAndApplyTmdb(
     tmdbId: string,
     nextMessage?: string,
     baseForm?: SeriesFormState,
   ) {
     tmdbAbortControllerRef.current?.abort();
+    const imageSession = beginTmdbImageIngestSession();
     const abortController = new AbortController();
     tmdbAbortControllerRef.current = abortController;
     const { signal } = abortController;
@@ -1306,9 +1483,25 @@ export default function SeriesEditorForm({
         (baseForm ?? formRef.current).tmdb_excluded_season_numbers,
       );
 
-      setForm((current) =>
-        applyTmdbSeriesOverviewToForm(baseForm ?? current, overview, String(tmdbId)),
+      const overviewForm = applyTmdbSeriesOverviewToForm(
+        baseForm ?? formRef.current,
+        overview,
+        String(tmdbId),
       );
+      setForm(overviewForm);
+
+      let primaryIngestPromise: Promise<void> | null = null;
+
+      if (seasonNumbers.length > 0) {
+        primaryIngestPromise = runSeriesImageIngestPipeline(
+          overviewForm,
+          imageSession.signal,
+          "primary-only",
+          undefined,
+          { announceStart: true, announceComplete: false },
+        );
+      }
+
       setFetchingTmdb(false);
       setTmdbSyncState({
         phase: seasonNumbers.length > 0 ? "fetching_seasons" : "done",
@@ -1322,8 +1515,16 @@ export default function SeriesEditorForm({
       setSearchMessage("اطلاعات سریال از TMDb اعمال شد؛ فصل‌ها در حال بارگذاری هستند.");
 
       if (seasonNumbers.length === 0) {
-        setForm((current) => finalizeTmdbSeriesSyncExclusions(current));
-        setSearchMessage(nextMessage || "اطلاعات سریال از TMDb روی فرم اعمال شد.");
+        const finalizedOverviewForm = finalizeTmdbSeriesSyncExclusions(overviewForm);
+        setForm(finalizedOverviewForm);
+        setSearchMessage(
+          nextMessage || "اطلاعات سریال از TMDb روی فرم اعمال شد.",
+        );
+        await runSeriesImageIngestPipeline(
+          finalizedOverviewForm,
+          imageSession.signal,
+          "primary-only",
+        );
         return;
       }
 
@@ -1342,6 +1543,8 @@ export default function SeriesEditorForm({
       );
 
       if (signal.aborted) {
+        imageSession.abort();
+        setIngestingTmdbImages(false);
         return;
       }
 
@@ -1387,7 +1590,21 @@ export default function SeriesEditorForm({
         return;
       }
 
-      setForm(finalizeTmdbSeriesSyncExclusions(latestForm));
+      const finalizedForm = finalizeTmdbSeriesSyncExclusions(latestForm);
+      setForm(finalizedForm);
+
+      if (primaryIngestPromise) {
+        await primaryIngestPromise;
+      }
+
+      await runSeriesImageIngestPipeline(
+        finalizedForm,
+        imageSession.signal,
+        "seasons-only",
+        finalizedForm.seasons,
+        { announceStart: false, announceComplete: true },
+      );
+
       setExpandedEpisodeKeys([]);
       scheduleEpisodeHlsBatchSyncDebounced(previousComparables);
       setTmdbSyncState({
@@ -1407,7 +1624,11 @@ export default function SeriesEditorForm({
           };
         }),
       });
-      setSearchMessage(nextMessage || "اطلاعات سریال و فصل‌ها از TMDB روی فرم اعمال شد.");
+      if (!imageSession.signal.aborted) {
+        setSearchMessage(
+          nextMessage || finalizeTmdbImageIngestMessage("اطلاعات سریال و فصل‌ها از TMDB روی فرم اعمال شد."),
+        );
+      }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         return;
@@ -1439,6 +1660,7 @@ export default function SeriesEditorForm({
     }
 
     tmdbAbortControllerRef.current?.abort();
+    const imageSession = beginTmdbImageIngestSession();
     const abortController = new AbortController();
     tmdbAbortControllerRef.current = abortController;
     const { signal } = abortController;
@@ -1479,13 +1701,21 @@ export default function SeriesEditorForm({
           setExpandedSeasonIds((current) =>
             current.includes(mergedSeason.id) ? current : [...current, mergedSeason.id],
           );
+          await runSeriesImageIngestPipeline(
+            nextFormSnapshot,
+            imageSession.signal,
+            "seasons-only",
+            [mergedSeason],
+          );
         }
       }
 
-      setSearchMessage(
-        nextMessage ||
-          `فصل ${seasonNumber} از TMDb همگام‌سازی شد.`,
-      );
+      if (!imageSession.signal.aborted) {
+        setSearchMessage(
+          nextMessage ||
+            finalizeTmdbImageIngestMessage(`فصل ${seasonNumber} از TMDb همگام‌سازی شد.`),
+        );
+      }
     } else {
       const firstError = response.errors ? Object.values(response.errors)[0]?.[0] : undefined;
       setError(firstError || response.message || "دریافت فصل از TMDb انجام نشد.");
@@ -2676,6 +2906,10 @@ export default function SeriesEditorForm({
       setPublishOutcomeOpen(true);
       setActiveTab("publish");
       pendingNavigationRef.current = "/admin/content-management/series";
+      void Promise.all([
+        revalidateAdminSeriesList(),
+        revalidatePublicSeriesPages(savedSeries.slug, series?.slug, form.slug),
+      ]);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "ذخیره وضعیت انتشار انجام نشد.",
@@ -2691,8 +2925,13 @@ export default function SeriesEditorForm({
     pendingNavigationRef.current = null;
 
     if (nextPath) {
-      router.replace(nextPath);
-      router.refresh();
+      void Promise.all([
+        revalidateAdminSeriesList(),
+        revalidatePublicSeriesPages(series?.slug, form.slug),
+      ]).finally(() => {
+        router.replace(nextPath);
+        router.refresh();
+      });
     }
   };
 
@@ -2757,6 +2996,48 @@ export default function SeriesEditorForm({
       }
 
       const savedSeries = response.data.series;
+      setSeries(savedSeries);
+
+      const processedPoster =
+        savedSeries.poster_image?.original?.startsWith("/images/")
+          ? savedSeries.poster_image.original
+          : savedSeries.poster_url?.startsWith("/images/")
+            ? savedSeries.poster_url.split("?")[0]
+            : null;
+      const processedBackdrop =
+        savedSeries.backdrop_image?.original?.startsWith("/images/")
+          ? savedSeries.backdrop_image.original
+          : savedSeries.backdrop_url?.startsWith("/images/")
+            ? savedSeries.backdrop_url.split("?")[0]
+            : null;
+
+      if (processedPoster || processedBackdrop) {
+        setForm((current) => ({
+          ...current,
+          ...(processedPoster ? { poster_url: processedPoster } : {}),
+          ...(processedBackdrop ? { backdrop_url: processedBackdrop } : {}),
+        }));
+      }
+
+      const openedPipeline =
+        response.pipeline_status === "pending" ||
+        response.pipeline_status === "running";
+
+      if (openedPipeline) {
+        await Promise.all([
+          revalidateAdminSeriesList(),
+          revalidatePublicSeriesPages(savedSeries.slug, series?.slug, form.slug),
+        ]);
+        router.push("/admin/content-management/series");
+        router.refresh();
+        return;
+      }
+
+      void Promise.all([
+        revalidateAdminSeriesList(),
+        revalidatePublicSeriesPages(savedSeries.slug, series?.slug, form.slug),
+      ]);
+
       setSubmitStep("۳/۳ — نهایی‌سازی (اعتبارسنجی در پس‌زمینه)...");
       setSuccessMessage("ذخیره شد — اعتبار بازیگران در پس‌زمینه انجام می‌شود.");
       setPublishOutcomeStatus(savedSeries.publish_status || form.publish_status);
@@ -2783,7 +3064,10 @@ export default function SeriesEditorForm({
   }
 
   const isTmdbOverviewLoading =
-    searchingTmdb || fetchingTmdb || tmdbSyncState.phase === "fetching_overview";
+    searchingTmdb ||
+    fetchingTmdb ||
+    ingestingTmdbImages ||
+    tmdbSyncState.phase === "fetching_overview";
   const isTmdbLoading = isTmdbOverviewLoading;
   const pendingTmdbSeasonRows = tmdbSyncState.seasonProgress.filter(
     (row) =>
@@ -2836,6 +3120,12 @@ export default function SeriesEditorForm({
         status={publishOutcomeStatus}
         onClose={handlePublishOutcomeClose}
       />
+
+      {series?.pipeline_status === "failed" ? (
+        <div className="rounded-2xl border border-[#fb7185]/25 bg-[#fb7185]/10 px-4 py-3 text-sm text-[#fecdd3]">
+          آخرین پردازش انتشار ناموفق بود. مشکل را برطرف کنید و دوباره ذخیره کنید.
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-2xl border border-[#fb7185]/25 bg-[#fb7185]/10 px-4 py-3 text-sm text-[#fecdd3]">
@@ -2952,6 +3242,11 @@ export default function SeriesEditorForm({
                 onChange={(value) => updateField("synopsis", value)}
                 rows={5}
               />
+              {form.synopsis_en.trim() ? (
+                <p className="text-xs leading-6 text-[#8ea4b3]">
+                  متن انگلیسی TMDB: {form.synopsis_en}
+                </p>
+              ) : null}
 
               <SectionHeading
                 icon={<HiOutlineUserGroup className="h-5 w-5" />}
@@ -3011,12 +3306,14 @@ export default function SeriesEditorForm({
                           #{typeof actor.order === "number" ? actor.order + 1 : displayIndex + 1}
                         </p>
                         <div className="flex items-center gap-3">
-                          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] text-xs font-semibold text-[#8ea4b3]">
+                          <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] text-xs font-semibold text-[#8ea4b3]">
                             {actor.profile_url ? (
-                              <img
+                              <PersonProfileImage
+                                name={actor.name || "Actor"}
+                                image={actor.profile_image}
                                 src={actor.profile_url}
-                                alt={actor.name || "Actor"}
-                                className="h-full w-full object-cover"
+                                square
+                                sizes="48px"
                                 loading="lazy"
                               />
                             ) : (
@@ -3539,6 +3836,8 @@ export default function SeriesEditorForm({
                 slug={`/${resolvedSlug}`}
                 posterUrl={previewPosterUrl}
                 backdropUrl={previewBackdropUrl}
+                posterImage={previewPosterImage}
+                backdropImage={previewBackdropImage}
                 productionStatusLabel={productionStatusLabel}
                 publishStatusLabel={publishStatusLabel}
                 seasonsCount={form.seasons.length}
@@ -3575,22 +3874,26 @@ export default function SeriesEditorForm({
                 <TmdbPreviewSkeleton className="rounded-none border-0" />
               ) : previewBackdropUrl || previewPosterUrl ? (
                 <div className="relative h-[24rem] overflow-hidden">
-                  {previewBackdropUrl ? (
-                    <img
-                      src={previewBackdropUrl}
-                      alt={form.title || "Series backdrop"}
-                      className="absolute inset-0 h-full w-full object-cover"
-                    />
+                  {previewBackdropUrl || previewBackdropImage ? (
+                    <div className="absolute inset-0">
+                      <BackdropImage
+                        title={form.title || "Series"}
+                        image={previewBackdropImage}
+                        src={previewBackdropUrl}
+                        usage="detail-backdrop"
+                      />
+                    </div>
                   ) : null}
                   <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,16,25,0.08),rgba(7,16,25,0.88)_62%,rgba(7,16,25,0.98))]" />
                   <div className="relative flex h-full flex-col justify-end p-4">
                     <div className="flex items-end gap-4">
                       <div className="h-36 w-24 overflow-hidden rounded-[20px] border border-white/10 bg-[#071019] shadow-[0_20px_40px_rgba(0,0,0,0.32)]">
-                        {previewPosterUrl ? (
-                          <img
+                        {previewPosterUrl || previewPosterImage ? (
+                          <PosterImage
+                            title={form.title || "Series"}
+                            image={previewPosterImage}
                             src={previewPosterUrl}
-                            alt={form.title || "Series poster"}
-                            className="h-full w-full object-cover"
+                            usage="detail-poster"
                           />
                         ) : (
                           <div className="flex h-full items-center justify-center px-2 text-center text-xs text-[#8ea4b3]">

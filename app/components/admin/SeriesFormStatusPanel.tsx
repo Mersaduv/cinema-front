@@ -1,7 +1,9 @@
 "use client";
 
 import type { SeriesPublishStatus } from "../../lib/admin-series";
+import type { ResponsiveImageAsset } from "../../lib/cinema-image";
 import { formatGregorianDateTime } from "../../lib/date-format";
+import { BackdropImage, PosterImage } from "../images";
 
 function SummaryRow({
   label,
@@ -29,6 +31,8 @@ export default function SeriesFormStatusPanel({
   slug,
   posterUrl,
   backdropUrl,
+  posterImage,
+  backdropImage,
   productionStatusLabel,
   publishStatusLabel,
   seasonsCount,
@@ -47,6 +51,8 @@ export default function SeriesFormStatusPanel({
   slug: string;
   posterUrl: string;
   backdropUrl: string;
+  posterImage?: ResponsiveImageAsset | null;
+  backdropImage?: ResponsiveImageAsset | null;
   productionStatusLabel: string;
   publishStatusLabel: string;
   seasonsCount: number;
@@ -69,24 +75,28 @@ export default function SeriesFormStatusPanel({
       </p>
 
       <div className={`mt-5 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] ${previewHeight}`}>
-        {backdropUrl || posterUrl ? (
+        {backdropUrl || posterUrl || posterImage || backdropImage ? (
           <div className={`relative ${previewHeight} overflow-hidden`}>
-            {backdropUrl ? (
-              <img
-                src={backdropUrl}
-                alt={title || "Series backdrop"}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
+            {backdropUrl || backdropImage ? (
+              <div className="absolute inset-0">
+                <BackdropImage
+                  title={title || "Series"}
+                  image={backdropImage}
+                  src={backdropUrl}
+                  usage="detail-backdrop"
+                />
+              </div>
             ) : null}
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,16,25,0.08),rgba(7,16,25,0.88)_62%,rgba(7,16,25,0.98))]" />
             <div className="relative flex h-full flex-col justify-end p-5 md:p-6">
               <div className="flex items-end gap-5">
-                <div className="h-40 w-28 overflow-hidden rounded-[20px] border border-white/10 bg-[#071019] shadow-[0_20px_40px_rgba(0,0,0,0.32)] md:h-44 md:w-32">
-                  {posterUrl ? (
-                    <img
+                <div className="relative h-40 w-28 overflow-hidden rounded-[20px] border border-white/10 bg-[#071019] shadow-[0_20px_40px_rgba(0,0,0,0.32)] md:h-44 md:w-32">
+                  {posterUrl || posterImage ? (
+                    <PosterImage
+                      title={title || "Series"}
+                      image={posterImage}
                       src={posterUrl}
-                      alt={title || "Series poster"}
-                      className="h-full w-full object-cover"
+                      usage="detail-poster"
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center px-2 text-center text-xs text-[#8ea4b3]">

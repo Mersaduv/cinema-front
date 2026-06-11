@@ -1,10 +1,17 @@
 import { apiClient, type ApiResponse } from "./api";
 
+export const REVIEW_BODY_MIN = 3;
+export const REVIEW_BODY_MAX = 2000;
+
+export type ReviewStatus = "pending" | "approved" | "rejected";
+
 export interface Review {
   id: number;
   user: { id: number; name: string; avatar_url: string | null };
   rating: number;
   body: string | null;
+  status?: ReviewStatus;
+  is_pending?: boolean;
   created_at: string;
   is_own: boolean;
 }
@@ -62,6 +69,8 @@ function mapReview(row: Record<string, unknown>): Review {
     },
     rating: Number(row.rating),
     body: (row.body as string | null) ?? null,
+    status: (row.status as ReviewStatus | undefined) ?? undefined,
+    is_pending: Boolean(row.is_pending ?? row.status === "pending"),
     created_at: String(row.created_at ?? ""),
     is_own: Boolean(row.is_own),
   };
@@ -82,6 +91,28 @@ function mapReviewsResponse(data: ReviewsApiData): ReviewsPayload {
       total: data.pagination?.total ?? 0,
     },
   };
+}
+
+export function validateReviewForm(input: {
+  rating: number;
+  body: string;
+}): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const trimmedBody = input.body.trim();
+
+  if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 10) {
+    errors.rating = "امتیاز باید بین ۱ تا ۱۰ باشد.";
+  }
+
+  if (!trimmedBody) {
+    errors.body = "متن نظر الزامی است.";
+  } else if (trimmedBody.length < REVIEW_BODY_MIN) {
+    errors.body = `متن نظر باید حداقل ${REVIEW_BODY_MIN.toLocaleString("fa-IR")} کاراکتر باشد.`;
+  } else if (trimmedBody.length > REVIEW_BODY_MAX) {
+    errors.body = `متن نظر نباید بیشتر از ${REVIEW_BODY_MAX.toLocaleString("fa-IR")} کاراکتر باشد.`;
+  }
+
+  return errors;
 }
 
 export async function fetchReviews(
@@ -106,20 +137,39 @@ export async function fetchReviews(
   return mapReviewsResponse(response.data);
 }
 
+function unwrapReviewResponse(
+  response: ApiResponse<{ review: Review }>,
+): ApiResponse<{ review: Review }> {
+  const raw = response.data?.review ?? (response as { review?: Review }).review;
+
+  if (!raw) {
+    return response;
+  }
+
+  return {
+    ...response,
+    data: {
+      review: mapReview(raw as unknown as Record<string, unknown>),
+    },
+  };
+}
+
 export async function submitReview(input: {
   reviewable_type: "movie" | "series";
   slug: string;
   rating: number;
-  body?: string;
+  body: string;
 }): Promise<ApiResponse<{ review: Review }>> {
-  return apiClient.post<{ review: Review }>("/reviews", input);
+  const response = await apiClient.post<{ review: Review }>("/reviews", input);
+  return unwrapReviewResponse(response);
 }
 
 export async function updateReview(
   id: number,
-  input: { rating?: number; body?: string | null },
+  input: { rating?: number; body: string },
 ): Promise<ApiResponse<{ review: Review }>> {
-  return apiClient.put<{ review: Review }>(`/reviews/${id}`, input);
+  const response = await apiClient.put<{ review: Review }>(`/reviews/${id}`, input);
+  return unwrapReviewResponse(response);
 }
 
 export async function deleteReview(id: number): Promise<ApiResponse<unknown>> {

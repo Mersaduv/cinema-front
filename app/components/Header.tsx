@@ -6,11 +6,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   HiChevronDown,
-  HiGlobeAlt,
   HiMagnifyingGlass,
-  HiMiniPlay,
 } from "react-icons/hi2";
-import { RiBroadcastLine } from "react-icons/ri";
 import { HiLogout } from "react-icons/hi";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -18,35 +15,19 @@ const navItems = [
   { label: "خانه", href: "/" },
   { label: "فیلم", href: "/movies" },
   { label: "سریال", href: "/series" },
-  { label: "انیمیشن", href: "#" },
-  { label: "کالکشن‌ها", href: "#" },
-  { label: "رویدادهای ورزشی", href: "#" },
+  { label: "کارتون و انیمیشن", href: "/animation" },
+  { label: "کالکشن‌ها", href: "/collections" },
   { label: "درخواست", href: "#" },
-];
-
-const popularSearches = [
-  "گناهکاران",
-  "ایندیانا جونز",
-  "اینترستلار",
-  "برکینگ بد",
-  "آخرین بازمانده از ما",
 ];
 
 export default function Header({ overlay = false }: { overlay?: boolean }) {
   const pathname = usePathname();
   const { user, isAuthenticated, loading: authLoading, logout, hasRole } = useAuth();
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const searchRef = useRef<HTMLDivElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setSearchOpen(false);
-      }
-
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false);
       }
@@ -113,48 +94,15 @@ export default function Header({ overlay = false }: { overlay?: boolean }) {
 
         <div className="flex min-w-0 items-center gap-3">
 
-          <div ref={searchRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setSearchOpen((current) => !current)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/8 text-white transition hover:bg-white/12"
-              aria-label="جستجو"
-            >
-              <HiMagnifyingGlass className="h-5 w-5" />
-            </button>
-
-            {searchOpen ? (
-              <div className="absolute left-0 top-[calc(100%+12px)] z-50 w-[min(92vw,420px)] overflow-hidden rounded-[28px] border border-white/10 bg-[#090d12]/96 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-                <input
-                  type="text"
-                  placeholder="جستجوی فیلم، سریال و بازیگران"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-[#ef4444]"
-                  autoFocus
-                />
-                <div className="mt-3 space-y-1">
-                  {(searchQuery
-                    ? popularSearches.filter((item) => item.includes(searchQuery))
-                    : popularSearches
-                  ).map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery(item);
-                        setSearchOpen(false);
-                      }}
-                      className="flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-right text-sm text-white/82 transition hover:bg-white/[0.06]"
-                    >
-                      <span>{item}</span>
-                      <HiMiniPlay className="h-4 w-4 text-[#ef4444]" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
+          <Link
+            href="/search"
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/8 text-white transition hover:bg-white/12 ${
+              pathname === "/search" ? "border-[#f5c518]/40 bg-[#f5c518]/15" : ""
+            }`}
+            aria-label="جستجو"
+          >
+            <HiMagnifyingGlass className="h-5 w-5" />
+          </Link>
 
           {!authLoading && !isAuthenticated ? (
             <Link

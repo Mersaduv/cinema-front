@@ -1,3 +1,4 @@
+import type { ResponsiveImage } from "../cinema-image";
 import type { CatalogFiltersState } from "./search-params";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005/api";
@@ -11,12 +12,19 @@ export type PaginationMeta = {
 
 export type CatalogListItem = {
   id: number;
+  catalogKind?: "movie" | "series";
   title: string;
   slug: string;
   synopsis: string | null;
   release_year: number | null;
   poster_url: string | null;
+  poster_blur_url?: string | null;
+  poster_srcset?: string | null;
+  poster_image?: ResponsiveImage | null;
   backdrop_url?: string | null;
+  backdrop_blur_url?: string | null;
+  backdrop_srcset?: string | null;
+  backdrop_image?: ResponsiveImage | null;
   status_label_fa?: string | null;
   has_subtitle?: boolean;
   has_dubbed?: boolean;
@@ -45,9 +53,9 @@ function buildQueryParams(
   if (filters.sort) {
     params.set("sort", filters.sort);
   }
-  filters.genres.forEach((genreId) => params.append("genre_ids", genreId));
-  filters.countries.forEach((iso) => params.append("countries", iso));
-  filters.languages.forEach((iso) => params.append("languages", iso));
+  if (filters.genres.length) params.set("genre_ids", filters.genres.join(","));
+  if (filters.countries.length) params.set("countries", filters.countries.join(","));
+  if (filters.languages.length) params.set("languages", filters.languages.join(","));
   if (filters.year_from) {
     params.set("year_from", String(filters.year_from));
   }
@@ -77,7 +85,13 @@ export function toCatalogItem(
     synopsis: (row.synopsis as string | null) ?? null,
     release_year: (row.release_year as number | null) ?? null,
     poster_url: (row.poster_url as string | null) ?? null,
+    poster_blur_url: (row.poster_blur_url as string | null) ?? null,
+    poster_srcset: (row.poster_srcset as string | null) ?? null,
+    poster_image: (row.poster_image as ResponsiveImage | null) ?? null,
     backdrop_url: (row.backdrop_url as string | null) ?? details.backdrop_url ?? null,
+    backdrop_blur_url: (row.backdrop_blur_url as string | null) ?? null,
+    backdrop_srcset: (row.backdrop_srcset as string | null) ?? null,
+    backdrop_image: (row.backdrop_image as ResponsiveImage | null) ?? null,
     status_label_fa: (row.status_label_fa as string | null) ?? null,
     has_subtitle: Boolean(row.has_subtitle),
     has_dubbed: Boolean(row[dubbedKey]),
@@ -135,11 +149,7 @@ export async function fetchMoviesCatalogRest(
     };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      return {
-        items: [],
-        meta: { total: 0, per_page: perPage, current_page: page, last_page: 1 },
-        error: "",
-      };
+      throw error;
     }
     return {
       items: [],
@@ -192,11 +202,7 @@ export async function fetchSeriesCatalogRest(
     };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      return {
-        items: [],
-        meta: { total: 0, per_page: perPage, current_page: page, last_page: 1 },
-        error: "",
-      };
+      throw error;
     }
     return {
       items: [],

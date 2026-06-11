@@ -4,7 +4,7 @@ import { HiOutlineTrash, HiOutlineX } from "react-icons/hi";
 
 type AdminDeleteConfirmModalProps = {
   open: boolean;
-  kind: "movie" | "series";
+  kind: "movie" | "series" | "collection";
   title: string;
   loading?: boolean;
   onConfirm: () => void;
@@ -23,7 +23,8 @@ export default function AdminDeleteConfirmModal({
     return null;
   }
 
-  const kindLabel = kind === "movie" ? "فیلم" : "سریال";
+  const kindLabel =
+    kind === "movie" ? "فیلم" : kind === "series" ? "سریال" : "مجموعه";
 
   return (
     <div

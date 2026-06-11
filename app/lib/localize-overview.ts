@@ -1,12 +1,14 @@
 import {
   hasPersianSynopsisScript,
   mergeSeasonEpisodeSynopsisFromTmdb,
+  resolveTmdbMainSynopsis,
   normalizeSeasonEpisodeSynopsis,
 } from "./series-synopsis-helper";
 
 export const hasPersianScript = hasPersianSynopsisScript;
 export const normalizeLocalizedSynopsis = normalizeSeasonEpisodeSynopsis;
 export const mergeSynopsisFromTmdb = mergeSeasonEpisodeSynopsisFromTmdb;
+export { resolveTmdbMainSynopsis } from "./series-synopsis-helper";
 
 /**
  * Show Persian overview when available; otherwise fall back to the stored English synopsis.

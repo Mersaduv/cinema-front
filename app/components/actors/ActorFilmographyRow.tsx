@@ -1,6 +1,7 @@
 "use client";
 
 import CatalogPosterCard from "../catalog/CatalogPosterCard";
+import ContentListSlider, { SLIDER_SLIDE_CLASS } from "../catalog/ContentListSlider";
 import type { CatalogListItem } from "../../lib/catalog/rest";
 
 export default function ActorFilmographyRow({
@@ -19,22 +20,16 @@ export default function ActorFilmographyRow({
   const basePath = kind === "movie" ? "/movies" : "/series";
 
   return (
-    <section className="space-y-5" aria-label={title}>
-      <h2 className="text-right text-2xl font-black text-white md:text-[1.65rem]">{title}</h2>
+    <section className="space-y-4" aria-label={title}>
+      <h2 className="text-right text-xl font-bold text-white md:text-2xl">{title}</h2>
 
-      <div
-        className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2 scroll-smooth [scroll-snap-type:x_mandatory]"
-        style={{ scrollbarWidth: "thin" }}
-      >
+      <ContentListSlider ariaLabel={title}>
         {items.map((item) => (
-          <div
-            key={`${kind}-${item.id}`}
-            className="w-[calc((100%-1rem)/2.2)] min-w-[140px] max-w-[180px] shrink-0 snap-start sm:w-[calc((100%-2rem)/4.5)] sm:min-w-[160px] md:max-w-[200px]"
-          >
+          <div key={`${kind}-${item.id}`} data-slider-slide className={SLIDER_SLIDE_CLASS}>
             <CatalogPosterCard item={item} href={`${basePath}/${item.slug}`} />
           </div>
         ))}
-      </div>
+      </ContentListSlider>
     </section>
   );
 }

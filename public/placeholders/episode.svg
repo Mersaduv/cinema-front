@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" role="img" aria-label="Episode still placeholder">
+  <rect width="1920" height="1080" fill="#10151d"/>
+  <rect x="160" y="200" width="1600" height="680" rx="20" fill="#1a2230"/>
+  <polygon points="900,420 1100,540 900,660" fill="#2a3444"/>
+</svg>

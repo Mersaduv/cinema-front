@@ -147,6 +147,31 @@ export const adminNavigation: AdminNavItem[] = [
         ],
       },
       {
+        type: "section",
+        id: "collections",
+        label: "Collections",
+        items: [
+          {
+            type: "link",
+            id: "all-collections",
+            href: "/admin/content-management/collections",
+            label: "All Collections",
+            description: "مدیریت مجموعه‌ها و فیلم‌های عضو",
+            badge: "مجموعه",
+            icon: HiOutlineCollection,
+          },
+          {
+            type: "link",
+            id: "add-collection",
+            href: "/admin/content-management/collections/add",
+            label: "Add Collection",
+            description: "ایجاد مجموعه جدید یا وارد کردن از TMDB",
+            badge: "مجموعه",
+            icon: HiOutlineCollection,
+          },
+        ],
+      },
+      {
         type: "link",
         id: "live-streams",
         href: "/admin/content-management/live-streams",

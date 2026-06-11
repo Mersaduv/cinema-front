@@ -131,8 +131,9 @@ export default function AllMoviesPage() {
       return payload;
     },
     {
-      revalidateOnFocus: false,
-      dedupingInterval: 30_000,
+      revalidateOnFocus: true,
+      revalidateOnMount: true,
+      dedupingInterval: 0,
       keepPreviousData: true,
     },
   );
