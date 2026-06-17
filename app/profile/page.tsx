@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import ProtectedRoute from "../components/ProtectedRoute";
 import ProfileShell from "../components/profile/ProfileShell";
@@ -11,7 +11,18 @@ import { useProfileSummary } from "../hooks/useProfileSummary";
 import { HiOutlineArrowLeft, HiOutlineBookmark, HiOutlineChatAlt2, HiOutlineTicket } from "react-icons/hi";
 import { MdComment } from "react-icons/md";
 
-export default function ProfilePage() {
+function ProfilePageFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#121212]">
+      <div className="text-center">
+        <div className="inline-block h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#f5c518]"></div>
+        <p className="mt-4 text-gray-400">در حال بارگذاری...</p>
+      </div>
+    </div>
+  );
+}
+
+function ProfilePageContent() {
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const { summary, loading: summaryLoading } = useProfileSummary(user?.id);
@@ -167,5 +178,13 @@ export default function ProfilePage() {
         {activeNav === "comments" ? <ProfileCommentsPanel /> : null}
       </ProfileShell>
     </ProtectedRoute>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<ProfilePageFallback />}>
+      <ProfilePageContent />
+    </Suspense>
   );
 }
