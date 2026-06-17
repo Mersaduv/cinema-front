@@ -1,240 +1,317 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { gql, Provider, useQuery } from "urql";
-import HlsVideoPlayer from "../../components/player/HlsVideoPlayer";
+import dynamic from "next/dynamic";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { memo, useCallback, useEffect } from "react";
+import { Provider } from "urql";
 import { getUrqlClient } from "../../lib/graphql/client";
+import type { PublicMovie } from "../../lib/movies";
+import type {
+  WatchMediaInfo,
+} from "../../features/player/types/player.types";
+import type { DrmConfig } from "../../features/player/types/playback.types";
+import { PlayerSkeleton } from "../../features/player/components/PlayerSkeleton";
+import { WatchAuthGate } from "../../components/WatchAuthGate";
+import TvPolyfills from "./TvPolyfills";
+import { useWatchData } from "./hooks/useWatchData";
 
-const WatchMovieDocument = gql`
-  query WatchMovie($slug: String!) {
-    watchMovie(slug: $slug) {
-      hls_url
-      subtitle_url
-      dubbed_audio_url
-    }
-  }
-`;
+const HlsVideoPlayer = dynamic(
+  () => import("../../components/player/HlsVideoPlayer"),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+);
 
-const WatchEpisodeDocument = gql`
-  query WatchEpisode($seriesSlug: String!, $season: Int!, $episode: Int!) {
-    watchEpisode(seriesSlug: $seriesSlug, season: $season, episode: $episode) {
-      hls_url
-      subtitle_url
-      episode {
-        title
-      }
-      series {
-        slug
-        title
-        poster_url
-      }
-    }
-  }
-`;
-import { moviesService, type PublicMovie } from "../../lib/movies";
-import { seriesService, type PublicSeries, type PublicSeriesEpisode } from "../../lib/series";
-
-function findEpisode(
-  series: PublicSeries,
-  seasonNumber: number,
-  episodeNumber: number,
-): PublicSeriesEpisode | null {
-  for (const season of series.seasons || []) {
-    if (season.season_number !== seasonNumber) {
-      continue;
-    }
-
-    const episode = season.episodes.find(
-      (item) => item.episode_number === episodeNumber,
-    );
-
-    if (episode) {
-      return episode;
-    }
+function buildDrmConfig(
+  drm?: { scheme?: string | null; licenseUrl?: string | null } | null,
+): DrmConfig | undefined {
+  if (!drm?.scheme || drm.scheme === "none" || !drm.licenseUrl) {
+    return undefined;
   }
 
-  return null;
+  return {
+    scheme: drm.scheme as DrmConfig["scheme"],
+    licenseUrl: drm.licenseUrl,
+  };
 }
 
-function WatchPageInner() {
+type ManifestAudioTrackInput = {
+  name: string;
+  language: string;
+  type: string;
+};
+
+function buildManifestAudioTracks(
+  tracks?: ManifestAudioTrackInput[] | null,
+  hasDubbedFallback = false,
+) {
+  if (tracks && tracks.length > 0) {
+    return tracks.map((track, index) => ({
+      key: String(index),
+      label: track.name,
+      language: track.language,
+      is_default:
+        track.type === "dubbed" ||
+        track.language === "fa" ||
+        track.language === "fas",
+    }));
+  }
+
+  if (!hasDubbedFallback) {
+    return [];
+  }
+
+  return [
+    {
+      key: "0",
+      label: "Original Audio",
+      language: "eng",
+      is_default: false,
+    },
+    {
+      key: "1",
+      label: "دوبله فارسی",
+      language: "fa",
+      is_default: true,
+    },
+  ];
+}
+
+function buildMovieWatchMedia(movie: PublicMovie): WatchMediaInfo {
+  return {
+    mediaId: String(movie.id),
+    mediaType: "movie",
+    duration: movie.duration_seconds ?? undefined,
+    title: movie.title,
+    posterUrl: movie.poster_url,
+    slug: movie.slug,
+  };
+}
+
+function buildEpisodeWatchMedia(
+  seriesId: number,
+  seriesSlug: string,
+  seriesTitle: string,
+  posterUrl: string | null | undefined,
+  episode: {
+    id: number;
+    title: string;
+    duration_minutes?: number | null;
+    duration_seconds?: number | null;
+  },
+  seasonNumber: number,
+  episodeNumber: number,
+): WatchMediaInfo {
+  const duration =
+    episode.duration_seconds ??
+    (episode.duration_minutes ? episode.duration_minutes * 60 : undefined);
+
+  return {
+    mediaId: String(seriesId),
+    mediaType: "series",
+    episodeId: String(episode.id),
+    seasonNumber,
+    episodeNumber,
+    duration,
+    title: `${seriesTitle} — ${episode.title}`,
+    posterUrl,
+    slug: seriesSlug,
+    seriesSlug,
+  };
+}
+
+const WatchPageInner = memo(function WatchPageInner() {
+  const router = useRouter();
   const params = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
   const slug = params.slug;
   const seasonParam = searchParams.get("season");
   const episodeParam = searchParams.get("episode");
 
-  const isSeriesPlayback = Boolean(seasonParam && episodeParam);
-
-  const [movie, setMovie] = useState<PublicMovie | null>(null);
-  const [series, setSeries] = useState<PublicSeries | null>(null);
-  const [restLoading, setRestLoading] = useState(!isSeriesPlayback);
-  const [error, setError] = useState("");
-
-  const [{ data: watchMovieData, fetching: watchMovieFetching }] = useQuery({
-    query: WatchMovieDocument,
-    variables: { slug },
-    pause: isSeriesPlayback || !slug,
-  });
-
-  const [{ data: watchEpisodeData, fetching: watchEpisodeFetching }] = useQuery({
-    query: WatchEpisodeDocument,
-    variables: {
-      seriesSlug: slug,
-      season: Number(seasonParam),
-      episode: Number(episodeParam),
-    },
-    pause: !isSeriesPlayback || !slug,
-  });
+  const {
+    isSeriesPlayback,
+    seasonNumber,
+    episodeNumber,
+    hlsUrl,
+    showSkeleton,
+    restError,
+    watchAuthError,
+    watchMovieData,
+    watchEpisodeData,
+    movie,
+    series,
+    seriesContext,
+    knownPoster,
+    knownTitle,
+  } = useWatchData(slug, seasonParam, episodeParam);
 
   useEffect(() => {
-    if (isSeriesPlayback) {
-      return;
+    const meta = document.querySelector('meta[name="viewport"]');
+    const previous = meta?.getAttribute("content") ?? null;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyBackground = document.body.style.background;
+    const previousHtmlBackground = document.documentElement.style.background;
+
+    if (meta) {
+      meta.setAttribute(
+        "content",
+        "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
+      );
     }
 
-    const loadFallback = async () => {
-      setRestLoading(true);
-      setError("");
-      setMovie(null);
-      setSeries(null);
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.background = "#000";
+    document.documentElement.style.background = "#000";
 
-      const response = await moviesService.show(slug);
-
-      if (response.success && response.data?.movie) {
-        setMovie(response.data.movie);
-        setRestLoading(false);
-        return;
+    return () => {
+      if (meta && previous) {
+        meta.setAttribute("content", previous);
       }
-
-      const seriesResponse = await seriesService.show(slug);
-
-      if (seriesResponse.success && seriesResponse.data?.series) {
-        setSeries(seriesResponse.data.series);
-      } else {
-        setError(response.message || "دریافت اطلاعات پخش انجام نشد.");
-      }
-
-      setRestLoading(false);
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.background = previousBodyBackground;
+      document.documentElement.style.background = previousHtmlBackground;
     };
+  }, []);
 
-    if (slug && !watchMovieData?.watchMovie?.hls_url && !watchMovieFetching) {
-      void loadFallback();
-    }
-  }, [slug, isSeriesPlayback, watchMovieData, watchMovieFetching]);
+  const handleEpisodeSelect = useCallback(
+    (season: number, episode: number) => {
+      router.push(`/watch/${slug}?season=${season}&episode=${episode}`);
+    },
+    [router, slug],
+  );
 
-  const seriesEpisode = useMemo(() => {
-    if (!series || !seasonParam || !episodeParam) {
-      return null;
-    }
+  if (watchAuthError) {
+    const redirectBack = isSeriesPlayback
+      ? `/watch/${slug}?season=${seasonNumber}&episode=${episodeNumber}`
+      : `/watch/${slug}`;
 
-    return findEpisode(series, Number(seasonParam), Number(episodeParam));
-  }, [series, seasonParam, episodeParam]);
-
-  const loading =
-    (isSeriesPlayback && watchEpisodeFetching) ||
-    (!isSeriesPlayback && watchMovieFetching && restLoading);
-
-  if (loading) {
-    return (
-      <div className="h-screen w-screen bg-black">
-        <div className="h-full w-full animate-pulse bg-white/[0.03]" />
-      </div>
-    );
+    return <WatchAuthGate redirectBack={redirectBack} />;
   }
 
-  if (isSeriesPlayback && watchEpisodeData?.watchEpisode?.hls_url) {
-    const watch = watchEpisodeData.watchEpisode;
+  if (showSkeleton) {
+    return <PlayerSkeleton poster={knownPoster} title={knownTitle} />;
+  }
+
+  if (isSeriesPlayback && hlsUrl) {
+    const watch = watchEpisodeData?.watchEpisode;
+    const seriesSlug = watch?.series.slug ?? series?.slug ?? slug;
+    const seriesTitle = watch?.series.title ?? series?.title ?? knownTitle;
+    const episodeTitle =
+      watch?.episode.title ?? `قسمت ${episodeNumber}`;
+    const subtitleUrl = watch?.subtitle_url ?? undefined;
+    const dubbedAudioUrl = watch?.dubbed_audio_url ?? undefined;
+    const manifestAudioTracks = buildManifestAudioTracks(
+      watch?.audio_tracks,
+      Boolean(dubbedAudioUrl || series?.has_dubbed),
+    );
+    const posterUrl =
+      watch?.series.poster_url ?? series?.poster_url ?? undefined;
 
     return (
       <HlsVideoPlayer
-        src={watch.hls_url}
-        poster={watch.series.poster_url}
-        title={`${watch.series.title} — ${watch.episode.title}`}
-        backHref={`/series/${watch.series.slug}`}
+        src={hlsUrl}
+        dashUrl={watch?.dash_url ?? undefined}
+        drm={buildDrmConfig(watch?.drm)}
+        poster={posterUrl}
+        title={`${seriesTitle} — ${episodeTitle}`}
+        backHref={`/series/${seriesSlug}`}
         immersive
-        subtitleUrl={watch.subtitle_url ?? undefined}
+        subtitleUrl={subtitleUrl}
+        dubbedAudioUrl={dubbedAudioUrl}
+        availableAudioTracks={manifestAudioTracks}
+        seriesContext={seriesContext ?? undefined}
+        onEpisodeSelect={handleEpisodeSelect}
+        watchMedia={
+          watch
+            ? buildEpisodeWatchMedia(
+                Number(watch.series.id),
+                watch.series.slug,
+                watch.series.title,
+                watch.series.poster_url,
+                {
+                  id: Number(watch.episode.id),
+                  title: watch.episode.title || episodeTitle,
+                  duration_seconds: watch.episode.duration_seconds,
+                },
+                seasonNumber,
+                episodeNumber,
+              )
+            : undefined
+        }
       />
     );
   }
 
-  if (seriesEpisode?.hls_url) {
+  if (!isSeriesPlayback && hlsUrl) {
+    const watchMovie = watchMovieData?.watchMovie;
+    const manifestAudioTracks = buildManifestAudioTracks(watchMovie?.audio_tracks);
+
     return (
       <HlsVideoPlayer
-        src={seriesEpisode.hls_url}
-        poster={seriesEpisode.still_url || series?.poster_url}
-        title={`${series?.title || "سریال"} — ${seriesEpisode.title}`}
-        backHref={`/series/${series?.slug || slug}`}
+        src={hlsUrl}
+        dashUrl={watchMovie?.dash_url ?? undefined}
+        drm={buildDrmConfig(watchMovie?.drm)}
+        poster={movie?.poster_url ?? undefined}
+        title={movie?.title ?? knownTitle}
+        backHref={`/movies/${movie?.slug ?? watchMovie?.slug ?? slug}`}
         immersive
-        subtitleUrl={seriesEpisode.subtitle_url}
-      />
-    );
-  }
-
-  const watchMovie = watchMovieData?.watchMovie;
-
-  if (watchMovie?.hls_url) {
-    return (
-      <HlsVideoPlayer
-        src={watchMovie.hls_url}
-        poster={movie?.poster_url}
-        title={movie?.title || slug}
-        backHref={`/movies/${slug}`}
-        immersive
-        subtitleUrl={watchMovie.subtitle_url ?? undefined}
-      />
-    );
-  }
-
-  if (movie?.playback?.master_playlist_url) {
-    return (
-      <HlsVideoPlayer
-        src={movie.playback.master_playlist_url}
-        poster={movie.poster_url}
-        title={movie.title}
-        backHref={`/movies/${movie.slug}`}
-        immersive
-        availableVariants={movie.playback.variants}
-        availableAudioTracks={movie.playback.audio_tracks || []}
-        subtitleUrl={movie.playback.subtitle_url || movie.subtitle_source_url}
+        subtitleUrl={watchMovie?.subtitle_url ?? undefined}
+        dubbedAudioUrl={watchMovie?.dubbed_audio_url ?? undefined}
+        availableAudioTracks={manifestAudioTracks}
+        availableVariants={movie?.playback?.variants}
+        watchMedia={
+          movie
+            ? buildMovieWatchMedia(movie)
+            : watchMovie?.id
+              ? {
+                  mediaId: watchMovie.id,
+                  mediaType: "movie",
+                  slug: watchMovie.slug || slug,
+                  title: slug,
+                  posterUrl: null,
+                }
+              : undefined
+        }
       />
     );
   }
 
   if (series && !isSeriesPlayback) {
-    const firstEpisode = series.seasons?.[0]?.episodes?.[0];
-
-    if (firstEpisode?.hls_url) {
-      return (
-        <div className="flex h-screen w-screen items-center justify-center bg-black p-6">
-          <div className="max-w-2xl rounded-[32px] border border-white/10 bg-white/[0.04] px-6 py-8 text-center text-white/80">
-            <p className="mb-4">
-              برای پخش این سریال یک قسمت را از صفحه جزئیات انتخاب کنید.
-            </p>
-            <Link
-              href={`/series/${series.slug}`}
-              className="inline-flex rounded-2xl bg-[#ef4444] px-5 py-3 text-sm font-bold text-white"
-            >
-              بازگشت به جزئیات سریال
-            </Link>
-          </div>
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-black p-6">
+        <div className="max-w-2xl rounded-[32px] border border-white/10 bg-white/[0.04] px-6 py-8 text-center text-white/80">
+          <p className="mb-4">
+            برای پخش این سریال یک قسمت را از صفحه جزئیات انتخاب کنید.
+          </p>
+          <Link
+            href={`/series/${series.slug}`}
+            className="inline-flex rounded-2xl bg-[#ef4444] px-5 py-3 text-sm font-bold text-white"
+          >
+            بازگشت به جزئیات سریال
+          </Link>
         </div>
-      );
-    }
+      </div>
+    );
   }
 
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-black p-6">
       <div className="max-w-2xl rounded-[32px] border border-[#fb7185]/25 bg-[#fb7185]/10 px-6 py-8 text-[#fecdd3]">
-        {error || "خروجی HLS برای این عنوان آماده نیست."}
+        {restError || "خروجی HLS برای این عنوان آماده نیست."}
       </div>
     </div>
   );
-}
+});
 
 export default function WatchPageClient() {
   return (
     <Provider value={getUrqlClient()}>
+      <TvPolyfills />
       <WatchPageInner />
     </Provider>
   );

@@ -379,6 +379,8 @@ function createEpisodeDraft(episodeNumber = 1): EpisodeDraft {
     embed_url: "",
     hls_url: "",
     hls_verified: false,
+    dash_url: "",
+    dash_verified: false,
     download_links: {},
     subtitle_url: "",
     dubbed_audio_url: "",
@@ -608,6 +610,8 @@ function createInitialFormState(): SeriesFormState {
     actors: [],
     crew: [],
     hls_base_url: "",
+    drm_scheme: "none",
+    drm_license_url: "",
     seasons: [createSeasonDraft(1)],
     tmdb_excluded_season_numbers: [],
     tmdb_excluded_episodes: [],
@@ -755,6 +759,8 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
       credit_id: c.credit_id || null,
     })),
     hls_base_url: series.hls_base_url || "",
+    drm_scheme: series.drm_scheme || "none",
+    drm_license_url: series.drm_license_url || "",
     tmdb_excluded_season_numbers:
       series.metadata?.tmdb?.exclusions?.season_numbers?.map((value) => Number(value)) ??
       [],
@@ -807,6 +813,8 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
                   embed_url: episode.embed_url || "",
                   hls_url: episode.hls_url || "",
                   hls_verified: Boolean(episode.hls_verified),
+                  dash_url: episode.dash_url || "",
+                  dash_verified: Boolean(episode.dash_verified),
                   download_links: episode.download_links || {},
                   subtitle_url: episode.subtitle_url || "",
                   dubbed_audio_url: episode.dubbed_audio_url || "",
@@ -850,6 +858,8 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
           embed_url: null,
           hls_url: episode.hls_verified ? nullableString(episode.hls_url) || null : null,
           hls_verified: Boolean(episode.hls_verified),
+          dash_url: episode.dash_verified ? nullableString(episode.dash_url) || null : null,
+          dash_verified: Boolean(episode.dash_verified),
           download_links: (() => {
             const links = episodeDownloadMapFromRows(
               episodeDownloadRowsFromMap(episode.download_links || {}),
@@ -899,6 +909,9 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
     age_rating: nullableString(form.age_rating),
     catalog_visibility: DEFAULT_CATALOG_VISIBILITY,
     is_featured: form.is_featured,
+    drm_scheme: form.drm_scheme || "none",
+    drm_license_url:
+      form.drm_scheme !== "none" ? nullableString(form.drm_license_url) || null : null,
     publish_status: form.publish_status,
     scheduled_for: form.publish_status === "scheduled" ? form.scheduled_for || null : null,
     tmdb_query: nullableString(form.tmdb_query),
@@ -2067,6 +2080,11 @@ export default function SeriesEditorForm({
                       ...episode,
                       hls_url: payload.canonical_hls_url || raw,
                       hls_verified: true,
+                      dash_url:
+                        payload.dash_url != null && String(payload.dash_url).trim() !== ""
+                          ? String(payload.dash_url).trim()
+                          : episode.dash_url,
+                      dash_verified: Boolean(payload.dash_verified ?? payload.dash_url),
                       download_links:
                         payload.download_links && Object.keys(payload.download_links).length > 0
                           ? payload.download_links
@@ -2172,7 +2190,7 @@ export default function SeriesEditorForm({
 
     const groupedTargets = new Set(
       existsGroups.flatMap((group) =>
-        [...group.targetByKey.values()].map(
+        Array.from(group.targetByKey.values()).map(
           (target) => `${target.seasonId}:${target.episodeId}`,
         ),
       ),
@@ -3827,6 +3845,45 @@ export default function SeriesEditorForm({
                   />
                 ) : null}
               </div>
+
+              <details className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                <summary className="cursor-pointer text-sm font-semibold text-white">
+                  تنظیمات DRM (اختیاری)
+                </summary>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="block md:col-span-2">
+                    <span className="mb-2 block text-sm text-[#8ea4b3]">طرح DRM</span>
+                    <select
+                      value={form.drm_scheme}
+                      onChange={(event) => updateField("drm_scheme", event.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45"
+                    >
+                      <option value="none">بدون DRM</option>
+                      <option value="widevine">Widevine (Chrome / Android / Fire TV)</option>
+                      <option value="playready">PlayReady (Edge / Tizen / webOS)</option>
+                      <option value="fairplay">FairPlay (Safari / iOS)</option>
+                    </select>
+                  </label>
+
+                  {form.drm_scheme !== "none" ? (
+                    <label className="block md:col-span-2">
+                      <span className="mb-2 block text-sm text-[#8ea4b3]">
+                        آدرس سرور لایسنس DRM
+                      </span>
+                      <input
+                        type="url"
+                        dir="ltr"
+                        value={form.drm_license_url}
+                        onChange={(event) =>
+                          updateField("drm_license_url", event.target.value)
+                        }
+                        placeholder="https://license.example.com/widevine"
+                        className="w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45"
+                      />
+                    </label>
+                  ) : null}
+                </div>
+              </details>
 
               <SeriesFormStatusPanel
                 fullWidth

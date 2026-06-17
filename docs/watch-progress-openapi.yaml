@@ -1,0 +1,222 @@
+openapi: 3.1.0
+info:
+  title: Cinema Watch Progress API
+  version: 1.0.0
+  description: Playback position sync for movies and series episodes.
+
+servers:
+  - url: /api/v1
+    description: Laravel API (prefixed by NEXT_PUBLIC_API_URL)
+
+paths:
+  /watch-progress:
+    get:
+      summary: List continue-watching items
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: include_completed
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Progress list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/WatchProgress"
+    post:
+      summary: Upsert watch progress
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchProgressUpsert"
+      responses:
+        "200":
+          description: Synced
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  syncedAt:
+                    type: string
+                    format: date-time
+                  serverTime:
+                    type: number
+                  data:
+                    type: object
+                    properties:
+                      progress:
+                        $ref: "#/components/schemas/WatchProgress"
+
+  /watch-progress/migrate:
+    post:
+      summary: Migrate anonymous local history after login
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DeviceIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [records]
+              properties:
+                records:
+                  type: array
+                  maxItems: 50
+                  items:
+                    $ref: "#/components/schemas/WatchProgressUpsert"
+      responses:
+        "200":
+          description: Migration result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+                      migrated:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/WatchProgress"
+
+  /watch-progress/{mediaId}:
+    get:
+      summary: Fetch progress for a single title
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mediaId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episodeId
+          in: query
+          schema:
+            type: string
+            nullable: true
+      responses:
+        "200":
+          description: Progress record or null
+    delete:
+      summary: Remove progress for a title
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mediaId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episodeId
+          in: query
+          schema:
+            type: string
+            nullable: true
+      responses:
+        "200":
+          description: Deleted
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
+
+  parameters:
+    DeviceIdHeader:
+      name: X-Device-Id
+      in: header
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    WatchProgressUpsert:
+      type: object
+      required:
+        - mediaId
+        - currentTime
+        - duration
+        - lastWatchedAt
+      properties:
+        mediaId:
+          type: string
+        episodeId:
+          type: string
+          nullable: true
+        currentTime:
+          type: number
+          format: float
+        duration:
+          type: integer
+        percentWatched:
+          type: number
+          description: Fraction 0–1 or percent 0–100 (server normalizes)
+        isCompleted:
+          type: boolean
+        profileId:
+          type: string
+        seasonNumber:
+          type: integer
+        episodeNumber:
+          type: integer
+        platform:
+          type: string
+          enum: [WEB, MOBILE, TV]
+        deviceId:
+          type: string
+        lastWatchedAt:
+          type: string
+          format: date-time
+
+    WatchProgress:
+      allOf:
+        - $ref: "#/components/schemas/WatchProgressUpsert"
+        - type: object
+          properties:
+            mediaType:
+              type: string
+              enum: [movie, series]
+            syncedAt:
+              type: string
+              format: date-time

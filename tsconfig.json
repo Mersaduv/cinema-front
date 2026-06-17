@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "target": "ES2015",
+    "downlevelIteration": true,
+    "lib": ["ES2015", "DOM", "DOM.Iterable"],
+    "useDefineForClassFields": false,
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,

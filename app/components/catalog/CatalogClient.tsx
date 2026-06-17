@@ -6,6 +6,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CatalogPage from "./CatalogPage";
 import CatalogFiltersBar from "./CatalogFiltersBar";
 import ActiveFilterChips from "./ActiveFilterChips";
+import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useTvDebouncedReplace } from "../../hooks/useTvDebouncedReplace";
 import type { CatalogFiltersState } from "../../lib/catalog/search-params";
 import {
   buildCatalogQueryString,
@@ -79,6 +81,8 @@ function CatalogClientInner({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const isTv = useIsTv();
+  const tvReplace = useTvDebouncedReplace();
 
   const queryString = searchParams.toString();
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
@@ -148,17 +152,30 @@ function CatalogClientInner({
       if (`${pathname}${query ? `?${query}` : ""}` === `${pathname}${queryString ? `?${queryString}` : ""}`) {
         return;
       }
+
+      if (isTv) {
+        tvReplace(target, true);
+        return;
+      }
+
       router.replace(target, { scroll: false });
     },
-    [pathname, queryString, router],
+    [isTv, pathname, queryString, router, tvReplace],
   );
 
   const onPageChange = useCallback(
     (nextPage: number) => {
       const query = buildCatalogQueryString(filters, nextPage);
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      const target = query ? `${pathname}?${query}` : pathname;
+
+      if (isTv) {
+        tvReplace(target, true);
+        return;
+      }
+
+      router.replace(target, { scroll: false });
     },
-    [filters, pathname, router],
+    [filters, isTv, pathname, router, tvReplace],
   );
 
   const loadMore =

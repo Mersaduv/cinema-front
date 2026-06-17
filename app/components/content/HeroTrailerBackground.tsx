@@ -10,6 +10,7 @@ import {
   HiMiniSpeakerXMark,
 } from "react-icons/hi2";
 import { extractYoutubeVideoId } from "../../lib/youtube";
+import { useIsTv } from "../../hooks/useTvCapabilities";
 
 const COVER_MIN_DISPLAY_MS = 5000;
 const YT_EMBED_ORIGIN =
@@ -52,6 +53,14 @@ function postYouTubeCommand(
   );
 }
 
+function isDirectVideoTrailer(url: string | null): boolean {
+  if (!url) {
+    return false;
+  }
+
+  return /\.(mp4|m3u8|webm)(\?|$)/i.test(url) || /\/video\//i.test(url);
+}
+
 export default function HeroTrailerBackground({
   coverUrl,
   coverImage,
@@ -63,7 +72,10 @@ export default function HeroTrailerBackground({
   trailerUrl: string | null;
   alt: string;
 }) {
-  const videoId = extractYoutubeVideoId(trailerUrl);
+  const isTv = useIsTv();
+  const directVideoUrl =
+    isTv && trailerUrl && isDirectVideoTrailer(trailerUrl) ? trailerUrl : null;
+  const videoId = !isTv ? extractYoutubeVideoId(trailerUrl) : null;
   const embedUrl = useMemo(
     () => (videoId ? buildEmbedUrl(videoId) : null),
     [videoId],
@@ -182,6 +194,18 @@ export default function HeroTrailerBackground({
       ) : (
         <div className="absolute inset-0 bg-[#05070b]" />
       )}
+
+      {directVideoUrl ? (
+        <video
+          className="absolute inset-0 h-full w-full object-cover"
+          src={directVideoUrl}
+          autoPlay
+          muted
+          loop
+          playsInline
+          aria-hidden
+        />
+      ) : null}
 
       {embedUrl && mountPlayer ? (
         <div

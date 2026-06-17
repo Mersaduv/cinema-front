@@ -156,7 +156,9 @@ export function useFilterDropdownPosition({
         ? new ResizeObserver(() => updatePosition())
         : null;
 
-    observer?.observe(panel);
+    if (observer && panel) {
+      observer.observe(panel);
+    }
 
     const rafId = window.requestAnimationFrame(() => {
       updatePosition();

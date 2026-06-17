@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService, tokenStorage, User } from '../lib/auth';
+import { migrateAnonymousWatchProgress } from '../lib/watchProgressMigration';
 
 interface AuthContextType {
   user: User | null;
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (response.success && response.data?.user) {
           setUser(response.data.user);
+          void migrateAnonymousWatchProgress(String(response.data.user.id));
           return;
         }
 
@@ -68,11 +70,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.success && response.data) {
         tokenStorage.setToken(response.data.token);
         setUser(response.data.user);
+        void migrateAnonymousWatchProgress(String(response.data.user.id));
         return { success: true };
       } else {
         return {
           success: false,
-          message: response.message || 'Login failed',
+          message:
+            response.message === "Invalid credentials"
+              ? "ایمیل یا رمز عبور اشتباه است."
+              : response.message || "ورود ناموفق بود. لطفا دوباره تلاش کنید.",
         };
       }
     } catch (error) {
@@ -99,6 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.success && response.data) {
         tokenStorage.setToken(response.data.token);
         setUser(response.data.user);
+        void migrateAnonymousWatchProgress(String(response.data.user.id));
         return { success: true };
       } else {
         return {

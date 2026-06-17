@@ -17,7 +17,7 @@ import {
   type AdminUsersPagination,
   type AdminUsersSummary,
 } from "../../lib/admin-users";
-import { formatGregorianDate } from "../../lib/date-format";
+import { formatAfghanShamsiDate } from "../../lib/date-format";
 import AdminPagination from "../../components/admin/AdminPagination";
 import AdminStatCard from "../../components/admin/AdminStatCard";
 import AdminSelect from "../../components/admin/AdminSelect";
@@ -399,7 +399,7 @@ export default function AdminUsersPage() {
                           </span>
                         </td>
                         <td className="px-5 py-4 align-top text-sm text-[#d3dee5]">
-                          {formatGregorianDate(user.created_at)}
+                          {formatAfghanShamsiDate(user.created_at)}
                         </td>
                         <td className="px-5 py-4 align-top text-sm text-[#8ea4b3]">
                           #{user.id}

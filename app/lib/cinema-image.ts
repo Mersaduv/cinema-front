@@ -47,7 +47,7 @@ const IMAGE_BASE_URL = (process.env.NEXT_PUBLIC_CINEMA_IMAGE_BASE_URL || "")
 
 export const IMAGE_SIZES: Record<ImageUsage, string> = {
   "poster-grid":
-    "(min-width: 1280px) 14.28vw, (min-width: 1024px) 16.66vw, (min-width: 768px) 20vw, (min-width: 640px) 25vw, 33.33vw",
+    "(min-width: 1920px) 274px, (min-width: 1280px) 14.28vw, (min-width: 1024px) 16.66vw, (min-width: 768px) 20vw, (min-width: 640px) 25vw, 33.33vw",
   "poster-card":
     "(min-width: 1280px) 14.28vw, (min-width: 1024px) 16.66vw, (min-width: 768px) 20vw, (min-width: 640px) 25vw, 33.33vw",
   "hero-backdrop": "100vw",
@@ -267,7 +267,11 @@ export function pickBlurSrc(
   return blur ?? undefined;
 }
 
-export function getImageSizes(usage: ImageUsage): string {
+export function getImageSizes(usage: ImageUsage, options?: { isTv?: boolean }): string {
+  if (options?.isTv && usage === "poster-grid") {
+    return "(min-width: 1920px) 274px, (min-width: 1280px) 14.28vw, (min-width: 1024px) 16.66vw, (min-width: 768px) 20vw, (min-width: 640px) 25vw, 33.33vw";
+  }
+
   return IMAGE_SIZES[usage];
 }
 

@@ -10,6 +10,7 @@ import {
   type ImageUsage,
   type ResponsiveImageAsset,
 } from "../../lib/cinema-image";
+import { useIsTv } from "../../hooks/useTvCapabilities";
 
 export type ResponsiveImageProps = {
   image?: ResponsiveImageAsset | null;
@@ -19,6 +20,7 @@ export type ResponsiveImageProps = {
   usage?: ImageUsage;
   sizes?: string;
   loading?: "lazy" | "eager";
+  fetchPriority?: "high" | "low" | "auto";
   objectFit?: "cover" | "contain";
   aspectRatio?: string;
   placeholderPath?: string;
@@ -27,6 +29,7 @@ export type ResponsiveImageProps = {
   fill?: boolean;
   width?: number;
   height?: number;
+  draggable?: boolean;
 };
 
 export default function ResponsiveImage({
@@ -37,6 +40,7 @@ export default function ResponsiveImage({
   usage,
   sizes,
   loading = "lazy",
+  fetchPriority,
   objectFit = "cover",
   aspectRatio,
   placeholderPath,
@@ -45,7 +49,9 @@ export default function ResponsiveImage({
   fill = false,
   width,
   height,
+  draggable,
 }: ResponsiveImageProps) {
+  const isTv = useIsTv();
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -56,7 +62,7 @@ export default function ResponsiveImage({
 
   const blurSrc = errored ? undefined : pickBlurSrc(image);
   const srcSet = errored ? undefined : buildSrcSetString(image);
-  const sizesAttr = sizes ?? (usage ? getImageSizes(usage) : undefined);
+  const sizesAttr = sizes ?? (usage ? getImageSizes(usage, { isTv }) : undefined);
   const objectFitClass = objectFit === "contain" ? "object-contain" : "object-cover";
 
   // Handle already-cached images: browser won't fire onLoad again
@@ -121,7 +127,9 @@ export default function ResponsiveImage({
         width={fill ? undefined : width}
         height={fill ? undefined : height}
         loading={loading}
+        fetchPriority={fetchPriority}
         decoding="async"
+        draggable={draggable}
         onLoad={handleLoad}
         onError={handleError}
         className={[

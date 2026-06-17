@@ -15,7 +15,7 @@ export const LATEST_CATALOG_FILTERS: CatalogFiltersState = {
 export const LATEST_SLIDER_COUNT = 6;
 export const LATEST_FETCH_POOL = 48;
 
-export function sortCatalogByReleaseYear(items: CatalogListItem[]): CatalogListItem[] {
+export function sortCatalogByReleaseYear<T extends CatalogListItem>(items: T[]): T[] {
   return [...items].sort((left, right) => {
     const leftYear = left.release_year ?? 0;
     const rightYear = right.release_year ?? 0;
@@ -28,6 +28,6 @@ export function sortCatalogByReleaseYear(items: CatalogListItem[]): CatalogListI
   });
 }
 
-export function pickLatestSliderItems(items: CatalogListItem[]): CatalogListItem[] {
+export function pickLatestSliderItems<T extends CatalogListItem>(items: T[]): T[] {
   return sortCatalogByReleaseYear(items).slice(0, LATEST_SLIDER_COUNT);
 }

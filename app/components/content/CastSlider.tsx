@@ -4,6 +4,8 @@ import Link from "next/link";
 import ContentListSlider from "../catalog/ContentListSlider";
 import { PersonProfileImage } from "../images";
 import type { ResponsiveImageAsset } from "../../lib/cinema-image";
+import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
+import { useIsTv } from "../../hooks/useTvCapabilities";
 
 export type CastSliderRow = {
   name: string | null;
@@ -33,6 +35,8 @@ export default function CastSlider({
   title?: string;
   cast: CastSliderRow[];
 }) {
+  const isTv = useIsTv();
+
   if (cast.length === 0) {
     return null;
   }
@@ -57,7 +61,7 @@ export default function CastSlider({
                   src={actor.profile_url}
                   square
                   sizes="104px"
-                  loading={index < 8 ? "eager" : "lazy"}
+                  loading={isTv && index < 4 ? "eager" : index < 8 ? "eager" : "lazy"}
                   draggable={false}
                 />
               </div>
@@ -80,7 +84,9 @@ export default function CastSlider({
                 <Link
                   href={`/actors/${actor.slug}`}
                   draggable={false}
-                  className="block text-inherit no-underline transition-opacity hover:opacity-90"
+                  data-tv-focusable
+                  data-tv-carousel-item
+                  className={`block text-inherit no-underline transition-opacity hover:opacity-90 ${TV_FOCUS_RING_CLASS}`}
                 >
                   {profile}
                 </Link>

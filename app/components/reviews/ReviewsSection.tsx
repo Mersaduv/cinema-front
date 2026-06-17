@@ -7,6 +7,8 @@ import {
   defaultReviewSummary,
   deleteReview,
   fetchReviews,
+  getCachedMyReviewFor,
+  upsertCachedMyReview,
   type Review,
   type ReviewSort,
   type ReviewSummary,
@@ -14,6 +16,8 @@ import {
 import RatingSummaryBar from "./RatingSummaryBar";
 import ReviewForm from "./ReviewForm";
 import ReviewList from "./ReviewList";
+import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function ReviewsSection({
   contentType,
@@ -39,8 +43,22 @@ export default function ReviewsSection({
   const [deleteConfirm, setDeleteConfirm] = useState<Review | null>(null);
   const [actionError, setActionError] = useState("");
   const [accumulatedReviews, setAccumulatedReviews] = useState(initialReviews);
+  const isTv = useIsTv();
+  const { user } = useAuth();
 
   const swrKey = `reviews:${contentType}:${slug}:${page}:${sort}`;
+
+  useEffect(() => {
+    if (initialUserReview) {
+      setUserReview(initialUserReview);
+      return;
+    }
+
+    const cached = getCachedMyReviewFor(contentType, slug);
+    if (cached) {
+      setUserReview(cached);
+    }
+  }, [contentType, initialUserReview, slug]);
 
   const { data, mutate, isValidating } = useSWR(
     swrKey,
@@ -55,7 +73,8 @@ export default function ReviewsSection({
               paginatorInfo: initialPaginator,
             }
           : undefined,
-      revalidateOnFocus: false,
+      revalidateOnFocus: true,
+      refreshInterval: 30_000,
       keepPreviousData: true,
     },
   );
@@ -76,6 +95,43 @@ export default function ReviewsSection({
       return [...current, ...appended];
     });
   }, [data?.reviews, page]);
+
+  useEffect(() => {
+    if (!data) {
+      return;
+    }
+
+    const ownFromServer =
+      data.user_review ??
+      data.reviews.find((review) => review.is_own) ??
+      data.reviews.find((review) => user?.id != null && review.user.id === user.id) ??
+      null;
+
+    if (!ownFromServer) {
+      return;
+    }
+
+    setUserReview((current) => {
+      if (
+        current &&
+        current.id === ownFromServer.id &&
+        current.status === ownFromServer.status &&
+        current.is_pending === ownFromServer.is_pending &&
+        current.body === ownFromServer.body &&
+        current.rating === ownFromServer.rating
+      ) {
+        return current;
+      }
+      return ownFromServer;
+    });
+
+    upsertCachedMyReview({
+      review: ownFromServer,
+      reviewableType: contentType,
+      reviewableSlug: slug,
+      reviewableTitle: slug,
+    });
+  }, [contentType, data, slug, user?.id]);
 
   useEffect(() => {
     setPage(1);
@@ -143,7 +199,12 @@ export default function ReviewsSection({
       <RatingSummaryBar cachedAvgRating={cachedAvgRating} summary={summary} />
 
       <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-5 sm:p-6">
-        {showForm || !userReview ? (
+        {isTv ? (
+          <p className="text-sm leading-7 text-white/60">
+            برای نوشتن نقد، از مرورگر موبایل یا دسکتاپ استفاده کنید. می‌توانید نظرات ثبت‌شده را
+            در همین صفحه بخوانید.
+          </p>
+        ) : showForm || !userReview ? (
           <ReviewForm
             contentType={contentType}
             slug={slug}

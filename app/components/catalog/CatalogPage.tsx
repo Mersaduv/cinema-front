@@ -1,9 +1,13 @@
 "use client";
 
+import { useRef } from "react";
 import CatalogPosterCard from "./CatalogPosterCard";
 import CatalogLatestSlider from "./CatalogLatestSlider";
 import { getCatalogItemHref } from "../../lib/catalog/animation";
 import type { CatalogListItem, PaginationMeta } from "../../lib/catalog/rest";
+import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
+import { useTvGridColumns } from "../../hooks/useTvGridColumns";
+import { useIsTv } from "../../hooks/useTvCapabilities";
 
 export default function CatalogPage({
   kind,
@@ -37,6 +41,9 @@ export default function CatalogPage({
     useItemKind ? getCatalogItemHref(item) : `${basePath}/${item.slug}`;
   const itemKey = (item: CatalogListItem) =>
     useItemKind ? `${item.catalogKind ?? kind}-${item.id}` : String(item.id);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const isTv = useIsTv();
+  const gridCols = useTvGridColumns(gridRef, items.length);
 
   return (
     <div className="min-h-screen bg-[#05070b] text-white">
@@ -75,12 +82,18 @@ export default function CatalogPage({
                 هنوز موردی در این بخش منتشر نشده است.
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
-                {items.map((item) => (
+              <div
+                ref={gridRef}
+                className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7"
+                data-tv-grid="poster"
+                data-tv-cols={isTv ? String(gridCols) : undefined}
+              >
+                {items.map((item, index) => (
                   <CatalogPosterCard
                     key={itemKey(item)}
                     item={item}
                     href={itemHref(item)}
+                    index={index}
                   />
                 ))}
               </div>
@@ -89,23 +102,36 @@ export default function CatalogPage({
         </div>
 
         {meta.last_page > 1 ? (
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+          <div
+            className="mt-8 flex flex-wrap items-center justify-center gap-2"
+            data-tv-focus-group="pagination"
+            role="navigation"
+            aria-label="صفحه‌بندی کاتالوگ"
+          >
             <button
               type="button"
+              data-tv-focusable
+              data-tv-pagination="prev"
               disabled={meta.current_page <= 1 || loading}
               onClick={() => onPageChange?.(meta.current_page - 1)}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm disabled:opacity-40"
+              className={`rounded-lg border border-white/10 px-4 py-2 text-sm disabled:opacity-40 ${TV_FOCUS_RING_CLASS}`}
             >
               قبلی
             </button>
-            <span className="text-sm text-white/60">
+            <span
+              className="px-2 text-sm text-white/60"
+              data-tv-pagination="label"
+              aria-live="polite"
+            >
               صفحه {meta.current_page} از {meta.last_page} ({meta.total} مورد)
             </span>
             <button
               type="button"
+              data-tv-focusable
+              data-tv-pagination="next"
               disabled={meta.current_page >= meta.last_page || loading}
               onClick={() => onPageChange?.(meta.current_page + 1)}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm disabled:opacity-40"
+              className={`rounded-lg border border-white/10 px-4 py-2 text-sm disabled:opacity-40 ${TV_FOCUS_RING_CLASS}`}
             >
               بعدی
             </button>

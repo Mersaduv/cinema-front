@@ -1,14 +1,23 @@
-import path from "node:path";
 import { defineConfig } from "vitest/config";
+import path from "node:path";
 
 export default defineConfig({
   test: {
     environment: "jsdom",
-    include: ["__tests__/**/*.test.ts", "__tests__/**/*.test.tsx"],
+    include: [
+      "app/features/player/**/*.test.{ts,tsx}",
+      "app/features/player/**/__tests__/**/*.test.ts",
+      "app/watch/**/*.test.ts",
+      "app/lib/tv/**/*.test.ts",
+      "app/components/tv/**/*.test.{ts,tsx}",
+      "app/components/catalog/**/*.test.{ts,tsx}",
+      "app/components/content/**/*.test.{ts,tsx}",
+      "app/components/reviews/**/*.test.{ts,tsx}",
+    ],
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./app"),
+      "@": path.resolve(__dirname, "."),
     },
   },
 });

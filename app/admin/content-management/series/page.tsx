@@ -64,7 +64,7 @@ function SeriesPoster({ series }: { series: AdminSeries }) {
           title={series.title}
           image={series.poster_image}
           src={series.poster_url}
-          usage="catalog-poster"
+          usage="poster-grid"
           loading="lazy"
         />
       </div>

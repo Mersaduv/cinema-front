@@ -1,51 +1,50 @@
-import { NextRequest } from "next/server";
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Range, Origin, Content-Type",
+  Vary: "Origin",
+};
 
-export const dynamic = "force-dynamic";
-
-function normalizeSubtitleBody(body: string) {
-  const cleaned = body.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
-
-  if (cleaned.startsWith("WEBVTT")) {
-    return cleaned;
-  }
-
-  return `WEBVTT\n\n${cleaned.replace(/^\s+/, "")}`;
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: CORS_HEADERS,
+  });
 }
 
-export async function GET(request: NextRequest) {
-  const source = request.nextUrl.searchParams.get("src")?.trim();
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const src = searchParams.get("src");
 
-  if (!source) {
-    return new Response("Missing subtitle source.", { status: 400 });
-  }
-
-  if (!/^https?:\/\//i.test(source)) {
-    return new Response("Unsupported subtitle source.", { status: 400 });
+  if (!src) {
+    return new Response("Missing src", { status: 400, headers: CORS_HEADERS });
   }
 
   try {
-    const response = await fetch(source, {
-      headers: {
-        Accept: "text/vtt, text/plain;q=0.9, */*;q=0.5",
-      },
-      cache: "no-store",
-      redirect: "follow",
+    const upstream = await fetch(src, {
+      headers: { "User-Agent": "Cinema-SubtitleProxy/1.0" },
     });
 
-    if (!response.ok) {
-      return new Response("Subtitle source is unavailable.", { status: 502 });
+    if (!upstream.ok) {
+      return new Response("Upstream subtitle fetch failed", {
+        status: upstream.status,
+        headers: CORS_HEADERS,
+      });
     }
 
-    const subtitleBody = normalizeSubtitleBody(await response.text());
+    const body = await upstream.text();
 
-    return new Response(subtitleBody, {
-      status: 200,
+    return new Response(body, {
       headers: {
+        ...CORS_HEADERS,
         "Content-Type": "text/vtt; charset=utf-8",
-        "Cache-Control": "no-store, must-revalidate",
+        "Cache-Control": "max-age=300, private",
       },
     });
   } catch {
-    return new Response("Subtitle source could not be loaded.", { status: 502 });
+    return new Response("Subtitle proxy error", {
+      status: 502,
+      headers: CORS_HEADERS,
+    });
   }
 }

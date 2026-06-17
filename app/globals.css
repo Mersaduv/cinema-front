@@ -12,7 +12,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-iran-sans-x), "Arial", "Helvetica", sans-serif;
+  --font-sans: var(--font-iran-sans-x), Tahoma, "Segoe UI", Arial, Helvetica, sans-serif;
 }
 
 html {
@@ -24,7 +24,14 @@ body {
     radial-gradient(circle at top, rgba(245, 197, 24, 0.06), transparent 32%),
     linear-gradient(180deg, #06090e 0%, #05070b 100%);
   color: var(--foreground);
-  font-family: var(--font-iran-sans-x), "Arial", "Helvetica", sans-serif;
+  font-family: var(--font-iran-sans-x), Tahoma, "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
+[data-tv-focusable]:focus-visible,
+[data-tv-page] a:focus-visible,
+[data-tv-page] button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #05070b, 0 0 0 4px #38bdf8;
 }
 
 * {
@@ -58,4 +65,57 @@ body {
 
 .cinema-player-video::cue(b) {
   color: #f5c518;
+}
+
+[data-player-tv="true"] {
+  --player-button-size: 4rem;
+  --player-icon-size: 2.25rem;
+  --player-font-size: 1.75rem;
+  --player-focus-ring: 4px solid rgba(255, 255, 255, 0.9);
+  --player-focus-ring-offset: 4px;
+  --player-seekbar-height: 8px;
+  --player-seekbar-thumb-size: 20px;
+  --player-controls-bg: linear-gradient(transparent, rgba(0, 0, 0, 0.95));
+}
+
+@keyframes seek-feedback {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.95);
+  }
+}
+
+.animate-seek-feedback {
+  animation: seek-feedback 800ms ease-out forwards;
+}
+
+@keyframes fade-in-out {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-fade-in-out {
+  animation: fade-in-out 4s ease-in-out forwards;
 }

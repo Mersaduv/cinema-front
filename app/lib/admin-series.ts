@@ -61,6 +61,8 @@ export interface AdminSeriesEpisode {
   embed_url?: string | null;
   hls_url?: string | null;
   hls_verified?: boolean;
+  dash_url?: string | null;
+  dash_verified?: boolean;
   download_links?: Record<string, string>;
   subtitle_url?: string | null;
   dubbed_audio_url?: string | null;
@@ -109,6 +111,8 @@ export interface AdminSeries {
   age_rating: string | null;
   has_subtitle: boolean;
   has_dubbed: boolean;
+  drm_scheme?: string | null;
+  drm_license_url?: string | null;
   catalog_visibility: string;
   is_featured: boolean;
   publish_status: SeriesPublishStatus;
@@ -133,6 +137,10 @@ export interface AdminSeries {
       countries: string[];
       actors: AdminSeriesActor[];
       synopsis_en?: string | null;
+      poster_url?: string | null;
+      poster_source_url?: string | null;
+      backdrop_url?: string | null;
+      backdrop_source_url?: string | null;
       exclusions?: {
         season_numbers?: number[];
         episodes?: Array<{ season_number: number; episode_number: number }>;
@@ -273,6 +281,8 @@ export interface AdminSeriesPayload {
   actors?: AdminSeriesActor[];
   cast?: AdminSeriesCastPayload[];
   crew?: AdminSeriesCrewPayload[];
+  drm_scheme?: string;
+  drm_license_url?: string | null;
   seasons?: AdminSeriesSeason[];
   tmdb_excluded_season_numbers?: number[];
   tmdb_excluded_episodes?: Array<{ season_number: number; episode_number: number }>;

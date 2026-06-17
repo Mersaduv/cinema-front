@@ -47,7 +47,7 @@ export default function BackdropImage({
       fallbackUrl={fallbackUrl}
       alt={alt ?? getImageAlt({ title, role: "backdrop" })}
       usage={usage}
-      aspectRatio={usage === "hero-backdrop" ? undefined : "16 / 9"}
+      aspectRatio="16 / 9"
       objectFit="cover"
       loading={loading}
       placeholderPath={placeholderPath}

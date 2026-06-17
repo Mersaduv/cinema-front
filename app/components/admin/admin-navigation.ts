@@ -184,6 +184,15 @@ export const adminNavigation: AdminNavItem[] = [
   },
   {
     type: "link",
+    id: "playback-analytics",
+    href: "/admin/analytics/playback",
+    label: "تحلیل پخش",
+    description: "QoE — موتور پخش، زمان شروع، ری‌بافر و خطاها",
+    badge: "تحلیل",
+    icon: MdOutlineVideoLibrary,
+  },
+  {
+    type: "link",
     id: "users",
     href: "/admin/users",
     label: "کاربران",
@@ -208,6 +217,15 @@ export const adminNavigation: AdminNavItem[] = [
     description: "پیگیری درخواست‌های ثبت‌شده کاربران",
     badge: "ارتباط",
     icon: MdOutlineRequestPage,
+  },
+  {
+    type: "link",
+    id: "tickets",
+    href: "/admin/tickets",
+    label: "تیکت ها",
+    description: "پاسخ به تیکت‌های پشتیبانی کاربران",
+    badge: "ارتباط",
+    icon: MdOutlineRateReview,
   },
   {
     type: "link",

@@ -28,6 +28,8 @@ export type EpisodeDraft = {
   embed_url: string;
   hls_url: string;
   hls_verified: boolean;
+  dash_url: string;
+  dash_verified: boolean;
   download_links: Record<string, string>;
   subtitle_url: string;
   dubbed_audio_url: string;
@@ -100,6 +102,8 @@ export type SeriesFormState = {
   actors: AdminSeriesActor[];
   crew: SeriesCrewFormRow[];
   hls_base_url: string;
+  drm_scheme: string;
+  drm_license_url: string;
   seasons: SeasonDraft[];
   tmdb_excluded_season_numbers: number[];
   tmdb_excluded_episodes: TmdbExcludedEpisode[];
@@ -186,20 +190,15 @@ export function isTmdbSeasonExcluded(
 
 function normalizeActors(actors: AdminSeriesActor[]) {
   return sortCastByOrder(
-    actors
-      .map((actor) => {
-        const name = resolveLatinPersonName([actor.name]);
+    actors.flatMap((actor) => {
+      const name = resolveLatinPersonName([actor.name]);
 
-        if (!name) {
-          return null;
-        }
+      if (!name) {
+        return [];
+      }
 
-        return {
-          ...actor,
-          name,
-        };
-      })
-      .filter((actor): actor is AdminSeriesActor => actor !== null),
+      return [{ ...actor, name }];
+    }),
   );
 }
 
@@ -233,6 +232,8 @@ export function mergeEpisodeDraftFromTmdb(
     embed_url: currentEpisode?.embed_url || "",
     hls_url: currentEpisode?.hls_url || "",
     hls_verified: currentEpisode?.hls_verified ?? false,
+    dash_url: currentEpisode?.dash_url || episode.dash_url || "",
+    dash_verified: currentEpisode?.dash_verified ?? Boolean(episode.dash_verified),
     download_links: currentEpisode?.download_links ?? {},
     subtitle_url: currentEpisode?.subtitle_url || "",
     dubbed_audio_url: currentEpisode?.dubbed_audio_url || "",
@@ -348,6 +349,8 @@ export function mergeSeasonDraftFromTmdb(
             embed_url: "",
             hls_url: "",
             hls_verified: false,
+            dash_url: "",
+            dash_verified: false,
             download_links: {},
             subtitle_url: "",
             dubbed_audio_url: "",

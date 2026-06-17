@@ -93,9 +93,15 @@ class ApiClient {
         };
       }
 
+      const rawMessage = error instanceof Error ? error.message : 'Network error';
+      const message =
+        rawMessage === 'Failed to fetch'
+          ? 'اتصال به سرور برقرار نشد. لطفاً API را بررسی کنید.'
+          : rawMessage;
+
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Network error',
+        message,
       };
     } finally {
       externalSignal?.removeEventListener('abort', abortFromExternal);
@@ -170,9 +176,15 @@ class ApiClient {
         ...data,
       } as ApiResponse<T>;
     } catch (error) {
+      const rawMessage = error instanceof Error ? error.message : 'Network error';
+      const message =
+        rawMessage === 'Failed to fetch'
+          ? 'اتصال به سرور برقرار نشد. لطفاً API را بررسی کنید.'
+          : rawMessage;
+
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Network error',
+        message,
       };
     }
   }
@@ -186,6 +198,21 @@ class ApiClient {
       endpoint,
       {
         method: 'PUT',
+        body: JSON.stringify(body),
+      },
+      requestOptions,
+    );
+  }
+
+  async patch<T>(
+    endpoint: string,
+    body?: unknown,
+    requestOptions?: { timeoutMs?: number; signal?: AbortSignal },
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(
+      endpoint,
+      {
+        method: 'PATCH',
         body: JSON.stringify(body),
       },
       requestOptions,

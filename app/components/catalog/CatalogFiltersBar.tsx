@@ -2,12 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { HiMagnifyingGlass } from "react-icons/hi2";
+import { HiMagnifyingGlass, HiAdjustmentsHorizontal } from "react-icons/hi2";
 import CountryFilterDropdown from "./CountryFilterDropdown";
 import FilterDropdown from "./FilterDropdown";
 import AnimationSubtypeFilter from "./AnimationSubtypeFilter";
 import GenreFilterDropdown from "./GenreFilterDropdown";
 import YearRangeFilter from "./YearRangeFilter";
+import TvFilterSheet from "../tv/TvFilterSheet";
+import TvOnScreenSearchPad, { needsOnScreenSearchKeyboard } from "../tv/TvOnScreenSearchPad";
+import { useIsTv, useTvCapabilities } from "../../hooks/useTvCapabilities";
+import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
 import {
   DEFAULT_ANIMATION_SUBTYPES,
   type SelectableAnimationSubtype,
@@ -55,6 +59,12 @@ export default function CatalogFiltersBar({
   const router = useRouter();
   const pathname = usePathname();
   const urlSearchParams = useSearchParams();
+  const isTv = useIsTv();
+  const capabilities = useTvCapabilities();
+  const useSearchPad = isTv && needsOnScreenSearchKeyboard(capabilities.family);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const [tvFilterOpen, setTvFilterOpen] = useState(false);
+  const [searchPadOpen, setSearchPadOpen] = useState(false);
   const [state, setState] = useState(filters);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -148,6 +158,79 @@ export default function CatalogFiltersBar({
   const sortLabel =
     filterOptions.sort_options.find((item) => item.value === state.sort)?.label ??
     "مرتب‌سازی براساس";
+
+  const closeFilterSheet = useCallback(() => {
+    setTvFilterOpen(false);
+    requestAnimationFrame(() => {
+      openerRef.current?.focus();
+    });
+  }, []);
+
+  if (isTv) {
+    return (
+      <>
+        <div dir="rtl" className="flex flex-wrap items-center gap-3">
+          <button
+            ref={openerRef}
+            type="button"
+            data-tv-focusable
+            onClick={() => setTvFilterOpen(true)}
+            className={`inline-flex items-center gap-2 rounded-xl border border-white/12 bg-[#0d1118] px-5 py-3.5 text-sm text-white/90 ${TV_FOCUS_RING_CLASS}`}
+          >
+            <HiAdjustmentsHorizontal className="h-5 w-5" />
+            فیلترها
+          </button>
+          <button
+            type="button"
+            data-tv-focusable
+            onClick={clearAll}
+            className={`rounded-xl border border-white/12 bg-[#0d1118] px-5 py-3.5 text-sm text-white/80 ${TV_FOCUS_RING_CLASS}`}
+          >
+            حذف همه فیلترها
+          </button>
+          <div className="relative min-w-[240px] flex-1">
+            {useSearchPad ? (
+              <button
+                type="button"
+                data-tv-focusable
+                onClick={() => setSearchPadOpen(true)}
+                className={`flex w-full items-center gap-2 rounded-xl border border-white/10 bg-[#0d1118] py-3.5 pr-4 pl-4 text-right text-sm text-white/70 ${TV_FOCUS_RING_CLASS}`}
+              >
+                <HiMagnifyingGlass className="h-4 w-4 shrink-0 text-white/40" />
+                {state.search || "جستجو با صفحه‌کلید روی صفحه…"}
+              </button>
+            ) : (
+              <>
+                <HiMagnifyingGlass className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+                <input
+                  data-tv-focusable
+                  value={state.search}
+                  onChange={(event) => commitSearch(event.target.value)}
+                  placeholder="جستجو..."
+                  className={`w-full rounded-xl border border-white/10 bg-[#0d1118] py-3.5 pr-10 pl-4 text-right text-sm text-white outline-none placeholder:text-white/35 focus:border-[#38bdf8]/50 ${TV_FOCUS_RING_CLASS}`}
+                />
+              </>
+            )}
+          </div>
+        </div>
+        <TvOnScreenSearchPad
+          open={searchPadOpen}
+          value={state.search}
+          onChange={(search) => commitSearch(search)}
+          onSubmit={() => commit({ ...stateRef.current, search: stateRef.current.search })}
+          onClose={() => setSearchPadOpen(false)}
+        />
+        <TvFilterSheet
+          open={tvFilterOpen}
+          onClose={closeFilterSheet}
+          kind={kind}
+          filters={state}
+          filterOptions={filterOptions}
+          onApply={(next) => commit(next)}
+        />
+      </>
+    );
+  }
 
   return (
     <div dir="rtl" className="relative z-30 space-y-3 overflow-visible">

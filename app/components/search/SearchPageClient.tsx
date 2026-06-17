@@ -121,25 +121,9 @@ function SearchPageInner() {
             </div>
           </form>
 
-          {resultSummary ? (
+          {resultSummary && (
             <p className="mt-5 text-sm text-[#f8d977]/70 md:text-base">{resultSummary}</p>
-          ) : (
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              {SUGGESTIONS.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => {
-                    setInputValue(item);
-                    commitQuery(item);
-                  }}
-                  className="rounded-full border border-[#f5c518]/15 bg-[#f5c518]/5 px-4 py-2 text-sm text-white/75 transition hover:border-[#f5c518]/35 hover:bg-[#f5c518]/12 hover:text-[#f8d977]"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          )}
+          ) }
         </div>
       </section>
 

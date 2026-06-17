@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import ContentDetailPage from "../../components/content/ContentDetailPage";
 import { toCatalogItem } from "../../lib/catalog/rest";
-import { seriesService, type PublicSeries, type PublicSeriesSeason } from "../../lib/series";
+import { seriesService, type PublicSeries } from "../../lib/series";
+import { useSeriesEpisodes } from "../../lib/useSeriesEpisodes";
 
 export default function SeriesDetailClient({
   series: initialSeries,
@@ -29,12 +30,48 @@ export default function SeriesDetailClient({
     },
   );
 
-  const [loadedSeasons, setLoadedSeasons] = useState<PublicSeriesSeason[] | null>(null);
-  const [episodesLoading, setEpisodesLoading] = useState(false);
+  const [episodesEnabled, setEpisodesEnabled] = useState(false);
   const [similarSeries, setSimilarSeries] = useState<PublicSeries[]>([]);
   const [similarLoading, setSimilarLoading] = useState(false);
-  const episodesRequestedRef = useRef(false);
   const similarRequestedRef = useRef(false);
+
+  const {
+    data: loadedSeasons,
+    isLoading: episodesLoading,
+    mutate: revalidateEpisodes,
+  } = useSeriesEpisodes(initialSeries.slug, episodesEnabled);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ season: "1", episode: "1" });
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.as = "document";
+    link.href = `/watch/${initialSeries.slug}?${params.toString()}`;
+    document.head.appendChild(link);
+
+    const prefetchPlayer = () => {
+      void import("../../components/player/HlsVideoPlayer");
+    };
+
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(prefetchPlayer, { timeout: 2000 });
+    } else {
+      timeoutId = setTimeout(prefetchPlayer, 500);
+    }
+
+    return () => {
+      link.remove();
+      if (idleId !== undefined) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [initialSeries.slug]);
 
   const series = useMemo(
     () => ({
@@ -43,25 +80,6 @@ export default function SeriesDetailClient({
     }),
     [loadedSeasons, refreshedSeries],
   );
-
-  const loadEpisodes = useCallback(async () => {
-    if (episodesRequestedRef.current) {
-      return;
-    }
-
-    episodesRequestedRef.current = true;
-    setEpisodesLoading(true);
-
-    try {
-      const response = await seriesService.episodes(series.slug);
-
-      if (response.success && response.data?.seasons) {
-        setLoadedSeasons(response.data.seasons);
-      }
-    } finally {
-      setEpisodesLoading(false);
-    }
-  }, [series.slug]);
 
   const loadSimilar = useCallback(async () => {
     if (similarRequestedRef.current) {
@@ -113,7 +131,8 @@ export default function SeriesDetailClient({
       episodesLoading={episodesLoading}
       similarLoading={similarLoading}
       onRequestEpisodes={() => {
-        void loadEpisodes();
+        setEpisodesEnabled(true);
+        void revalidateEpisodes();
       }}
       onRequestSimilar={() => {
         void loadSimilar();

@@ -169,6 +169,8 @@ type MovieEditorFormState = {
   hls_url: string;
   subtitle_source_path: string;
   dubbed_audio_url: string;
+  drm_scheme: string;
+  drm_license_url: string;
   download_links: DownloadLinkRow[];
   original_language: string;
   runtime_minutes: string;
@@ -241,6 +243,8 @@ function createInitialFormState(): MovieEditorFormState {
     hls_url: "",
     subtitle_source_path: "",
     dubbed_audio_url: "",
+    drm_scheme: "none",
+    drm_license_url: "",
     download_links: [createDownloadLinkRow()],
     original_language: "",
     runtime_minutes: "",
@@ -472,6 +476,8 @@ export default function MovieEditorForm({
           subtitle_source_path:
             nextMovie.subtitle_source_url || nextMovie.subtitle_source_path || "",
           dubbed_audio_url: nextMovie.dubbed_source_url || "",
+          drm_scheme: nextMovie.drm_scheme || "none",
+          drm_license_url: nextMovie.drm_license_url || "",
           download_links: Object.entries(nextMovie.metadata?.playback?.downloads || {}).length
             ? Object.entries(nextMovie.metadata?.playback?.downloads || {}).map(([quality, url]) =>
                 createDownloadLinkRow(quality, url, `download-${quality}`),
@@ -499,6 +505,8 @@ export default function MovieEditorForm({
           countries: normalizeStringList(nextMovie.metadata?.tmdb?.countries || []),
           actors: initialActors,
           crew: initialCrew,
+          belongs_to_collection:
+            nextMovie.metadata?.tmdb?.belongs_to_collection ?? null,
         };
         setForm(loadedForm);
         setLastFetchedTmdbCode(
@@ -1210,6 +1218,10 @@ export default function MovieEditorForm({
     }
     if (form.subtitle_source_path.trim()) {
       formData.append("subtitle_source_path", form.subtitle_source_path.trim());
+    }
+    formData.append("drm_scheme", form.drm_scheme || "none");
+    if (form.drm_scheme !== "none" && form.drm_license_url.trim()) {
+      formData.append("drm_license_url", form.drm_license_url.trim());
     }
     Object.entries(downloadLinks).forEach(([quality, url]) => {
       formData.append(`download_links[${quality}]`, url);
@@ -2202,6 +2214,48 @@ export default function MovieEditorForm({
                       />
                     </label>
                   </div>
+
+                  <details className="mt-5 rounded-[24px] border border-white/10 bg-black/20 p-5">
+                    <summary className="cursor-pointer text-sm font-semibold text-white">
+                      تنظیمات DRM (اختیاری)
+                    </summary>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="block md:col-span-2">
+                        <span className="mb-2 block text-sm text-[#8ea4b3]">طرح DRM</span>
+                        <select
+                          value={form.drm_scheme}
+                          onChange={(event) => handleChange("drm_scheme", event.target.value)}
+                          className="w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45"
+                        >
+                          <option value="none">بدون DRM</option>
+                          <option value="widevine">Widevine (Chrome / Android / Fire TV)</option>
+                          <option value="playready">PlayReady (Edge / Tizen / webOS)</option>
+                          <option value="fairplay">FairPlay (Safari / iOS)</option>
+                        </select>
+                      </label>
+
+                      {form.drm_scheme !== "none" ? (
+                        <label className="block md:col-span-2">
+                          <span className="mb-2 block text-sm text-[#8ea4b3]">
+                            آدرس سرور لایسنس DRM
+                          </span>
+                          <input
+                            type="url"
+                            dir="ltr"
+                            value={form.drm_license_url}
+                            onChange={(event) =>
+                              handleChange("drm_license_url", event.target.value)
+                            }
+                            placeholder="https://license.example.com/widevine"
+                            className={`w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass}`}
+                          />
+                          <p className="mt-1 text-xs text-gray-400">
+                            آدرس سرور لایسنس DRM ارائه‌دهنده شما (مثلاً BuyDRM، Axinom، Pallycon)
+                          </p>
+                        </label>
+                      ) : null}
+                    </div>
+                  </details>
 
                   <div className="mt-5 space-y-4">
                     <div className="flex items-center justify-between gap-3">

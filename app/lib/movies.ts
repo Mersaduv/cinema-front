@@ -16,6 +16,7 @@ export interface PublicMovieCastMember {
   profile_url: string | null;
   profile_image?: ResponsiveImageAsset | null;
   slug?: string | null;
+  order?: number | null;
 }
 
 export interface PublicMovieCrewMember {

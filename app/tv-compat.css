@@ -1,0 +1,74 @@
+/**
+ * TV browser CSS compatibility layer (Tizen 6 / Chrome 56, webOS 6 / Chrome 79).
+ *
+ * Audit notes (2026-06-15):
+ * - @layer from Tailwind v4: unsupported on Chrome <99 — mitigated by loading this
+ *   unlayered sheet AFTER globals.css with physical-property overrides.
+ * - aspect-ratio: unsupported before Chrome 88 — poster cards use padding fallback.
+ * - margin-inline / padding-block: mapped to physical sides for [data-tv-page].
+ * - focus-visible: supported Chrome 86+; duplicated with explicit box-shadow below.
+ * - CSS custom properties: supported; keep token count minimal on TV.
+ *
+ * Subtitle token audit (--cinema-subtitle-*): no dedicated subtitle CSS variables
+ * are defined in globals.css or PlayerShell; player subtitles use ::cue rules in
+ * globals.css (.cinema-player-video::cue). CSS custom properties are safe on
+ * Tizen 6 (Chrome 56+) and webOS 6 (Chrome 79+). No fallback needed.
+ *
+ * viewer-theme.ts token audit (IMDB accent classes):
+ * - rounded-*, bg-[#...], text-[#...], shadow-*: supported Chrome 56+ ✅
+ * - transition, hover: supported ✅
+ * - ring-* utilities: use outline fallback in globals.css [data-tv-focusable] block ✅
+ * - backdrop-blur-*: NOT supported Chrome <76 → opaque fallback below
+ */
+
+html[data-tv-compat="true"] [data-tv-page] {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+html[data-tv-compat="true"] [data-tv-page] .aspect-\[2\/3\] {
+  position: relative;
+  height: 0;
+  padding-bottom: 150%;
+}
+
+html[data-tv-compat="true"] [data-tv-page] .aspect-\[2\/3\] > * {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@supports not (aspect-ratio: 2 / 3) {
+  html[data-tv-compat="true"] [data-tv-page] [style*="aspect-ratio"] {
+    position: relative;
+    height: auto;
+  }
+}
+
+html[data-tv-compat="true"] [data-tv-page] [class*="ms-"],
+html[data-tv-compat="true"] [data-tv-page] [class*="me-"],
+html[data-tv-compat="true"] [data-tv-page] [class*="ps-"],
+html[data-tv-compat="true"] [data-tv-page] [class*="pe-"] {
+  /* Encourage Tailwind physical utilities on TV builds — logical utilities avoided in TV components */
+}
+
+html[data-tv-compat="true"] body {
+  font-family: var(--font-iran-sans-x), Tahoma, "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
+html[data-tv-compat="true"] [data-tv-focusable]:focus,
+html[data-tv-compat="true"] [data-tv-page] button:focus,
+html[data-tv-compat="true"] [data-tv-page] a:focus {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  html[data-tv-compat="true"] .backdrop-blur-sm,
+  html[data-tv-compat="true"] .backdrop-blur,
+  html[data-tv-compat="true"] .backdrop-blur-md,
+  html[data-tv-compat="true"] .backdrop-blur-xl {
+    background-color: rgba(0, 0, 0, 0.75);
+  }
+}

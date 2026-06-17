@@ -1,4 +1,5 @@
 const GREGORIAN_LOCALE = "en-GB";
+const AFGHAN_SHAMSI_LOCALE = "fa-AF-u-ca-persian";
 
 export function parseDateTime(value: string | null | undefined): Date | null {
   if (!value) {
@@ -56,6 +57,62 @@ export function formatGregorianDate(value: string | null | undefined): string {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+/** Afghan Solar Hijri (شمسی افغانستان) — e.g. «۲۵ جوزا ۱۴۰۵». */
+export function formatAfghanShamsiDate(value: string | Date | null | undefined): string {
+  const date = value instanceof Date ? value : parseDateTime(typeof value === "string" ? value : null);
+
+  if (!date) {
+    return "نامشخص";
+  }
+
+  try {
+    return new Intl.DateTimeFormat(AFGHAN_SHAMSI_LOCALE, {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(date);
+  }
+}
+
+/** Afghan Shamsi with time — for ticket/request timestamps. */
+export function formatAfghanShamsiDateTime(value: string | Date | null | undefined): string {
+  const date = value instanceof Date ? value : parseDateTime(typeof value === "string" ? value : null);
+
+  if (!date) {
+    return "نامشخص";
+  }
+
+  try {
+    return new Intl.DateTimeFormat(AFGHAN_SHAMSI_LOCALE, {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+  }
+}
+
+export function formatAfghanShamsiToday(): string {
+  return formatAfghanShamsiDate(new Date());
 }
 
 export function formatGregorianDateTime(value: string | null | undefined): string {

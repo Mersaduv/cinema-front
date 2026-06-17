@@ -6,7 +6,7 @@ export type IngestTmdbImagesPayload = {
   backdrop_url?: string | null;
   banner_url?: string | null;
   logo_url?: string | null;
-  actors?: Array<{ profile_url?: string | null; [key: string]: unknown }>;
+  actors?: ActorWithProfile[];
   seasons?: Array<{
     season_number?: number | string | null;
     poster_url?: string | null;
@@ -22,7 +22,7 @@ export type IngestTmdbImagesResult = {
   backdrop_url?: string | null;
   banner_url?: string | null;
   logo_url?: string | null;
-  actors?: TmdbActor[];
+  actors?: ActorWithProfile[];
   seasons?: IngestTmdbImagesPayload["seasons"];
   stats?: {
     requested: number;
@@ -40,13 +40,13 @@ export type ActorWithProfile = {
 };
 
 const IMAGE_PROCESSING_MESSAGE_PATTERN =
-  /[;؛]?\s*(پردازش تصاویر[^.]*|تصاویر[^.]*در حال[^.]*|فصل‌ها در حال بارگذاری[^.]*)\.?/gu;
+  /[;؛]?\s*(پردازش تصاویر[^.]*|تصاویر[^.]*در حال[^.]*|فصل‌ها در حال بارگذاری[^.]*)\.?/g;
 
 export function finalizeTmdbImageIngestMessage(previousMessage?: string | null): string {
   const stripped = (previousMessage ?? "")
     .replace(IMAGE_PROCESSING_MESSAGE_PATTERN, "")
     .replace(/\s{2,}/g, " ")
-    .replace(/[;؛]\s*$/u, "")
+    .replace(/[;؛]\s*$/, "")
     .trim();
 
   if (!stripped) {
@@ -124,7 +124,7 @@ function buildProcessedActorLookup<T extends ActorWithProfile>(
 
 export function mergeIngestedActorProfiles<T extends ActorWithProfile>(
   current: T[],
-  processed: T[] | undefined,
+  processed: ActorWithProfile[] | undefined,
 ): T[] {
   if (!processed?.length) {
     return current;
@@ -160,7 +160,7 @@ export function buildSeriesTmdbImageIngestPayload(input: {
   entityId?: string | number | null;
   poster_url?: string | null;
   backdrop_url?: string | null;
-  actors?: Array<{ profile_url?: string | null; [key: string]: unknown }>;
+  actors?: ActorWithProfile[];
   seasons?: Array<{
     season_number: string;
     poster_url: string;

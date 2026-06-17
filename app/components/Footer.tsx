@@ -139,7 +139,15 @@ function GooglePlayBadge() {
   );
 }
 
-export default function Footer() {
+export default function Footer({ isTv = false }: { isTv?: boolean }) {
+  if (isTv) {
+    return null;
+  }
+
+  return <FooterContent />;
+}
+
+function FooterContent() {
   return (
     <footer
       dir="rtl"
@@ -230,7 +238,7 @@ export default function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-[#151a21] text-lg text-white/85 transition hover:border-[#2d615a] hover:bg-[#2d615a]/20 hover:text-[#f5c518]"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-[#151a21] text-lg text-white/85 transition hover:bg-[#2d615a]/20 hover:text-[#f5c518]"
                 >
                   <Icon aria-hidden />
                 </a>

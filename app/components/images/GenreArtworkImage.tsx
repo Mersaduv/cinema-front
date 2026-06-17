@@ -18,7 +18,6 @@ export default function GenreArtworkImage({
   image,
   src,
   fallbackUrl,
-  objectFit = "contain",
   ...rest
 }: GenreArtworkImageProps) {
   return (
@@ -28,7 +27,7 @@ export default function GenreArtworkImage({
       fallbackUrl={fallbackUrl}
       alt={alt ?? getImageAlt({ title: genreName, role: "genre" })}
       usage="genre-icon"
-      objectFit={objectFit}
+      objectFit="contain"
       placeholderPath={placeholderPath}
       fill
       {...rest}

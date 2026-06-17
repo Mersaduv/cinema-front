@@ -1,17 +1,17 @@
+import ContinueWatching from "./components/ContinueWatching";
+
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <main className="flex min-h-screen w-full max-w-6xl flex-col items-center justify-center px-4 py-16 sm:px-8">
-        <div className="text-center space-y-8">
+    <div className="min-h-screen bg-[#05070b] text-white">
+      <main className="mx-auto w-full max-w-[1820px] px-4 py-8 md:px-7 md:py-10">
+        <section className="mb-10 space-y-3">
+          <h1 className="text-3xl font-black text-white md:text-4xl">سینما</h1>
+          <p className="max-w-2xl text-sm leading-7 text-white/60 md:text-base">
+            پلتفرم تماشای فیلم و سریال — از منوی کناری برای مرور کاتالوگ استفاده کنید.
+          </p>
+        </section>
 
-
-          {/* Status */}
-          <div className="mt-8">
-            <p className="text-slate-400 text-sm">
-              Status: <span className="text-green-500">Online</span>
-            </p>
-          </div>
-        </div>
+        <ContinueWatching mediaType="all" limit={16} />
       </main>
     </div>
   );

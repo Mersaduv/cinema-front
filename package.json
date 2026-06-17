@@ -8,23 +8,29 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:tv-smoke": "playwright test e2e/tv-smoke.spec.ts",
     "test:watch": "vitest",
     "codegen": "graphql-codegen --config codegen.ts"
   },
   "dependencies": {
     "@urql/core": "^6.0.1",
     "@urql/next": "^2.0.0",
+    "core-js": "^3.49.0",
     "graphql": "^16.14.0",
     "hls.js": "^1.6.15",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-icons": "^5.6.0",
+    "shaka-player": "^5.1.8",
     "swr": "^2.4.1",
-    "urql": "^5.0.2"
+    "urql": "^5.0.2",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.0",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^20",
     "@types/react": "^19",

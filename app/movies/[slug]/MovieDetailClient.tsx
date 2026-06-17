@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import ContentDetailPage from "../../components/content/ContentDetailPage";
 import { toCatalogItem } from "../../lib/catalog/rest";
@@ -32,6 +32,37 @@ export default function MovieDetailClient({
   const [similarMovies, setSimilarMovies] = useState<PublicMovieListItem[]>([]);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
   const similarRequestedRef = useRef(false);
+
+  useEffect(() => {
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.as = "document";
+    link.href = `/watch/${initialMovie.slug}`;
+    document.head.appendChild(link);
+
+    const prefetchPlayer = () => {
+      void import("../../components/player/HlsVideoPlayer");
+    };
+
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(prefetchPlayer, { timeout: 2000 });
+    } else {
+      timeoutId = setTimeout(prefetchPlayer, 500);
+    }
+
+    return () => {
+      link.remove();
+      if (idleId !== undefined) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [initialMovie.slug]);
 
   const loadSimilar = useCallback(async () => {
     if (similarRequestedRef.current) {

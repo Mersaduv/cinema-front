@@ -26,7 +26,7 @@ import {
   type AdminReview,
   type AdminReviewsPagination,
 } from "../../lib/admin-reviews";
-import { formatGregorianDate } from "../../lib/date-format";
+import { formatAfghanShamsiDate, formatAfghanShamsiDateTime } from "../../lib/date-format";
 import type { ReviewStatus } from "../../lib/reviews";
 
 const emptyPagination: AdminReviewsPagination = {
@@ -314,9 +314,9 @@ export default function AdminCommentsPage() {
                   )}
 
                   <p className="text-xs text-[#6f8795]">
-                    ثبت: {formatGregorianDate(review.created_at)}
+                    ثبت: {formatAfghanShamsiDateTime(review.created_at)}
                     {review.moderated_at
-                      ? ` · بررسی: ${formatGregorianDate(review.moderated_at)}`
+                      ? ` · بررسی: ${formatAfghanShamsiDateTime(review.moderated_at)}`
                       : ""}
                   </p>
                 </div>

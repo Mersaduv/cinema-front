@@ -8,6 +8,7 @@ import {
   REVIEW_BODY_MAX,
   REVIEW_BODY_MIN,
   submitReview,
+  upsertCachedMyReview,
   updateReview,
   validateReviewForm,
 } from "../../lib/reviews";
@@ -117,6 +118,12 @@ export default function ReviewForm({
         return;
       }
 
+      upsertCachedMyReview({
+        review: response.data.review,
+        reviewableType: contentType,
+        reviewableSlug: slug,
+        reviewableTitle: slug,
+      });
       onSuccess(response.data.review);
     } catch {
       setError("خطای شبکه. دوباره تلاش کنید.");

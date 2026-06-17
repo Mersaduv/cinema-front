@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   HiArrowDown,
   HiMiniChatBubbleLeftRight,
@@ -49,6 +49,15 @@ import ReviewsSection, {
 import type { CatalogListItem } from "../../lib/catalog/rest";
 import type { Review, ReviewSummary } from "../../lib/reviews";
 import { isWatchlisted, toggleWatchlist } from "../../lib/watchlist";
+import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useTvPageNavigation } from "../../hooks/useTvPageNavigation";
+import {
+  DETAIL_PLAY_FOCUS_KEY,
+  isActivateKey,
+  TV_CARD_FOCUS_CLASS,
+  TV_FOCUS_RING_CLASS,
+} from "../../lib/tv/focus";
+import { ProgressTracker } from "../../features/player/services/ProgressTracker";
 
 function seasonRowKey(season: Pick<PublicSeriesSeason, "id" | "season_number">): string {
   return season.id > 0 ? String(season.id) : `season-${season.season_number}`;
@@ -173,6 +182,10 @@ export default function ContentDetailPage({
   };
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const isTv = useIsTv();
+  const pageRef = useRef<HTMLDivElement>(null);
+  const playButtonRef = useRef<HTMLAnchorElement>(null);
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<DetailTabKey>("details");
   const [watchlistVersion, setWatchlistVersion] = useState(0);
@@ -180,19 +193,56 @@ export default function ContentDetailPage({
   const [saveToast, setSaveToast] = useState<{ message: string; saved: boolean } | null>(
     null,
   );
+  const episodesFetchedRef = useRef(false);
 
   useEffect(() => {
     if (activeTab === "episodes" && kind === "series") {
-      onRequestEpisodes?.();
+      if (!episodesFetchedRef.current) {
+        episodesFetchedRef.current = true;
+        onRequestEpisodes?.();
+      }
     }
 
     if (activeTab === "similar") {
       onRequestSimilar?.();
     }
   }, [activeTab, kind, onRequestEpisodes, onRequestSimilar]);
+
+  const episodesGridRef = useRef<HTMLDivElement>(null);
   const [selectedSeasonNumber, setSelectedSeasonNumber] = useState<number | null>(null);
   const [episodeViewMode, setEpisodeViewMode] = useState<"grid" | "list">("grid");
   const [episodeSortAsc, setEpisodeSortAsc] = useState(true);
+
+  useTvPageNavigation(pageRef, {
+    enabled: isTv,
+    initialFocusRef: playButtonRef,
+    autoFocus: isTv,
+  });
+
+  const handlePlayNavigate = () => {
+    if (typeof window !== "undefined" && pathname) {
+      window.sessionStorage.setItem(DETAIL_PLAY_FOCUS_KEY, pathname);
+    }
+  };
+
+  const navigateToEpisode = (episode: PublicSeriesEpisode) => {
+    if (!episode.hls_url || !series?.slug) {
+      return;
+    }
+
+    handlePlayNavigate();
+    router.push(episodeWatchHref(series.slug, episode));
+  };
+
+  const handleEpisodeCardKeyDown = (
+    event: React.KeyboardEvent,
+    episode: PublicSeriesEpisode,
+  ) => {
+    if (isActivateKey(event.nativeEvent)) {
+      event.preventDefault();
+      navigateToEpisode(episode);
+    }
+  };
 
   const title = kind === "movie" ? movie?.title : series?.title;
   const slug = kind === "movie" ? movie?.slug : series?.slug;
@@ -250,22 +300,64 @@ export default function ContentDetailPage({
       : "";
   const tabs = useMemo(() => buildTabs(kind), [kind]);
 
+  useEffect(() => {
+    if (!isTv || !playButtonRef.current) {
+      return;
+    }
+
+    const shouldFocusPlay =
+      typeof window !== "undefined" &&
+      window.sessionStorage.getItem(DETAIL_PLAY_FOCUS_KEY) === pathname;
+
+    if (shouldFocusPlay) {
+      window.sessionStorage.removeItem(DETAIL_PLAY_FOCUS_KEY);
+    }
+
+    const timer = window.setTimeout(() => {
+      playButtonRef.current?.focus();
+    }, 150);
+
+    return () => window.clearTimeout(timer);
+  }, [isTv, pathname, title]);
+
   const castRows = useMemo((): CastRow[] => {
     if (kind === "movie" && movie) {
+      const metadataActors = movie.details.actors ?? [];
+
       if (movie.cast?.length) {
         return sortCastByOrder(movie.cast)
           .filter((row) => row.name)
-          .slice(0, 20);
+          .slice(0, 20)
+          .map((row) => {
+            const metadataActor = metadataActors.find((actor) => actor.name === row.name);
+
+            if (
+              row.profile_image?.original?.startsWith("/images/") ||
+              row.profile_image?.src?.startsWith("/images/") ||
+              row.profile_url?.startsWith("/images/")
+            ) {
+              return row;
+            }
+
+            if (!metadataActor) {
+              return row;
+            }
+
+            return {
+              ...row,
+              profile_url: metadataActor.profile_url ?? row.profile_url,
+              profile_image: metadataActor.profile_image ?? row.profile_image ?? null,
+            };
+          });
       }
-      if ((movie.details.actors ?? []).length) {
-        return (movie.details.actors ?? []).slice(0, 20).map((actor) => ({
-          name: actor.name,
-          character: actor.character,
-          profile_url: actor.profile_url,
-          profile_image: actor.profile_image ?? null,
+
+      if (metadataActors.length) {
+        return metadataActors.slice(0, 20).map((actor) => ({
+          ...actor,
           slug: null,
         }));
       }
+
       return movie.cast_members.slice(0, 20).map((name) => ({
         name,
         character: null,
@@ -324,14 +416,6 @@ export default function ContentDetailPage({
           label: "نویسنده",
           value: (movie.details.writers ?? []).join("، ") || "ثبت نشده",
         },
-        {
-          label: "زبان‌ها",
-          value: (movie.details.languages ?? []).join("، ") || "ثبت نشده",
-        },
-        {
-          label: "کشورها",
-          value: (movie.details.countries ?? []).join("، ") || "ثبت نشده",
-        },
       ];
     }
 
@@ -388,11 +472,53 @@ export default function ContentDetailPage({
     seasons[0] ||
     null;
 
+  useEffect(() => {
+    if (!isTv || activeTab !== "episodes" || episodesLoading || kind !== "series" || !series?.slug) {
+      return;
+    }
+
+    const tracker = ProgressTracker.getInstance();
+    const history = tracker.getAllHistory(true);
+    const inProgress = history.find(
+      (row) =>
+        row.mediaType === "series" &&
+        (row.seriesSlug === series.slug || row.slug === series.slug) &&
+        !row.isCompleted &&
+        row.percentWatched > 0 &&
+        row.percentWatched < 95,
+    );
+
+    if (!inProgress?.seasonNumber || !inProgress.episodeNumber) {
+      return;
+    }
+
+    setSelectedSeasonNumber(inProgress.seasonNumber);
+
+    const timer = window.setTimeout(() => {
+      const grid = episodesGridRef.current;
+
+      if (!grid) {
+        return;
+      }
+
+      const target = grid.querySelector<HTMLElement>(
+        `[data-episode-season="${inProgress.seasonNumber}"][data-episode-number="${inProgress.episodeNumber}"]`,
+      );
+
+      target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+      target?.focus();
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [activeTab, activeSeasonNumber, episodesLoading, isTv, kind, seasons.length, series?.slug]);
+
   const primaryWatchHref =
     kind === "movie" && movie
       ? `/watch/${movie.slug}`
-      : kind === "series" && series && activeSeason?.episodes[0]
-        ? episodeWatchHref(series.slug, activeSeason.episodes[0])
+      : kind === "series" && series
+        ? activeSeason?.episodes[0]
+          ? episodeWatchHref(series.slug, activeSeason.episodes[0])
+          : `/watch/${series.slug}?season=${activeSeason?.season_number ?? 1}&episode=1`
         : "#";
 
   const durationLabel =
@@ -490,7 +616,7 @@ export default function ContentDetailPage({
   }
 
   return (
-    <div className="bg-[#05070b] text-white">
+    <div ref={pageRef} className="bg-[#05070b] text-white">
       <section className="relative min-h-screen overflow-hidden">
         <HeroTrailerBackground
           coverUrl={backdropResolved.src}
@@ -517,6 +643,7 @@ export default function ContentDetailPage({
                     fallbackUrl={posterInput.backdrop_url}
                     usage="detail-poster"
                     loading="eager"
+                    fetchPriority="high"
                   />
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
@@ -656,8 +783,12 @@ export default function ContentDetailPage({
 
               <div className="flex flex-wrap items-center gap-4 pt-2">
                 <Link
+                  ref={playButtonRef}
                   href={primaryWatchHref}
-                  className="inline-flex items-center gap-3 rounded-2xl bg-[#f5c518] px-8 py-4 text-lg font-black text-[#12100a] shadow-[0_24px_50px_rgba(245,197,24,0.22)] transition hover:bg-[#e8bb0d]"
+                  prefetch
+                  data-tv-focusable
+                  onClick={handlePlayNavigate}
+                  className={`inline-flex items-center gap-3 rounded-2xl bg-[#f5c518] px-8 py-4 text-lg font-black text-[#12100a] shadow-[0_24px_50px_rgba(245,197,24,0.22)] transition hover:bg-[#e8bb0d] ${TV_FOCUS_RING_CLASS}`}
                 >
                   {kind === "series" ? "تماشای قسمت ۱" : "تماشا کنید"}
                   <HiMiniPlay className="h-6 w-6" />
@@ -705,16 +836,24 @@ export default function ContentDetailPage({
         className="relative z-20 mx-auto w-full max-w-[1820px] px-4 pb-20 pt-8 md:px-7"
       >
         <div className="sticky top-[126px] z-30 border-b border-white/10 bg-[#05070b]/95 backdrop-blur-xl xl:top-[92px]">
-          <div className="flex flex-wrap items-center gap-6 overflow-x-auto py-5 text-sm md:text-base">
+          <div
+            className="flex flex-wrap items-center gap-6 overflow-x-auto py-5 text-sm md:text-base"
+            data-tv-focus-group="tabs"
+            role="tablist"
+          >
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
+                role="tab"
+                aria-selected={activeTab === tab.key}
+                data-tv-focusable
                 onClick={() => setActiveTab(tab.key)}
-                className={`border-b-2 pb-3 font-semibold transition ${activeTab === tab.key
+                className={`border-b-2 pb-3 font-semibold transition ${TV_FOCUS_RING_CLASS} ${
+                  activeTab === tab.key
                     ? "border-[#f5c518] text-[#f8d977]"
                     : "border-transparent text-white/72 hover:text-white"
-                  }`}
+                }`}
               >
                 {tab.label}
               </button>
@@ -763,11 +902,13 @@ export default function ContentDetailPage({
                       <button
                         key={seasonRowKey(season)}
                         type="button"
+                        data-tv-focusable
                         onClick={() => setSelectedSeasonNumber(season.season_number)}
-                        className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${activeSeason?.season_number === season.season_number
+                        className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${TV_FOCUS_RING_CLASS} ${
+                          activeSeason?.season_number === season.season_number
                             ? "bg-[#f5c518] text-[#12100a]"
                             : "border border-white/10 bg-white/[0.04] text-white/75 hover:bg-white/[0.08]"
-                          }`}
+                        }`}
                       >
                         فصل {season.season_number}
                       </button>
@@ -804,7 +945,11 @@ export default function ContentDetailPage({
                 </div>
 
                 {episodeViewMode === "grid" ? (
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div
+                    ref={episodesGridRef}
+                    className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                    data-tv-grid="episodes"
+                  >
                     {(activeSeason?.episodes || [])
                       .slice()
                       .sort((a, b) =>
@@ -820,7 +965,15 @@ export default function ContentDetailPage({
                         return (
                           <div
                             key={episodeRowKey(episode)}
-                            className="group overflow-hidden rounded-[24px] border border-white/8 bg-white/[0.03] transition hover:border-white/14 hover:bg-white/[0.05]"
+                            data-tv-focusable
+                            data-tv-grid-item
+                            data-episode-season={episode.season_number}
+                            data-episode-number={episode.episode_number}
+                            data-episode-key={episodeRowKey(episode)}
+                            tabIndex={0}
+                            onClick={() => navigateToEpisode(episode)}
+                            onKeyDown={(event) => handleEpisodeCardKeyDown(event, episode)}
+                            className={`group overflow-hidden rounded-[24px] border border-white/8 bg-white/[0.03] transition hover:border-white/14 hover:bg-white/[0.05] focus-within:border-[#38bdf8]/50 focus-within:bg-white/[0.05] ${TV_FOCUS_RING_CLASS}`}
                           >
                             <div className="relative aspect-video overflow-hidden bg-white/5">
                               <div className="absolute inset-0 transition-transform duration-300 group-hover:scale-[1.04]">
@@ -845,7 +998,8 @@ export default function ContentDetailPage({
                               {episode.hls_url ? (
                                 <Link
                                   href={episodeWatchHref(series.slug, episode)}
-                                  className="absolute inset-0 z-10 flex items-center justify-center opacity-0 transition group-hover:opacity-100"
+                                  data-tv-focusable
+                                  className={`absolute inset-0 z-10 flex items-center justify-center opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 ${TV_CARD_FOCUS_CLASS}`}
                                 >
                                   <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#f5c518] text-[#12100a] shadow-lg">
                                     <HiMiniPlay className="h-5 w-5" />
@@ -885,7 +1039,9 @@ export default function ContentDetailPage({
                                 {episode.hls_url ? (
                                   <Link
                                     href={episodeWatchHref(series.slug, episode)}
-                                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#f5c518] px-4 py-2 text-xs font-bold text-[#12100a] transition hover:bg-[#e8bb0d]"
+                                    data-tv-focusable
+                                    onClick={handlePlayNavigate}
+                                    className={`inline-flex items-center gap-1.5 rounded-xl bg-[#f5c518] px-4 py-2 text-xs font-bold text-[#12100a] transition hover:bg-[#e8bb0d] ${TV_FOCUS_RING_CLASS}`}
                                   >
                                     <HiMiniPlay className="h-3.5 w-3.5" />
                                     پخش
@@ -925,7 +1081,14 @@ export default function ContentDetailPage({
                         return (
                           <div
                             key={episodeRowKey(episode)}
-                            className="flex flex-col gap-4 rounded-[28px] border border-white/8 bg-white/[0.03] p-4 transition hover:border-white/14 hover:bg-white/[0.045] md:flex-row md:items-center"
+                            data-tv-focusable
+                            data-episode-season={episode.season_number}
+                            data-episode-number={episode.episode_number}
+                            data-episode-key={episodeRowKey(episode)}
+                            tabIndex={episode.hls_url ? 0 : undefined}
+                            onClick={() => navigateToEpisode(episode)}
+                            onKeyDown={(event) => handleEpisodeCardKeyDown(event, episode)}
+                            className="flex flex-col gap-4 rounded-[28px] border border-white/8 bg-white/[0.03] p-4 transition hover:border-white/14 hover:bg-white/[0.045] focus-within:border-[#38bdf8]/50 md:flex-row md:items-center"
                           >
                             <div className="flex min-w-0 flex-1 items-center gap-4">
                               {episode.still_url || episode.still_image ? (
@@ -983,6 +1146,7 @@ export default function ContentDetailPage({
                                   ) : null}
                                   <Link
                                     href={episodeWatchHref(series.slug, episode)}
+                                    onClick={handlePlayNavigate}
                                     className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#f5c518] px-6 py-3 text-sm font-bold text-[#12100a] transition hover:bg-[#e8bb0d]"
                                   >
                                     پخش

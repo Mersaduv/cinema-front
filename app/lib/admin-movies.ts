@@ -73,7 +73,9 @@ export interface AdminMovieMetadata {
     tmdb_id: number | null;
     imdb_id: string | null;
     poster_url: string | null;
+    poster_source_url?: string | null;
     backdrop_url: string | null;
+    backdrop_source_url?: string | null;
     trailer_url: string | null;
     rating: number | null;
     original_language: string | null;
@@ -89,6 +91,7 @@ export interface AdminMovieMetadata {
     countries: string[];
     actors: TmdbActor[];
     synopsis_en?: string | null;
+    belongs_to_collection?: TmdbBelongsToCollection | null;
   };
   playback: {
     hls_url: string | null;
@@ -109,6 +112,7 @@ export interface AdminMovie {
   poster_path: string | null;
   poster_url: string | null;
   poster_image?: ResponsiveImageAsset | null;
+  backdrop_url?: string | null;
   backdrop_image?: ResponsiveImageAsset | null;
   trailer_path: string | null;
   trailer_url: string | null;
@@ -124,6 +128,8 @@ export interface AdminMovie {
   has_subtitle: boolean;
   subtitle_source_path: string | null;
   subtitle_source_url: string | null;
+  drm_scheme?: string | null;
+  drm_license_url?: string | null;
   age_rating: string | null;
   cast_members: string[];
   publish_status: PublishStatus;
@@ -410,6 +416,8 @@ export interface HlsPackagePreviewData {
   download_links?: Record<string, string>;
   has_subtitle: boolean;
   has_dubbed_audio: boolean;
+  dash_url?: string | null;
+  dash_verified?: boolean;
   audio_tracks: Array<{
     label: string;
     language: string;

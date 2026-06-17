@@ -15,9 +15,9 @@ export function adminApiErrorMessage(
   return response.message || fallback;
 }
 
-export function unwrapAdminListPayload<T extends Record<string, unknown>>(
+export function unwrapAdminListPayload<T extends object>(
   response: ApiResponse<unknown>,
-  key: keyof T & string,
+  key: string,
 ): T | null {
   if (!response.success) {
     return null;

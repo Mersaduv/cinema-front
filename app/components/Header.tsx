@@ -9,6 +9,7 @@ import {
   HiMagnifyingGlass,
 } from "react-icons/hi2";
 import { HiLogout } from "react-icons/hi";
+import { TV_FOCUS_RING_CLASS } from "../lib/tv/focus";
 import { useAuth } from "../contexts/AuthContext";
 
 const navItems = [
@@ -17,10 +18,10 @@ const navItems = [
   { label: "سریال", href: "/series" },
   { label: "کارتون و انیمیشن", href: "/animation" },
   { label: "کالکشن‌ها", href: "/collections" },
-  { label: "درخواست", href: "#" },
+  { label: "درخواست", href: "/requests/new" },
 ];
 
-export default function Header({ overlay = false }: { overlay?: boolean }) {
+export default function Header({ overlay = false, isTv = false }: { overlay?: boolean; isTv?: boolean }) {
   const pathname = usePathname();
   const { user, isAuthenticated, loading: authLoading, logout, hasRole } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -44,6 +45,10 @@ export default function Header({ overlay = false }: { overlay?: boolean }) {
     () => user?.name?.trim()?.charAt(0)?.toUpperCase() || "G",
     [user?.name],
   );
+
+  if (isTv) {
+    return null;
+  }
 
   const headerClassName = overlay
     ? "fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[linear-gradient(180deg,rgba(6,9,14,0.88),rgba(6,9,14,0.44)_70%,transparent)] text-white backdrop-blur-xl"
@@ -72,15 +77,16 @@ export default function Header({ overlay = false }: { overlay?: boolean }) {
         <nav className="hidden flex-1 items-center justify-start gap-2 xl:flex" dir="rtl">
           {navItems.map((item) => {
             const isActive =
-              item.href !== "#" &&
-              (pathname === item.href ||
-                (item.href !== "/" && pathname?.startsWith(item.href)));
+              pathname === item.href ||
+              (item.href === "/requests/new" && pathname?.startsWith("/requests")) ||
+              (item.href !== "/" && item.href !== "/requests/new" && pathname?.startsWith(item.href));
 
             return (
               <Link
                 key={item.label}
                 href={item.href}
-                className={`rounded-2xl px-5 py-3 text-base font-semibold transition ${
+                data-tv-focusable
+                className={`rounded-2xl px-5 py-3 text-base font-semibold transition ${TV_FOCUS_RING_CLASS} ${
                   isActive
                     ? "bg-white/12 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
                     : "text-white/86 hover:bg-white/[0.06] hover:text-white"
@@ -96,7 +102,8 @@ export default function Header({ overlay = false }: { overlay?: boolean }) {
 
           <Link
             href="/search"
-            className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/8 text-white transition hover:bg-white/12 ${
+            data-tv-focusable
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/8 text-white transition hover:bg-white/12 ${TV_FOCUS_RING_CLASS} ${
               pathname === "/search" ? "border-[#f5c518]/40 bg-[#f5c518]/15" : ""
             }`}
             aria-label="جستجو"

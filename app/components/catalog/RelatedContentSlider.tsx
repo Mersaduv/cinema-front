@@ -45,7 +45,11 @@ export default function RelatedContentSlider({
             ))
           : items.map((item) => (
               <div key={item.id} data-slider-slide className={SLIDER_SLIDE_CLASS}>
-                <CatalogPosterCard item={item} href={`${basePath}/${item.slug}`} />
+                <CatalogPosterCard
+                  item={item}
+                  href={`${basePath}/${item.slug}`}
+                  carouselItem
+                />
               </div>
             ))}
       </ContentListSlider>

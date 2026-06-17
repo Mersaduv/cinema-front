@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import "./tv-compat.css";
 import AppChrome from "./components/AppChrome";
 import { AuthProvider } from "./contexts/AuthContext";
+import TvCompatRoot from "./components/tv/TvCompatRoot";
 
 const iranSansX = localFont({
   src: [
@@ -65,7 +67,7 @@ const iranSansX = localFont({
   variable: "--font-iran-sans-x",
   display: "swap",
   preload: false,
-  fallback: ["Arial", "Helvetica", "sans-serif"],
+  fallback: ["Tahoma", "Segoe UI", "Arial", "Helvetica", "sans-serif"],
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -84,6 +86,7 @@ export default function RootLayout({
   return (
     <html lang="fa" dir="rtl" data-scroll-behavior="smooth">
       <body className={`${iranSansX.variable} font-sans antialiased`}>
+        <TvCompatRoot />
         <AuthProvider>
           <AppChrome>{children}</AppChrome>
         </AuthProvider>

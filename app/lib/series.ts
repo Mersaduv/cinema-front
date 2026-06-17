@@ -42,6 +42,7 @@ export interface PublicSeriesEpisode {
   still_url: string | null;
   still_image?: ResponsiveImageAsset | null;
   hls_url: string | null;
+  dash_url?: string | null;
   download_links?: Record<string, string>;
   subtitle_url: string | null;
   dubbed_audio_url: string | null;

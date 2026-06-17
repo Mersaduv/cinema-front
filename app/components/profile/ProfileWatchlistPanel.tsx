@@ -12,8 +12,10 @@ import {
 
 export default function ProfileWatchlistPanel({
   userId,
+  loading = false,
 }: {
   userId: number;
+  loading?: boolean;
 }) {
   const [items, setItems] = useState<WatchlistItem[]>([]);
 
@@ -24,6 +26,29 @@ export default function ProfileWatchlistPanel({
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="inline-flex h-4 w-56 animate-pulse rounded bg-white/10" />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div
+              key={`watchlist-skeleton-${index}`}
+              className="overflow-hidden rounded-xl border border-[#2f2f2f] bg-[#1f1f1f]"
+            >
+              <div className="aspect-[2/3] animate-pulse bg-white/10" />
+              <div className="space-y-3 p-4">
+                <div className="h-4 w-3/4 animate-pulse rounded bg-white/10" />
+                <div className="h-3 w-1/4 animate-pulse rounded bg-white/10" />
+                <div className="h-10 w-full animate-pulse rounded bg-white/10" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const handleRemove = (item: WatchlistItem) => {
     const next = removeFromWatchlist(userId, item.kind, item.id);
