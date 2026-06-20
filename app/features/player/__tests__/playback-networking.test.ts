@@ -1,0 +1,54 @@
+import { describe, expect, it } from "vitest";
+import {
+  applyPlaybackFetchInit,
+  applyPlaybackRequestHeaders,
+  isSameOriginMediaRequest,
+} from "../../../lib/playback-networking";
+import {
+  isStreamingMediaExtension,
+  resolveMediaContentType,
+} from "../../../lib/media-content-types";
+
+describe("media-content-types", () => {
+  it("maps HLS and DASH segment extensions to streaming MIME types", () => {
+    expect(resolveMediaContentType(".ts")).toBe("video/mp2t");
+    expect(resolveMediaContentType(".m4s")).toBe("video/iso.segment");
+    expect(resolveMediaContentType(".m3u8")).toContain("mpegurl");
+    expect(resolveMediaContentType(".mpd")).toContain("dash+xml");
+  });
+
+  it("flags streaming extensions", () => {
+    expect(isStreamingMediaExtension(".ts")).toBe(true);
+    expect(isStreamingMediaExtension(".jpg")).toBe(false);
+  });
+});
+
+describe("playback-networking", () => {
+  it("adds playback headers for same-origin media requests", () => {
+    const headers = applyPlaybackRequestHeaders("/media/movie/master.m3u8");
+
+    expect(headers["X-Cinema-Playback"]).toBe("1");
+    expect(headers["X-Requested-With"]).toBe("XMLHttpRequest");
+  });
+
+  it("skips custom headers for cross-origin CDN requests", () => {
+    const headers = applyPlaybackRequestHeaders("https://cdn.example.com/segment.ts");
+
+    expect(headers["X-Cinema-Playback"]).toBeUndefined();
+    expect(headers["X-Requested-With"]).toBeUndefined();
+  });
+
+  it("marks fetch init as no-store for playback traffic", () => {
+    const init = applyPlaybackFetchInit("/media/segment.ts", {
+      method: "GET",
+    });
+
+    expect(init.cache).toBe("no-store");
+    expect(new Headers(init.headers).get("X-Cinema-Playback")).toBe("1");
+  });
+
+  it("detects same-origin media URLs", () => {
+    expect(isSameOriginMediaRequest("/media/movies/demo/master.m3u8")).toBe(true);
+    expect(isSameOriginMediaRequest("https://cdn.example.com/segment.ts")).toBe(false);
+  });
+});

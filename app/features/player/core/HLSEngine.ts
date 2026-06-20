@@ -8,6 +8,7 @@ import type {
   EngineLevel,
   EngineSubtitleTrack,
 } from "../types/player.types";
+import { createHlsNetworkingConfig } from "../../../lib/playback-networking";
 import { CinemaABRController } from "./CinemaABRController";
 import { CinemaBandwidthEstimator } from "./CinemaBandwidthEstimator";
 
@@ -84,6 +85,7 @@ export class HLSEngine implements PlaybackEngine {
       abrEwmaSlowLive: 9.0,
       testBandwidth: true,
       maxBufferHole: 0.5,
+      ...createHlsNetworkingConfig(),
     });
 
     this.steadyBufferTarget = steadyBuffer;

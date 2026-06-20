@@ -38,6 +38,8 @@ export async function GET(request: Request) {
       headers: {
         ...CORS_HEADERS,
         "Content-Type": "text/vtt; charset=utf-8",
+        "Content-Disposition": "inline",
+        "X-Content-Type-Options": "nosniff",
         "Cache-Control": "max-age=300, private",
       },
     });

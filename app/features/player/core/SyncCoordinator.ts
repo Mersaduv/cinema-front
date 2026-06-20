@@ -1,5 +1,6 @@
 import { SubtitleEngine } from "./SubtitleEngine";
 import { AudioSyncManager } from "./AudioSyncManager";
+import { applyPlaybackFetchInit } from "../../../lib/playback-networking";
 
 /**
  * Single clock coordinator — all timing derives from the video element.
@@ -44,7 +45,7 @@ export class SyncCoordinator {
 
   /** Load and parse external subtitle file. */
   async loadExternalSubtitles(url: string, signal?: AbortSignal): Promise<void> {
-    const response = await fetch(url, { signal, cache: "force-cache" });
+    const response = await fetch(url, applyPlaybackFetchInit(url, { signal }));
     if (!response.ok) {
       return;
     }

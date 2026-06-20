@@ -33,6 +33,7 @@ import { PROGRESS_CONSTANTS } from "../services/progress.types";
 import { selectIsLoading, usePlayerStore } from "../store/playerStore";
 import type { PlayerShellProps } from "../types/player.types";
 import { buildPlaybackSubtitleUrl, formatSeconds } from "../utils/format";
+import { isSameOriginMediaRequest } from "../../../lib/playback-networking";
 
 /**
  * Production-grade player shell — composes controller, controls, and overlays.
@@ -183,6 +184,14 @@ function PlayerShellComponent({
       Boolean(document.pictureInPictureEnabled),
     [],
   );
+
+  const videoCrossOrigin = useMemo((): "anonymous" | undefined => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    return isSameOriginMediaRequest(media.src) ? "anonymous" : undefined;
+  }, [media.src]);
 
   const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) {
@@ -413,6 +422,7 @@ function PlayerShellComponent({
           <video
             ref={videoRef}
             playsInline
+            crossOrigin={videoCrossOrigin}
             controls={false}
             poster={immersive ? undefined : media.poster || undefined}
             className={`cinema-player-video relative z-[2] h-full w-full bg-black ${

@@ -1,4 +1,5 @@
 import { buildPlaybackSubtitleUrl, isProgressiveAudioUrl } from "../utils/format";
+import { applyPlaybackFetchInit } from "../../../lib/playback-networking";
 import type { MediaSource } from "../types/player.types";
 import type { PlaybackManifest } from "../types/playback.types";
 
@@ -37,15 +38,36 @@ export class MediaResolver {
     };
   }
 
-  /** Prefetch HLS manifest (lightweight HEAD/GET). */
+  /** Prefetch HLS manifest (lightweight HEAD with GET fallback). */
   async prefetchManifest(url: string, signal?: AbortSignal): Promise<boolean> {
+    const acceptHeader = { Accept: "application/vnd.apple.mpegurl, */*" };
+
     try {
-      const response = await fetch(url, {
-        method: "GET",
-        signal,
-        cache: "force-cache",
-        headers: { Accept: "application/vnd.apple.mpegurl, */*" },
-      });
+      const headResponse = await fetch(
+        url,
+        applyPlaybackFetchInit(url, {
+          method: "HEAD",
+          signal,
+          headers: acceptHeader,
+        }),
+      );
+
+      if (headResponse.ok) {
+        return true;
+      }
+    } catch {
+      // Fall through to GET when HEAD is unsupported.
+    }
+
+    try {
+      const response = await fetch(
+        url,
+        applyPlaybackFetchInit(url, {
+          method: "GET",
+          signal,
+          headers: acceptHeader,
+        }),
+      );
       return response.ok;
     } catch {
       return false;

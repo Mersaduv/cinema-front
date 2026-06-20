@@ -6,7 +6,7 @@ import "./tv-compat.css";
 import AppChrome from "./components/AppChrome";
 import { AuthProvider } from "./contexts/AuthContext";
 import TvCompatRoot from "./components/tv/TvCompatRoot";
-import { CRYPTO_RANDOM_UUID_POLYFILL } from "./lib/random-id";
+import { BROWSER_COMPAT_POLYFILLS } from "./lib/browser-compat";
 
 const iranSansX = localFont({
   src: [
@@ -89,9 +89,9 @@ export default function RootLayout({
     <html lang="fa" dir="rtl" data-scroll-behavior="smooth">
       <head>
         <Script
-          id="crypto-randomuuid-polyfill"
+          id="browser-compat-polyfills"
           strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: CRYPTO_RANDOM_UUID_POLYFILL }}
+          dangerouslySetInnerHTML={{ __html: BROWSER_COMPAT_POLYFILLS }}
         />
       </head>
       <body className={`${iranSansX.variable} font-sans antialiased`}>

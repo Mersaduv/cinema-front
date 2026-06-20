@@ -3,20 +3,13 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { NextRequest } from "next/server";
+import {
+  isStreamingMediaExtension,
+  resolveMediaContentType,
+} from "../../lib/media-content-types";
+import { STREAMING_RESPONSE_HEADERS } from "../../lib/playback-networking";
 
 const MEDIA_ROOT = process.env.MEDIA_ROOT || "D:\\media";
-const CONTENT_TYPES: Record<string, string> = {
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".webp": "image/webp",
-  ".gif": "image/gif",
-  ".m3u8": "application/vnd.apple.mpegurl; charset=utf-8",
-  ".vtt": "text/vtt; charset=utf-8",
-  ".ts": "video/mp2t",
-  ".aac": "audio/aac",
-  ".mp4": "video/mp4",
-};
 
 function resolveMediaPath(segments: string[]): string | null {
   const decodedSegments = segments.map((segment) => decodeURIComponent(segment));
@@ -35,16 +28,22 @@ function resolveMediaPath(segments: string[]): string | null {
 
 function buildHeaders(contentType: string, size: number, extension: string) {
   const cacheControl =
-    extension === ".m3u8" || extension === ".vtt"
+    extension === ".m3u8" || extension === ".vtt" || extension === ".mpd"
       ? "no-store, must-revalidate"
       : "public, max-age=3600";
 
-  return {
+  const headers: Record<string, string> = {
     "Content-Type": contentType,
     "Content-Length": String(size),
     "Accept-Ranges": "bytes",
     "Cache-Control": cacheControl,
   };
+
+  if (isStreamingMediaExtension(extension)) {
+    Object.assign(headers, STREAMING_RESPONSE_HEADERS);
+  }
+
+  return headers;
 }
 
 async function createFileResponse(
@@ -59,7 +58,7 @@ async function createFileResponse(
   }
 
   const extension = path.extname(absolutePath).toLowerCase();
-  const contentType = CONTENT_TYPES[extension] || "application/octet-stream";
+  const contentType = resolveMediaContentType(extension);
   const rangeHeader = request.headers.get("range");
 
   if (process.env.NODE_ENV === "development" && [".m3u8", ".ts"].includes(extension)) {
@@ -101,20 +100,15 @@ async function createFileResponse(
       status: 416,
       headers: {
         "Content-Range": `bytes */${fileStat.size}`,
+        ...STREAMING_RESPONSE_HEADERS,
       },
     });
   }
 
   const chunkLength = end - start + 1;
   const headers = {
-    "Content-Type": contentType,
-    "Content-Length": String(chunkLength),
+    ...buildHeaders(contentType, chunkLength, extension),
     "Content-Range": `bytes ${start}-${end}/${fileStat.size}`,
-    "Accept-Ranges": "bytes",
-    "Cache-Control":
-      extension === ".m3u8" || extension === ".vtt"
-        ? "no-store, must-revalidate"
-        : "public, max-age=3600",
   };
 
   if (process.env.NODE_ENV === "development" && [".m3u8", ".ts"].includes(extension)) {
@@ -139,6 +133,13 @@ async function createFileResponse(
   return new Response(Readable.toWeb(stream) as ReadableStream, {
     status: 206,
     headers,
+  });
+}
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: STREAMING_RESPONSE_HEADERS,
   });
 }
 

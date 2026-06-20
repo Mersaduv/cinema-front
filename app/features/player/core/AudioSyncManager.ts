@@ -28,8 +28,10 @@ export class AudioSyncManager {
     this.detach();
     this.video = video;
     this.url = dubbedUrl;
-    this.audio = new Audio(dubbedUrl);
-    this.audio.preload = "auto";
+    this.audio = new Audio();
+    this.audio.crossOrigin = "anonymous";
+    this.audio.preload = "metadata";
+    this.audio.src = dubbedUrl;
     this.audio.volume = this.volume;
     this.audio.muted = this.muted;
     this.suspended = false;

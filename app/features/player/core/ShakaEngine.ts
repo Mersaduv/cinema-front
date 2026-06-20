@@ -5,6 +5,7 @@ import type {
   EngineLevel,
   EngineSubtitleTrack,
 } from "../types/player.types";
+import { registerShakaPlaybackNetworking } from "../../../lib/playback-networking";
 
 function drmServers(drm: DrmConfig): Record<string, string> {
   switch (drm.scheme) {
@@ -45,6 +46,7 @@ export class ShakaEngine implements PlaybackEngine {
 
     const player = new shaka.Player();
     this.player = player;
+    registerShakaPlaybackNetworking(player);
 
     const performanceClass = this.options.performanceClass ?? "high";
     this.steadyBufferGoal =
