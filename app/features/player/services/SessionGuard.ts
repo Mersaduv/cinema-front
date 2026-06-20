@@ -1,3 +1,5 @@
+import { randomUUID } from "../../../lib/random-id";
+
 const TAB_SESSION_KEY = "cinema_progress_tab_id";
 
 /** Per-tab session id for deduplication metadata. */
@@ -16,7 +18,7 @@ export class SessionGuard {
       return;
     }
 
-    const id = crypto.randomUUID();
+    const id = randomUUID();
     window.sessionStorage.setItem(TAB_SESSION_KEY, id);
     this.tabId = id;
   }

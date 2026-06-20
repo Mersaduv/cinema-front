@@ -1,3 +1,4 @@
+import { randomUUID } from "../../../lib/random-id";
 import { DEVICE_ID_KEY } from "./progressKeys";
 
 /** Stable anonymous device fingerprint stored in localStorage. */
@@ -12,10 +13,10 @@ export function getDeviceId(): string {
       return stored;
     }
 
-    const id = crypto.randomUUID();
+    const id = randomUUID();
     window.localStorage.setItem(DEVICE_ID_KEY, id);
     return id;
   } catch {
-    return crypto.randomUUID();
+    return randomUUID();
   }
 }

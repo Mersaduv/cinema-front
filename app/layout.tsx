@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
 import "./globals.css";
 import "./tv-compat.css";
 import AppChrome from "./components/AppChrome";
 import { AuthProvider } from "./contexts/AuthContext";
 import TvCompatRoot from "./components/tv/TvCompatRoot";
+import { CRYPTO_RANDOM_UUID_POLYFILL } from "./lib/random-id";
 
 const iranSansX = localFont({
   src: [
@@ -85,6 +87,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fa" dir="rtl" data-scroll-behavior="smooth">
+      <head>
+        <Script
+          id="crypto-randomuuid-polyfill"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: CRYPTO_RANDOM_UUID_POLYFILL }}
+        />
+      </head>
       <body className={`${iranSansX.variable} font-sans antialiased`}>
         <TvCompatRoot />
         <AuthProvider>

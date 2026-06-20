@@ -6,6 +6,7 @@ import type {
   QoEEventName,
 } from "../types/playback.types";
 import { postBeacon } from "../../../lib/tv/beacon";
+import { randomUUID } from "../../../lib/random-id";
 
 const DEVICE_ID_KEY = "cinema-qoe-device-id";
 const FLUSH_INTERVAL_MS = 10_000;
@@ -30,10 +31,7 @@ function getOrCreateDeviceId(): string {
       return existing;
     }
 
-    const created =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `dev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const created = randomUUID();
 
     window.localStorage.setItem(DEVICE_ID_KEY, created);
 
