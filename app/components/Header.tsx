@@ -11,6 +11,7 @@ import {
 import { HiLogout } from "react-icons/hi";
 import { TV_FOCUS_RING_CLASS } from "../lib/tv/focus";
 import { useAuth } from "../contexts/AuthContext";
+import { IoTvOutline } from "react-icons/io5";
 
 const navItems = [
   { label: "خانه", href: "/" },
@@ -99,6 +100,14 @@ export default function Header({ overlay = false, isTv = false }: { overlay?: bo
         </nav>
 
         <div className="flex min-w-0 items-center gap-3">
+          <a
+            href="http://cinema.af/live/"
+            data-tv-focusable
+            className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#f5c518] px-3 text-sm font-black text-[#12100a] shadow-[0_8px_24px_rgba(245,197,24,0.25)] transition hover:bg-[#e8bb0d] md:px-4 ${TV_FOCUS_RING_CLASS}`}
+          >
+            <IoTvOutline className="h-5 w-5 shrink-0" aria-hidden />
+            <span className="hidden sm:inline">شبکه‌های تلویزیون</span>
+          </a>
 
           <Link
             href="/search"
