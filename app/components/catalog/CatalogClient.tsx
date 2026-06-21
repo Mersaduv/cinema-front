@@ -16,6 +16,7 @@ import {
   parseCatalogFilters,
   parseSearchParamsRecord,
 } from "../../lib/catalog/search-params";
+import { canonicalizeGenreFilterValues } from "../../lib/catalog/genre-filter-options";
 import {
   fetchMoviesCatalogRest,
   fetchSeriesCatalogRest,
@@ -87,10 +88,16 @@ function CatalogClientInner({
   const queryString = searchParams.toString();
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
 
-  const filters = useMemo(
-    () => parseCatalogFilters(parseSearchParamsRecord(searchParams)),
-    [queryString],
-  );
+  const filters = useMemo(() => {
+    const parsed = parseCatalogFilters(parseSearchParamsRecord(searchParams));
+    return {
+      ...parsed,
+      genres: canonicalizeGenreFilterValues(
+        parsed.genres,
+        filterOptions.genre_id_aliases ?? {},
+      ),
+    };
+  }, [queryString, filterOptions.genre_id_aliases, searchParams]);
 
   const fetchSignature = useMemo(
     () => catalogFiltersSignature(filters, page),

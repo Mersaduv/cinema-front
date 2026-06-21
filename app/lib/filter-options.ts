@@ -18,6 +18,7 @@ export type FilterOptions = {
   age_ratings: string[];
   content_types: Array<{ value: string; label: string }>;
   sort_options: Array<{ value: string; label: string }>;
+  genre_id_aliases?: Record<string, string>;
 };
 
 let cachedOptions: FilterOptions | null = null;

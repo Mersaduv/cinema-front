@@ -1,3 +1,6 @@
+import { normalizeListItemLabel } from "./list-item-label";
+
+/** Must stay in sync with CatalogGenreManifest (backend) Persian labels. */
 const ENGLISH_TO_PERSIAN_GENRE: Record<string, string> = {
   action: "اکشن",
   adventure: "ماجراجویی",
@@ -13,19 +16,19 @@ const ENGLISH_TO_PERSIAN_GENRE: Record<string, string> = {
   music: "موزیک",
   mystery: "معمایی",
   romance: "عاشقانه",
-  "sci-fi": "علمی-تخیلی",
-  "science fiction": "علمی-تخیلی",
-  "sci fi": "علمی-تخیلی",
-  "sci-fi & fantasy": "علمی-تخیلی و فانتزی",
+  "sci-fi": "علمی تخیلی",
+  "science fiction": "علمی تخیلی",
+  "sci fi": "علمی تخیلی",
+  "sci-fi & fantasy": "علمی تخیلی و فانتزی",
   "tv movie": "فیلم تلویزیونی",
   thriller: "هیجان‌انگیز",
   war: "جنگی",
   western: "وسترن",
   "action & adventure": "اکشن و ماجراجویی",
-  kids: "کودک",
-  news: "خبری",
-  reality: "واقع‌نما",
-  soap: "سریال تلویزیونی",
+  kids: "کودکان",
+  news: "اخبار",
+  reality: "واقعی",
+  soap: "داستان شبانی",
   talk: "گفت‌وگو",
   "war & politics": "جنگ و سیاست",
 };
@@ -34,13 +37,26 @@ function hasPersianScript(value: string): boolean {
   return /[\u0600-\u06FF]/.test(value);
 }
 
-import { normalizeListItemLabel } from "./list-item-label";
+function normalizeGenreLabel(value: string): string {
+  return value.trim().replace(/[-‑–]/g, " ").replace(/\s+/g, " ");
+}
 
 export function localizeGenreLabel(label: unknown): string {
+  if (label && typeof label === "object" && !Array.isArray(label)) {
+    const record = label as { name?: unknown };
+    if (typeof record.name === "string" && record.name.trim() !== "") {
+      return normalizeGenreLabel(localizeGenreLabel(record.name));
+    }
+  }
+
   const trimmed = normalizeListItemLabel(label);
 
-  if (!trimmed || hasPersianScript(trimmed)) {
+  if (!trimmed) {
     return trimmed;
+  }
+
+  if (hasPersianScript(trimmed)) {
+    return normalizeGenreLabel(trimmed);
   }
 
   return ENGLISH_TO_PERSIAN_GENRE[trimmed.toLowerCase()] ?? trimmed;

@@ -6,17 +6,11 @@ const REDUNDANT_ENGLISH_LABELS = new Set([
   "Science Fiction",
 ]);
 
+/** English slug variants from raw TMDB sync — not manifest slugs like `sci-fi-fantasy`. */
 const REDUNDANT_SLUGS = new Set([
   "action-and-adventure",
-  "sci-fi-fantasy",
   "science-fiction-and-fantasy",
 ]);
-
-export type GenreFilterOptionInput = {
-  value: string;
-  label: string;
-  tmdb_id?: number | null;
-};
 
 export function buildGenreFilterOptions(
   genres: Array<{ id: number; slug: string; name: string; tmdb_id?: number | null }>,
@@ -54,4 +48,31 @@ export function buildGenreFilterOptions(
       label: genre.name,
       tmdb_id: genre.tmdb_id,
     }));
+}
+
+export type GenreFilterOptionInput = {
+  value: string;
+  label: string;
+  tmdb_id?: number | null;
+};
+
+export function canonicalizeGenreFilterValues(
+  selected: string[],
+  aliasMap: Record<string, string> = {},
+): string[] {
+  if (selected.length === 0 || Object.keys(aliasMap).length === 0) {
+    return selected;
+  }
+
+  const seen = new Set<string>();
+
+  return selected
+    .map((value) => aliasMap[value] ?? value)
+    .filter((value) => {
+      if (seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
 }
