@@ -1,5 +1,8 @@
 import { buildPlaybackSubtitleUrl, isProgressiveAudioUrl } from "../utils/format";
-import { applyPlaybackFetchInit } from "../../../lib/playback-networking";
+import {
+  applyPlaybackFetchInit,
+  rewriteCdnUrlForPlayback,
+} from "../../../lib/playback-networking";
 import type { MediaSource } from "../types/player.types";
 import type { PlaybackManifest } from "../types/playback.types";
 
@@ -14,10 +17,15 @@ export class MediaResolver {
 
   /** Build normalized media source from raw props. */
   resolveSource(input: MediaSource): MediaSource {
+    const src = rewriteCdnUrlForPlayback(input.src.trim());
+    const dashUrl = input.dashUrl?.trim()
+      ? rewriteCdnUrlForPlayback(input.dashUrl.trim())
+      : null;
+
     return {
       ...input,
-      src: input.src.trim(),
-      dashUrl: input.dashUrl?.trim() || null,
+      src,
+      dashUrl,
       progressiveUrl: input.progressiveUrl?.trim() || null,
       drm: input.drm ?? null,
       subtitleUrl: this.resolveSubtitleUrl(input.subtitleUrl),

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   applyPlaybackFetchInit,
   applyPlaybackRequestHeaders,
+  isCdnMediaUrl,
   isSameOriginMediaRequest,
+  rewriteCdnUrlForPlayback,
 } from "../../../lib/playback-networking";
 import {
   isStreamingMediaExtension,
@@ -36,6 +38,59 @@ describe("playback-networking", () => {
 
     expect(headers["X-Cinema-Playback"]).toBeUndefined();
     expect(headers["X-Requested-With"]).toBeUndefined();
+  });
+
+  it("adds playback headers for proxied same-origin /content2 URLs", () => {
+    const headers = applyPlaybackRequestHeaders("/content2/movies/demo/seg_000.ts");
+
+    expect(headers["X-Cinema-Playback"]).toBe("1");
+    expect(headers["X-Requested-With"]).toBe("XMLHttpRequest");
+    expect(isCdnMediaUrl("http://cinema.af/content2/movies/demo/master.m3u8")).toBe(true);
+    expect(isCdnMediaUrl("/content2/movies/demo/master.m3u8")).toBe(true);
+  });
+
+  it("skips custom headers for cross-origin cinema.af content2 URLs", () => {
+    const headers = applyPlaybackRequestHeaders(
+      "http://cinema.af/content2/movies/demo/seg_000.ts",
+    );
+
+    expect(headers["X-Cinema-Playback"]).toBeUndefined();
+  });
+
+  it("rewrites CDN URLs to same-origin /content2 proxy off the CDN host", () => {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        location: {
+          href: "http://172.27.86.14:3000/watch/demo",
+          hostname: "172.27.86.14",
+          origin: "http://172.27.86.14:3000",
+        },
+      },
+    });
+
+    expect(
+      rewriteCdnUrlForPlayback(
+        "http://cinema.af/content2/beta/demo/master.m3u8",
+      ),
+    ).toBe("/content2/beta/demo/master.m3u8");
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        location: {
+          href: "http://cinema.af/new-cinema/watch/demo",
+          hostname: "cinema.af",
+          origin: "http://cinema.af",
+        },
+      },
+    });
+
+    expect(
+      rewriteCdnUrlForPlayback(
+        "http://cinema.af/content2/beta/demo/master.m3u8",
+      ),
+    ).toBe("http://cinema.af/content2/beta/demo/master.m3u8");
   });
 
   it("marks fetch init as no-store for playback traffic", () => {

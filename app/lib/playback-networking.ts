@@ -17,6 +17,63 @@ export const STREAMING_RESPONSE_HEADERS: Readonly<Record<string, string>> = {
   "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
 };
 
+const DEFAULT_CDN_ORIGIN = "http://cinema.af";
+
+function resolveCdnOrigin(): string {
+  return process.env.NEXT_PUBLIC_CDN_ORIGIN?.trim() || DEFAULT_CDN_ORIGIN;
+}
+
+/** HLS/DASH packages served from cinema.af/content2 (IIS static files). */
+export function isCdnMediaUrl(url: string): boolean {
+  try {
+    const base =
+      typeof window !== "undefined" ? window.location.href : resolveCdnOrigin();
+    const parsed = new URL(url, base);
+
+    if (parsed.pathname.startsWith("/content2/")) {
+      return true;
+    }
+
+    const cdn = new URL(resolveCdnOrigin());
+    return (
+      parsed.hostname === cdn.hostname && parsed.pathname.startsWith("/content2/")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Route CDN media through the Next.js /content2 rewrite when the app is on another origin
+ * (e.g. http://172.27.86.14:3000) so the browser never performs cross-origin XHR to cinema.af.
+ */
+export function rewriteCdnUrlForPlayback(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const cdn = new URL(resolveCdnOrigin());
+
+    if (
+      parsed.hostname !== cdn.hostname ||
+      !parsed.pathname.startsWith("/content2/")
+    ) {
+      return trimmed;
+    }
+
+    if (typeof window !== "undefined" && window.location.hostname !== cdn.hostname) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+  } catch {
+    return trimmed;
+  }
+
+  return trimmed;
+}
+
 export function isSameOriginMediaRequest(url: string): boolean {
   if (typeof window === "undefined") {
     return false;
@@ -30,11 +87,16 @@ export function isSameOriginMediaRequest(url: string): boolean {
   }
 }
 
+/** Same-origin playback traffic can carry anti-download-manager markers safely. */
+export function shouldAttachPlaybackHeaders(url: string): boolean {
+  return isSameOriginMediaRequest(url);
+}
+
 export function applyPlaybackRequestHeaders(
   url: string,
   headers: Record<string, string> = {},
 ): Record<string, string> {
-  if (!isSameOriginMediaRequest(url)) {
+  if (!shouldAttachPlaybackHeaders(url)) {
     return headers;
   }
 
@@ -93,7 +155,7 @@ export function registerShakaPlaybackNetworking(player: {
 
   networking.registerRequestFilter((_type, request) => {
     const uri = request.uris[0];
-    if (!uri || !isSameOriginMediaRequest(uri)) {
+    if (!uri || !shouldAttachPlaybackHeaders(uri)) {
       return;
     }
 

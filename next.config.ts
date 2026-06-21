@@ -24,8 +24,6 @@ function imageRemotePatterns() {
 }
 
 const nextConfig: NextConfig = {
-  // Next.js 16 uses Turbopack for `next build` by default; acknowledge that the
-  // legacy webpack hook below is dev-only / superseded by tsconfig target ES5.
   turbopack: {},
   images: {
     formats: ["image/avif", "image/webp"],
@@ -37,8 +35,16 @@ const nextConfig: NextConfig = {
     if (!isServer) {
       config.target = ["web", "es5"];
     }
-
     return config;
+  },
+
+  async rewrites() {
+    return [
+      {
+        source: '/content2/:path*',
+        destination: 'http://cinema.af/content2/:path*',
+      },
+    ];
   },
 };
 
