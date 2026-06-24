@@ -7,7 +7,9 @@ import type { CatalogFiltersState } from "../../lib/catalog/search-params";
 import { EMPTY_CATALOG_FILTERS } from "../../lib/catalog/search-params";
 import type { FilterOptions } from "../../lib/filter-options";
 import { buildGenreFilterOptions } from "../../lib/catalog/genre-filter-options";
+import { useTvBodyScrollLock } from "../../hooks/useTvBodyScrollLock";
 import { isBackKey, TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
+import TvOverlayPortal from "./TvOverlayPortal";
 
 const IMDB_OPTIONS = [
   { value: "", label: "همه امتیازها" },
@@ -68,6 +70,8 @@ export default function TvFilterSheet({
     return () => window.removeEventListener("keydown", handler, true);
   }, [closeSheet, open]);
 
+  useTvBodyScrollLock(open);
+
   if (!open) {
     return null;
   }
@@ -104,28 +108,33 @@ export default function TvFilterSheet({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex flex-col bg-[#05070b]"
-      dir="rtl"
-      role="dialog"
-      aria-modal="true"
-      aria-label="فیلترها"
-      data-tv-focus-group="filter-sheet"
-    >
-      <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-        <h2 className="text-xl font-bold text-white">فیلترها</h2>
-        <button
-          type="button"
-          data-tv-focusable
-          onClick={closeSheet}
-          className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 text-white ${TV_FOCUS_RING_CLASS}`}
-          aria-label="بستن"
-        >
-          <HiXMark className="h-6 w-6" />
-        </button>
-      </div>
+    <TvOverlayPortal>
+      <div
+        className="fixed inset-0 z-[200] flex flex-col overflow-hidden bg-[#05070b]"
+        dir="rtl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="فیلترها"
+        data-tv-filter-sheet
+        data-tv-focus-group="filter-sheet"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-5">
+          <h2 className="text-xl font-bold text-white">فیلترها</h2>
+          <button
+            type="button"
+            data-tv-focusable
+            onClick={closeSheet}
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 text-white ${TV_FOCUS_RING_CLASS}`}
+            aria-label="بستن"
+          >
+            <HiXMark className="h-6 w-6" />
+          </button>
+        </div>
 
-      <div className="flex-1 space-y-8 overflow-y-auto px-6 py-6">
+        <div
+          className="min-h-0 flex-1 space-y-8 overflow-y-auto px-6 py-6"
+          data-tv-filter-sheet-body
+        >
         <section>
           <h3 className="mb-3 text-sm font-semibold text-white/60">ژانر</h3>
           <div className="flex flex-wrap gap-2">
@@ -267,6 +276,7 @@ export default function TvFilterSheet({
                 checked={draft.min_rating === option.value}
                 onChange={() => setDraft((current) => ({ ...current, min_rating: option.value }))}
                 label={option.label}
+                tvFocusable
               />
             ))}
           </div>
@@ -281,13 +291,14 @@ export default function TvFilterSheet({
                 checked={draft.sort === option.value}
                 onChange={() => setDraft((current) => ({ ...current, sort: option.value }))}
                 label={option.label}
+                tvFocusable
               />
             ))}
           </div>
         </section>
       </div>
 
-      <div className="flex gap-3 border-t border-white/10 px-6 py-5">
+      <div className="flex shrink-0 gap-3 border-t border-white/10 px-6 py-5">
         <button
           type="button"
           data-tv-focusable
@@ -310,5 +321,6 @@ export default function TvFilterSheet({
         </button>
       </div>
     </div>
+    </TvOverlayPortal>
   );
 }

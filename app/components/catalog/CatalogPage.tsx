@@ -58,7 +58,9 @@ export default function CatalogPage({
         {topSlot}
 
         {filtersSlot ? (
-          <div className="relative z-30 mb-6 overflow-visible rounded-2xl border border-white/[0.08] bg-[#12161f]/90 p-4 shadow-[0_24px_60px_-40px_rgba(0,0,0,0.9)] backdrop-blur-sm md:p-5">
+          <div
+            className={`relative z-30 mb-6 rounded-2xl border border-white/[0.08] bg-[#12161f]/90 p-4 shadow-[0_24px_60px_-40px_rgba(0,0,0,0.9)] backdrop-blur-sm md:p-5 ${isTv ? "overflow-hidden" : "overflow-visible"}`}
+          >
             {filtersSlot}
           </div>
         ) : null}

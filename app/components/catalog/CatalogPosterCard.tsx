@@ -45,7 +45,10 @@ export default function CatalogPosterCard({
       tabIndex={0}
       className={`group block w-full min-w-0 rounded-xl ${TV_FOCUS_RING_CLASS}`}
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#12161f]">
+      <div
+        data-tv-poster-shell
+        className="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#12161f]"
+      >
         <PosterImage
           title={item.title}
           image={item.poster_image}
@@ -57,7 +60,10 @@ export default function CatalogPosterCard({
         />
 
         {dubbed || hasSubtitle ? (
-          <div className="absolute top-2 right-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap items-center justify-end gap-1.5">
+          <div
+            data-tv-poster-badge
+            className="absolute top-2 right-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap items-center justify-end gap-1.5"
+          >
             {dubbed ? (
               <span className={catalogBadgeFeature}>دوبله فارسی</span>
             ) : null}

@@ -43,13 +43,45 @@ test.describe("TV browser smoke (Tizen UA)", () => {
 
     const sheet = page.getByRole("dialog", { name: "فیلترها" });
     await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole("heading", { name: "ژانر" })).toBeVisible();
     await expect(sheet.getByRole("heading", { name: "کشور" })).toBeVisible();
     await expect(sheet.getByRole("heading", { name: "زبان" })).toBeVisible();
     await expect(sheet.getByRole("heading", { name: "سال" })).toBeVisible();
+    await expect(sheet.getByRole("heading", { name: "امتیاز IMDB" })).toBeVisible();
+    await expect(sheet.getByRole("heading", { name: "مرتب‌سازی" })).toBeVisible();
+    await expect(sheet.locator("xpath=ancestor::body")).toHaveCount(1);
 
     await sheet.getByRole("button", { name: "بستن" }).click();
     await expect(sheet).toHaveCount(0);
     await expect(opener).toBeFocused();
+  });
+
+  test("/movies — dub/subtitle badges stay at top of poster cards", async ({ page }) => {
+    await page.goto("/movies", { waitUntil: "networkidle" });
+
+    const badge = page.locator("[data-tv-poster-badge]").first();
+    const hasBadge = (await badge.count()) > 0;
+    test.skip(!hasBadge, "No dubbed/subtitle badges in catalog — seed content first");
+
+    const placement = await badge.evaluate((node) => {
+      const shell = node.closest("[data-tv-poster-shell]");
+      if (!shell) {
+        return null;
+      }
+
+      const shellRect = shell.getBoundingClientRect();
+      const badgeRect = node.getBoundingClientRect();
+      const badgeCenterY = badgeRect.top + badgeRect.height / 2;
+      const shellMidY = shellRect.top + shellRect.height / 2;
+
+      return {
+        nearTop: badgeRect.top - shellRect.top < shellRect.height * 0.25,
+        aboveMidline: badgeCenterY < shellMidY,
+      };
+    });
+
+    expect(placement?.nearTop).toBe(true);
+    expect(placement?.aboveMidline).toBe(true);
   });
 
   test("/login — TvLoginPanel shows activation code", async ({ page }) => {

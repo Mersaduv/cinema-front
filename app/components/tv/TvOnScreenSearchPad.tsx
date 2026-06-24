@@ -1,6 +1,8 @@
 "use client";
 
 import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
+import { useTvBodyScrollLock } from "../../hooks/useTvBodyScrollLock";
+import TvOverlayPortal from "./TvOverlayPortal";
 
 const PERSIAN_ROWS = [
   ["ا", "ب", "پ", "ت", "ث", "ج", "چ"],
@@ -31,6 +33,8 @@ export default function TvOnScreenSearchPad({
   onSubmit,
   onClose,
 }: TvOnScreenSearchPadProps) {
+  useTvBodyScrollLock(open);
+
   if (!open) {
     return null;
   }
@@ -56,12 +60,14 @@ export default function TvOnScreenSearchPad({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[110] flex flex-col bg-[#05070b]/96 p-4"
-      dir="rtl"
-      role="dialog"
-      aria-label="صفحه‌کلید جستجو"
-    >
+    <TvOverlayPortal>
+      <div
+        className="fixed inset-0 z-[210] flex flex-col overflow-hidden bg-[#05070b]/96 p-4"
+        dir="rtl"
+        role="dialog"
+        aria-label="صفحه‌کلید جستجو"
+        data-tv-filter-sheet
+      >
       <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-sm text-white/70">جستجو</p>
         <button
@@ -78,7 +84,7 @@ export default function TvOnScreenSearchPad({
         {value || "عبارت جستجو…"}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto" data-tv-filter-sheet-body>
         {PERSIAN_ROWS.map((row, rowIndex) => (
           <div key={`row-${rowIndex}`} className="flex flex-wrap justify-center gap-2">
             {row.map((key) => (
@@ -96,5 +102,6 @@ export default function TvOnScreenSearchPad({
         ))}
       </div>
     </div>
+    </TvOverlayPortal>
   );
 }

@@ -26,20 +26,39 @@ html[data-tv-compat="true"] [data-tv-page] {
   min-height: -webkit-fill-available;
 }
 
-html[data-tv-compat="true"] [data-tv-page] .aspect-\[2\/3\] {
-  position: relative;
-  height: 0;
-  padding-bottom: 150%;
-}
+/* aspect-ratio fallback — ONLY when the engine lacks native support (Tizen 6 / Chrome 56).
+   Never apply on modern Samsung TVs: height:0 + padding hack breaks native aspect-ratio.
+   Only the poster media layer is absolutely filled — badge/overlay siblings keep their positions. */
+@supports not (aspect-ratio: 1) {
+  html[data-tv-compat="true"] [data-tv-page] [data-tv-poster-shell],
+  html[data-tv-compat="true"] [data-tv-page] .aspect-\[2\/3\] {
+    position: relative;
+    height: 0;
+    padding-bottom: 150%;
+  }
 
-html[data-tv-compat="true"] [data-tv-page] .aspect-\[2\/3\] > * {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
+  html[data-tv-compat="true"] [data-tv-page] [data-tv-poster-shell] > :first-child,
+  html[data-tv-compat="true"] [data-tv-page] .aspect-\[2\/3\] > :first-child {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
 
-@supports not (aspect-ratio: 2 / 3) {
+  html[data-tv-compat="true"] [data-tv-page] [data-tv-poster-badge] {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    left: auto;
+    bottom: auto;
+    width: auto;
+    height: auto;
+    inset: auto;
+  }
+
   html[data-tv-compat="true"] [data-tv-page] [style*="aspect-ratio"] {
     position: relative;
     height: auto;
@@ -71,4 +90,27 @@ html[data-tv-compat="true"] [data-tv-page] a:focus {
   html[data-tv-compat="true"] .backdrop-blur-xl {
     background-color: rgba(0, 0, 0, 0.75);
   }
+}
+
+/* Full-screen TV overlays (portaled to body) */
+html[data-tv-compat="true"] [data-tv-filter-sheet] {
+  display: -webkit-box;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+  flex-direction: column;
+  height: 100vh;
+  height: -webkit-fill-available;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  overflow: hidden;
+}
+
+html[data-tv-compat="true"] [data-tv-filter-sheet] [data-tv-filter-sheet-body] {
+  -webkit-box-flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
