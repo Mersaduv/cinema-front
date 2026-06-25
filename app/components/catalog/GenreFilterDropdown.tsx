@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { HiExclamationCircle } from "react-icons/hi2";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 import FilterCheckbox from "../ui/FilterCheckbox";
 import FilterDropdown from "./FilterDropdown";
 
@@ -26,6 +27,7 @@ export default function GenreFilterDropdown({
   placeholder?: string;
 }) {
   const [limitWarning, setLimitWarning] = useState(false);
+  const isTvCompat = useIsTvCompat();
 
   const labelByValue = new Map(options.map((option) => [option.value, option.label]));
   const valueLabel =
@@ -82,6 +84,7 @@ export default function GenreFilterDropdown({
                   label={option.label}
                   layout="aligned"
                   nowrap
+                  tvFocusable={isTvCompat}
                 />
               </li>
             ))}

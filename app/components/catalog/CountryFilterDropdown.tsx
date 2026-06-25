@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { HiExclamationCircle } from "react-icons/hi2";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 import FilterCheckbox from "../ui/FilterCheckbox";
 import FilterDropdown from "./FilterDropdown";
 import { sortCountriesByPopularity } from "../../lib/catalog/popular-countries";
@@ -27,6 +28,7 @@ export default function CountryFilterDropdown({
 }) {
   const [query, setQuery] = useState("");
   const [limitWarning, setLimitWarning] = useState(false);
+  const isTvCompat = useIsTvCompat();
 
   const labelByValue = new Map(options.map((option) => [option.value, option.label]));
 
@@ -99,6 +101,7 @@ export default function CountryFilterDropdown({
                   checked={value.includes(option.value)}
                   onChange={() => toggle(option.value)}
                   label={option.label}
+                  tvFocusable={isTvCompat}
                 />
               </li>
             ))}

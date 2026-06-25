@@ -19,8 +19,21 @@ export const STREAMING_RESPONSE_HEADERS: Readonly<Record<string, string>> = {
 
 const DEFAULT_CDN_ORIGIN = "http://cinema.af";
 
-function resolveCdnOrigin(): string {
+export function resolveCdnOrigin(): string {
   return process.env.NEXT_PUBLIC_CDN_ORIGIN?.trim() || DEFAULT_CDN_ORIGIN;
+}
+
+/** True when the page and CDN are different origins (host or port). */
+export function pageOriginDiffersFromCdn(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    return window.location.origin !== new URL(resolveCdnOrigin()).origin;
+  } catch {
+    return false;
+  }
 }
 
 /** HLS/DASH packages served from cinema.af/content2 (IIS static files). */
@@ -45,7 +58,7 @@ export function isCdnMediaUrl(url: string): boolean {
 
 /**
  * Route CDN media through the Next.js /content2 rewrite when the app is on another origin
- * (e.g. http://172.27.86.14:3000) so the browser never performs cross-origin XHR to cinema.af.
+ * (e.g. http://cinema.af:3000 or http://172.27.86.14:3000) so playback never hits the wrong port.
  */
 export function rewriteCdnUrlForPlayback(url: string): string {
   const trimmed = url.trim();
@@ -54,7 +67,7 @@ export function rewriteCdnUrlForPlayback(url: string): string {
   }
 
   try {
-    const parsed = new URL(trimmed);
+    const parsed = new URL(trimmed, typeof window !== "undefined" ? window.location.href : resolveCdnOrigin());
     const cdn = new URL(resolveCdnOrigin());
 
     if (
@@ -64,7 +77,7 @@ export function rewriteCdnUrlForPlayback(url: string): string {
       return trimmed;
     }
 
-    if (typeof window !== "undefined" && window.location.hostname !== cdn.hostname) {
+    if (pageOriginDiffersFromCdn()) {
       return `${parsed.pathname}${parsed.search}${parsed.hash}`;
     }
   } catch {
@@ -131,12 +144,14 @@ export function createHlsNetworkingConfig(): {
 } {
   return {
     xhrSetup(xhr, url) {
-      for (const [key, value] of Object.entries(applyPlaybackRequestHeaders(url))) {
+      const rewritten = rewriteCdnUrlForPlayback(url);
+      for (const [key, value] of Object.entries(applyPlaybackRequestHeaders(rewritten))) {
         xhr.setRequestHeader(key, value);
       }
     },
     fetchSetup(context, initParams) {
-      return new Request(context.url, applyPlaybackFetchInit(context.url, initParams));
+      const rewritten = rewriteCdnUrlForPlayback(context.url);
+      return new Request(rewritten, applyPlaybackFetchInit(rewritten, initParams));
     },
   };
 }

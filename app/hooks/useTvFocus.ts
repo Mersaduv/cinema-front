@@ -1,7 +1,7 @@
 "use client";
 
 export { useTvPageNavigation } from "./useTvPageNavigation";
-export { useTvCapabilities, useIsTv } from "./useTvCapabilities";
+export { useTvCapabilities, useIsTv, useIsTvCompat, useIsTvUi } from "./useTvCapabilities";
 export { useTvDebouncedReplace } from "./useTvDebouncedReplace";
 export { useTvGridColumns } from "./useTvGridColumns";
 export {

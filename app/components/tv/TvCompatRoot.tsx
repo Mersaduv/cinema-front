@@ -1,22 +1,22 @@
 "use client";
 
 import { useEffect } from "react";
-import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 
 /**
  * Enables TV-specific CSS fallbacks on document root.
  */
 export default function TvCompatRoot() {
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
 
   useEffect(() => {
-    if (!isTv) {
+    if (!isTvCompat) {
       document.documentElement.removeAttribute("data-tv-compat");
       return;
     }
 
     document.documentElement.setAttribute("data-tv-compat", "true");
-  }, [isTv]);
+  }, [isTvCompat]);
 
   return null;
 }

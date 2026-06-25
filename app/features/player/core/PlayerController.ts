@@ -2,7 +2,7 @@ import { EngineFactory } from "./EngineFactory";
 import { NativeHlsEngine } from "./NativeHlsEngine";
 import { PlayerEventBus } from "./PlayerEventBus";
 import { PlayerFsm } from "./playerFsm";
-import { resolvePlaybackPolicy } from "./PlayerPolicyEngine";
+import { resolvePlaybackPolicy, resolveRecoveryPlaybackPolicy } from "./PlayerPolicyEngine";
 import { SyncCoordinator } from "./SyncCoordinator";
 import { mediaResolver } from "./MediaResolver";
 import { detectDeviceCapabilities } from "../services/capability";
@@ -779,9 +779,10 @@ export class PlayerController {
 
     this.lastKnownQuality = quality;
 
-    const policyResult = resolvePlaybackPolicy(
+    const policyResult = resolveRecoveryPlaybackPolicy(
       detectDeviceCapabilities({ video: this.video }),
       mediaResolver.toPlaybackManifest(this.currentSource),
+      this.recoveryAttempt,
     );
 
     if (!policyResult.ok) {

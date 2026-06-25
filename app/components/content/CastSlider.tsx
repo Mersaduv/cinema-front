@@ -5,7 +5,7 @@ import ContentListSlider from "../catalog/ContentListSlider";
 import { PersonProfileImage } from "../images";
 import type { ResponsiveImageAsset } from "../../lib/cinema-image";
 import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
-import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 
 export type CastSliderRow = {
   name: string | null;
@@ -35,7 +35,7 @@ export default function CastSlider({
   title?: string;
   cast: CastSliderRow[];
 }) {
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
 
   if (cast.length === 0) {
     return null;
@@ -61,7 +61,7 @@ export default function CastSlider({
                   src={actor.profile_url}
                   square
                   sizes="104px"
-                  loading={isTv && index < 4 ? "eager" : index < 8 ? "eager" : "lazy"}
+                  loading={isTvCompat && index < 4 ? "eager" : index < 8 ? "eager" : "lazy"}
                   draggable={false}
                 />
               </div>

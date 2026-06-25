@@ -12,7 +12,7 @@ import {
 import { HiChevronLeft, HiChevronRight } from "react-icons/hi2";
 import { arrowKeyToDirection, isArrowKey } from "../../lib/tv/focus";
 import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
-import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 
 export const SLIDER_SLIDE_CLASS =
   "shrink-0 snap-start w-[46%] min-w-[132px] max-w-[168px] sm:w-[31%] sm:max-w-[184px] md:w-[24%] md:max-w-[196px] lg:w-[19%] lg:max-w-[208px] xl:w-[16%] xl:max-w-[220px] 2xl:w-[14%] 2xl:max-w-[232px]";
@@ -107,7 +107,7 @@ export default function ContentListSlider({
   const [canScrollStart, setCanScrollStart] = useState(false);
   const [canScrollEnd, setCanScrollEnd] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
 
   const updateScrollState = useCallback(() => {
     const element = trackRef.current;
@@ -187,7 +187,7 @@ export default function ContentListSlider({
   );
 
   useEffect(() => {
-    if (!isTv) {
+    if (!isTvCompat) {
       return;
     }
 
@@ -226,7 +226,7 @@ export default function ContentListSlider({
 
     element.addEventListener("keydown", handler);
     return () => element.removeEventListener("keydown", handler);
-  }, [isTv, scrollByPage]);
+  }, [isTvCompat, scrollByPage]);
 
   const resetDrag = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {

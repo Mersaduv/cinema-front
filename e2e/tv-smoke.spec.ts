@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 const TIZEN_UA =
   "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/4.0 Chrome/56.0.2987.98 TV Safari/537.36";
 
-test.describe("TV browser smoke (Tizen UA)", () => {
+test.describe("TV browser smoke — unified UI (Tizen UA)", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript((ua) => {
       Object.defineProperty(navigator, "userAgent", {
@@ -13,47 +13,47 @@ test.describe("TV browser smoke (Tizen UA)", () => {
     }, TIZEN_UA);
   });
 
-  test("/movies — sidebar, TV page chrome, filter opener", async ({ page }) => {
+  test("/movies — desktop chrome, header, desktop filter dropdowns", async ({ page }) => {
     await page.goto("/movies", { waitUntil: "networkidle" });
 
-    await expect(page.locator("aside[aria-label='منوی اصلی']")).toBeVisible();
-    await expect(page.locator("header")).toHaveCount(0);
-    await expect(page.locator('[data-tv-page="true"]')).toBeVisible();
-    await expect(page.getByRole("button", { name: "فیلترها", exact: true })).toBeVisible();
+    await expect(page.locator('[data-tv-unified-ui="true"]')).toBeVisible();
+    await expect(page.locator("header")).toBeVisible();
+    await expect(page.locator("aside[aria-label='منوی اصلی']")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "فیلترها", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "ژانر", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "امتیاز IMDB", exact: true })).toBeVisible();
+
     const grid = page.locator('[data-tv-grid="poster"]');
     const empty = page.getByText("هنوز موردی در این بخش منتشر نشده است");
     await expect(grid.or(empty)).toBeVisible();
   });
 
-  test("/series — same TV catalog chrome", async ({ page }) => {
+  test("/series — same unified catalog chrome", async ({ page }) => {
     await page.goto("/series", { waitUntil: "networkidle" });
 
-    await expect(page.locator("aside[aria-label='منوی اصلی']")).toBeVisible();
-    await expect(page.getByRole("button", { name: "فیلترها", exact: true })).toBeVisible();
+    await expect(page.locator('[data-tv-unified-ui="true"]')).toBeVisible();
+    await expect(page.locator("header")).toBeVisible();
+    await expect(page.locator("aside[aria-label='منوی اصلی']")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "ژانر", exact: true })).toBeVisible();
+
     const grid = page.locator('[data-tv-grid="poster"]');
     const empty = page.getByText("هنوز موردی در این بخش منتشر نشده است");
     await expect(grid.or(empty)).toBeVisible();
   });
 
-  test("filter sheet — country/language/year sections + focus restore", async ({ page }) => {
+  test("filter dropdown — genre panel opens as dialog on TV", async ({ page }) => {
     await page.goto("/movies", { waitUntil: "networkidle" });
 
-    const opener = page.getByRole("button", { name: "فیلترها", exact: true });
-    await opener.click();
+    const genreTrigger = page.getByRole("button", { name: "ژانر", exact: true });
+    await genreTrigger.click();
 
-    const sheet = page.getByRole("dialog", { name: "فیلترها" });
-    await expect(sheet).toBeVisible();
-    await expect(sheet.getByRole("heading", { name: "ژانر" })).toBeVisible();
-    await expect(sheet.getByRole("heading", { name: "کشور" })).toBeVisible();
-    await expect(sheet.getByRole("heading", { name: "زبان" })).toBeVisible();
-    await expect(sheet.getByRole("heading", { name: "سال" })).toBeVisible();
-    await expect(sheet.getByRole("heading", { name: "امتیاز IMDB" })).toBeVisible();
-    await expect(sheet.getByRole("heading", { name: "مرتب‌سازی" })).toBeVisible();
-    await expect(sheet.locator("xpath=ancestor::body")).toHaveCount(1);
+    const panel = page.getByRole("dialog", { name: "ژانر" });
+    await expect(panel).toBeVisible();
+    await expect(panel.locator("xpath=ancestor::body")).toHaveCount(1);
 
-    await sheet.getByRole("button", { name: "بستن" }).click();
-    await expect(sheet).toHaveCount(0);
-    await expect(opener).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+    await expect(genreTrigger).toBeFocused();
   });
 
   test("/movies — dub/subtitle badges stay at top of poster cards", async ({ page }) => {

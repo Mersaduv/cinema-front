@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -10,6 +11,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { HiChevronUp } from "react-icons/hi2";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
+import { isBackKey, TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
 import { useFilterDropdownPosition } from "./useFilterDropdownPosition";
 
 const FILTER_DROPDOWN_OPEN_EVENT = "cinema:filter-dropdown-open";
@@ -41,6 +44,14 @@ export default function FilterDropdown({
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const isTvCompat = useIsTvCompat();
+
+  const close = useCallback(() => {
+    setOpen(false);
+    requestAnimationFrame(() => {
+      triggerRef.current?.focus();
+    });
+  }, []);
 
   const position = useFilterDropdownPosition({
     open,
@@ -91,11 +102,30 @@ export default function FilterDropdown({
     );
   }, [dropdownId, open]);
 
+  useEffect(() => {
+    if (!open || !isTvCompat) {
+      return;
+    }
+
+    const handler = (event: KeyboardEvent) => {
+      if (isBackKey(event)) {
+        event.preventDefault();
+        close();
+      }
+    };
+
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [close, isTvCompat, open]);
+
   const panel =
     open && mounted && position ? (
       <div
         ref={panelRef}
         dir="rtl"
+        role={isTvCompat ? "dialog" : undefined}
+        aria-label={isTvCompat ? label : undefined}
+        data-tv-focus-group={isTvCompat ? "filter-dropdown" : undefined}
         className={`fixed z-[120] rounded-xl border border-white/10 bg-[#0d1118]/98 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl ${panelOverflow === "visible" ? "overflow-visible" : "overflow-hidden"} ${panelClassName}`}
         style={{
           top: position.top,
@@ -125,8 +155,11 @@ export default function FilterDropdown({
         ref={triggerRef}
         type="button"
         aria-expanded={open}
+        data-tv-focusable={isTvCompat ? true : undefined}
         onClick={() => setOpen((previous) => !previous)}
         className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3.5 text-sm transition ${
+          isTvCompat ? TV_FOCUS_RING_CLASS : ""
+        } ${
           open
             ? "border-[#3b82f6]/50 bg-[#0d1118] text-white"
             : "border-white/10 bg-[#0d1118] text-white/90 hover:border-white/20"

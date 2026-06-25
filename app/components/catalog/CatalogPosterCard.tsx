@@ -5,7 +5,7 @@ import { HiMiniPlay } from "react-icons/hi2";
 import { PosterImage } from "../images";
 import type { CatalogListItem } from "../../lib/catalog/rest";
 import { TV_CARD_FOCUS_CLASS, TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
-import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 
 function formatRating(value: number | null | undefined): string | null {
   if (value == null || Number.isNaN(value)) {
@@ -29,12 +29,12 @@ export default function CatalogPosterCard({
   index?: number;
   carouselItem?: boolean;
 }) {
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
   const rating = formatRating(item.rating ?? item.details.rating);
   const genres = item.details.genres.slice(0, 3);
   const dubbed = item.has_dubbed ?? item.has_dubbed_audio;
   const hasSubtitle = Boolean(item.has_subtitle);
-  const eagerImage = isTv && index < 8;
+  const eagerImage = isTvCompat && index < 8;
 
   return (
     <Link

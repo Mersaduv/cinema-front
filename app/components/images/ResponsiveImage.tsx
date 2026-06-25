@@ -10,7 +10,7 @@ import {
   type ImageUsage,
   type ResponsiveImageAsset,
 } from "../../lib/cinema-image";
-import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 
 export type ResponsiveImageProps = {
   image?: ResponsiveImageAsset | null;
@@ -51,7 +51,7 @@ export default function ResponsiveImage({
   height,
   draggable,
 }: ResponsiveImageProps) {
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -62,7 +62,7 @@ export default function ResponsiveImage({
 
   const blurSrc = errored ? undefined : pickBlurSrc(image);
   const srcSet = errored ? undefined : buildSrcSetString(image);
-  const sizesAttr = sizes ?? (usage ? getImageSizes(usage, { isTv }) : undefined);
+  const sizesAttr = sizes ?? (usage ? getImageSizes(usage, { isTvCompat }) : undefined);
   const objectFitClass = objectFit === "contain" ? "object-contain" : "object-cover";
 
   // Handle already-cached images: browser won't fire onLoad again

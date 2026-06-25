@@ -5,7 +5,7 @@ import { useRef } from "react";
 import Footer from "./Footer";
 import Header from "./Header";
 import TvSidebarNav from "./tv/TvSidebarNav";
-import { useIsTv } from "../hooks/useTvCapabilities";
+import { useIsTvCompat, useIsTvUi } from "../hooks/useTvCapabilities";
 import { useTvPageNavigation } from "../hooks/useTvPageNavigation";
 
 export default function AppChrome({
@@ -15,7 +15,8 @@ export default function AppChrome({
 }) {
   const pathname = usePathname();
   const pageRef = useRef<HTMLDivElement>(null);
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
+  const isTvUi = useIsTvUi();
   const isAdminRoute = pathname?.startsWith("/admin");
   const isWatchRoute = pathname?.startsWith("/watch/");
   const isLoginRoute = pathname === "/login";
@@ -28,24 +29,25 @@ export default function AppChrome({
     (pathname?.startsWith("/series/") && pathname.split("/").length === 3) ||
     (pathname?.startsWith("/actors/") && pathname.split("/").length === 3);
   const showTvSidebar =
-    isTv && !isAdminRoute && !isWatchRoute && !isLoginRoute && !isAuthFullBleedRoute;
+    isTvUi && !isAdminRoute && !isWatchRoute && !isLoginRoute && !isAuthFullBleedRoute;
   const shouldHideHeader = isAdminRoute || isWatchRoute || showTvSidebar || isAuthFullBleedRoute;
   const shouldOverlayHeader = isPublicDetailRoute && !showTvSidebar;
 
   useTvPageNavigation(pageRef, {
-    enabled: isTv && !isAdminRoute && !isWatchRoute,
+    enabled: isTvCompat && !isAdminRoute && !isWatchRoute,
   });
 
   return (
     <>
       {showTvSidebar ? <TvSidebarNav /> : null}
-      {!shouldHideHeader ? <Header overlay={shouldOverlayHeader} isTv={isTv} /> : null}
+      {!shouldHideHeader ? <Header overlay={shouldOverlayHeader} isTv={false} /> : null}
       <div
         ref={pageRef}
-        data-tv-page={isTv && !isAdminRoute && !isWatchRoute ? "true" : undefined}
+        data-tv-page={isTvCompat && !isAdminRoute && !isWatchRoute ? "true" : undefined}
+        data-tv-unified-ui={isTvCompat && !isTvUi ? "true" : undefined}
         className={
           isWatchRoute
-            ? isTv
+            ? isTvCompat
               ? "h-screen overflow-hidden bg-black"
               : "h-dvh overflow-hidden bg-black"
             : shouldHideHeader || shouldOverlayHeader
@@ -56,7 +58,7 @@ export default function AppChrome({
         <main className={isWatchRoute ? "h-full overflow-hidden" : "flex-1"}>
           {children}
         </main>
-        {!shouldHideHeader ? <Footer isTv={isTv} /> : null}
+        {!shouldHideHeader ? <Footer isTv={false} /> : null}
       </div>
     </>
   );

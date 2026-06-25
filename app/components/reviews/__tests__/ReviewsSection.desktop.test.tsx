@@ -6,6 +6,8 @@ import { defaultReviewPaginator, defaultReviewSummary } from "../../../lib/revie
 
 vi.mock("../../../hooks/useTvCapabilities", () => ({
   useIsTv: () => false,
+  useIsTvCompat: () => false,
+  useIsTvUi: () => false,
 }));
 
 vi.mock("../../../contexts/AuthContext", () => ({

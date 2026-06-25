@@ -15,13 +15,16 @@ describe("MediaResolver", () => {
     );
   });
 
-  it("normalizes media source", () => {
+  it("normalizes media source and proxies HLS when page origin differs from CDN", () => {
     const source = resolver.resolveSource({
       src: "  https://cdn.example.com/master.m3u8  ",
       subtitleUrl: "https://cdn.example.com/sub.vtt",
     });
 
-    expect(source.src).toBe("https://cdn.example.com/master.m3u8");
+    expect(source.src).toBe(
+      "/api/playback/manifest?src=" +
+        encodeURIComponent("https://cdn.example.com/master.m3u8"),
+    );
     expect(source.subtitleUrl).toContain("/api/subtitles?src=");
   });
 });

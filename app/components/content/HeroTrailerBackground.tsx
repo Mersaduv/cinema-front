@@ -10,7 +10,7 @@ import {
   HiMiniSpeakerXMark,
 } from "react-icons/hi2";
 import { extractYoutubeVideoId } from "../../lib/youtube";
-import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 
 const COVER_MIN_DISPLAY_MS = 5000;
 const YT_EMBED_ORIGIN =
@@ -72,10 +72,10 @@ export default function HeroTrailerBackground({
   trailerUrl: string | null;
   alt: string;
 }) {
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
   const directVideoUrl =
-    isTv && trailerUrl && isDirectVideoTrailer(trailerUrl) ? trailerUrl : null;
-  const videoId = !isTv ? extractYoutubeVideoId(trailerUrl) : null;
+    isTvCompat && trailerUrl && isDirectVideoTrailer(trailerUrl) ? trailerUrl : null;
+  const videoId = !isTvCompat ? extractYoutubeVideoId(trailerUrl) : null;
   const embedUrl = useMemo(
     () => (videoId ? buildEmbedUrl(videoId) : null),
     [videoId],

@@ -7,7 +7,7 @@ import { getCatalogItemHref } from "../../lib/catalog/animation";
 import type { CatalogListItem, PaginationMeta } from "../../lib/catalog/rest";
 import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
 import { useTvGridColumns } from "../../hooks/useTvGridColumns";
-import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 
 export default function CatalogPage({
   kind,
@@ -42,7 +42,7 @@ export default function CatalogPage({
   const itemKey = (item: CatalogListItem) =>
     useItemKind ? `${item.catalogKind ?? kind}-${item.id}` : String(item.id);
   const gridRef = useRef<HTMLDivElement>(null);
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
   const gridCols = useTvGridColumns(gridRef, items.length);
 
   return (
@@ -88,7 +88,7 @@ export default function CatalogPage({
                 ref={gridRef}
                 className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7"
                 data-tv-grid="poster"
-                data-tv-cols={isTv ? String(gridCols) : undefined}
+                data-tv-cols={isTvCompat ? String(gridCols) : undefined}
               >
                 {items.map((item, index) => (
                   <CatalogPosterCard

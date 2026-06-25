@@ -15,7 +15,7 @@ import {
 import Image from "next/image";
 import { useAuth } from "../contexts/AuthContext";
 import TvLoginPanel from "../components/tv/TvLoginPanel";
-import { useIsTv } from "../hooks/useTvCapabilities";
+import { useIsTvCompat } from "../hooks/useTvCapabilities";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -26,7 +26,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const { login, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
 
   const resolveRedirect = () => {
     if (typeof window === "undefined") {
@@ -113,7 +113,7 @@ export default function LoginPage() {
             </div>
 
             {/* Social Login Buttons */}
-            {isTv ? (
+            {isTvCompat ? (
               <div className="mb-6">
                 <TvLoginPanel />
               </div>
@@ -130,7 +130,7 @@ export default function LoginPage() {
             )}
 
             {/* Divider */}
-            {!isTv ? (
+            {!isTvCompat ? (
             <div className="relative py-4">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-[#2f2f2f]"></div>

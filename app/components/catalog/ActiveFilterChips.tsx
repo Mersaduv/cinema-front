@@ -3,7 +3,7 @@
 import type { CatalogFiltersState } from "../../lib/catalog/search-params";
 import type { FilterOptions } from "../../lib/filter-options";
 import { HiXMark } from "react-icons/hi2";
-import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
 
 export default function ActiveFilterChips({
@@ -21,7 +21,7 @@ export default function ActiveFilterChips({
   lockedGenres?: string[];
   lockedGenreLabels?: Record<string, string>;
 }) {
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
   const allGenres =
     filterOptions.catalog_genres ?? [
       ...filterOptions.movie_genres,
@@ -116,9 +116,9 @@ export default function ActiveFilterChips({
           <button
             key={chip.key}
             type="button"
-            data-tv-focusable={isTv ? true : undefined}
+            data-tv-focusable={isTvCompat ? true : undefined}
             onClick={chip.remove}
-            className={`inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 text-xs text-white/85 hover:bg-white/10 ${isTv ? TV_FOCUS_RING_CLASS : ""}`}
+            className={`inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 text-xs text-white/85 hover:bg-white/10 ${isTvCompat ? TV_FOCUS_RING_CLASS : ""}`}
           >
             <HiXMark className="h-3.5 w-3.5" />
             <span>{chip.label}</span>
@@ -127,9 +127,9 @@ export default function ActiveFilterChips({
       )}
       <button
         type="button"
-        data-tv-focusable={isTv ? true : undefined}
+        data-tv-focusable={isTvCompat ? true : undefined}
         onClick={onClearAll}
-        className={`text-xs text-[#60a5fa] hover:underline ${isTv ? TV_FOCUS_RING_CLASS : ""}`}
+        className={`text-xs text-[#60a5fa] hover:underline ${isTvCompat ? TV_FOCUS_RING_CLASS : ""}`}
       >
         پاک کردن همه
       </button>

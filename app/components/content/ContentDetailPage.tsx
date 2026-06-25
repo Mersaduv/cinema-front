@@ -49,7 +49,7 @@ import ReviewsSection, {
 import type { CatalogListItem } from "../../lib/catalog/rest";
 import type { Review, ReviewSummary } from "../../lib/reviews";
 import { isWatchlisted, toggleWatchlist } from "../../lib/watchlist";
-import { useIsTv } from "../../hooks/useTvCapabilities";
+import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 import { useTvPageNavigation } from "../../hooks/useTvPageNavigation";
 import {
   DETAIL_PLAY_FOCUS_KEY,
@@ -183,7 +183,7 @@ export default function ContentDetailPage({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isTv = useIsTv();
+  const isTvCompat = useIsTvCompat();
   const pageRef = useRef<HTMLDivElement>(null);
   const playButtonRef = useRef<HTMLAnchorElement>(null);
   const { user, isAuthenticated, loading: authLoading } = useAuth();
@@ -214,9 +214,9 @@ export default function ContentDetailPage({
   const [episodeSortAsc, setEpisodeSortAsc] = useState(true);
 
   useTvPageNavigation(pageRef, {
-    enabled: isTv,
+    enabled: isTvCompat,
     initialFocusRef: playButtonRef,
-    autoFocus: isTv,
+    autoFocus: isTvCompat,
   });
 
   const handlePlayNavigate = () => {
@@ -301,7 +301,7 @@ export default function ContentDetailPage({
   const tabs = useMemo(() => buildTabs(kind), [kind]);
 
   useEffect(() => {
-    if (!isTv || !playButtonRef.current) {
+    if (!isTvCompat || !playButtonRef.current) {
       return;
     }
 
@@ -318,7 +318,7 @@ export default function ContentDetailPage({
     }, 150);
 
     return () => window.clearTimeout(timer);
-  }, [isTv, pathname, title]);
+  }, [isTvCompat, pathname, title]);
 
   const castRows = useMemo((): CastRow[] => {
     if (kind === "movie" && movie) {
@@ -473,7 +473,7 @@ export default function ContentDetailPage({
     null;
 
   useEffect(() => {
-    if (!isTv || activeTab !== "episodes" || episodesLoading || kind !== "series" || !series?.slug) {
+    if (!isTvCompat || activeTab !== "episodes" || episodesLoading || kind !== "series" || !series?.slug) {
       return;
     }
 
@@ -510,7 +510,7 @@ export default function ContentDetailPage({
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [activeTab, activeSeasonNumber, episodesLoading, isTv, kind, seasons.length, series?.slug]);
+  }, [activeTab, activeSeasonNumber, episodesLoading, isTvCompat, kind, seasons.length, series?.slug]);
 
   const primaryWatchHref =
     kind === "movie" && movie

@@ -10,7 +10,7 @@ import GenreFilterDropdown from "./GenreFilterDropdown";
 import YearRangeFilter from "./YearRangeFilter";
 import TvFilterSheet from "../tv/TvFilterSheet";
 import TvOnScreenSearchPad, { needsOnScreenSearchKeyboard } from "../tv/TvOnScreenSearchPad";
-import { useIsTv, useTvCapabilities } from "../../hooks/useTvCapabilities";
+import { useIsTvCompat, useIsTvUi, useTvCapabilities } from "../../hooks/useTvCapabilities";
 import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
 import {
   DEFAULT_ANIMATION_SUBTYPES,
@@ -59,9 +59,10 @@ export default function CatalogFiltersBar({
   const router = useRouter();
   const pathname = usePathname();
   const urlSearchParams = useSearchParams();
-  const isTv = useIsTv();
+  const isTvUi = useIsTvUi();
+  const isTvCompat = useIsTvCompat();
   const capabilities = useTvCapabilities();
-  const useSearchPad = isTv && needsOnScreenSearchKeyboard(capabilities.family);
+  const useSearchPad = isTvCompat && needsOnScreenSearchKeyboard(capabilities.family);
   const openerRef = useRef<HTMLButtonElement>(null);
   const [tvFilterOpen, setTvFilterOpen] = useState(false);
   const [searchPadOpen, setSearchPadOpen] = useState(false);
@@ -166,7 +167,7 @@ export default function CatalogFiltersBar({
     });
   }, []);
 
-  if (isTv) {
+  if (isTvUi) {
     return (
       <>
         <div dir="rtl" className="flex flex-wrap items-center gap-3">
@@ -264,6 +265,7 @@ export default function CatalogFiltersBar({
                   checked={state.min_rating === option.value}
                   onChange={() => commit({ ...state, min_rating: option.value })}
                   label={option.label}
+                  tvFocusable={isTvCompat}
                 />
               ))}
               {state.min_rating ? (
@@ -301,6 +303,7 @@ export default function CatalogFiltersBar({
                   checked={state.sort === option.value}
                   onChange={() => commit({ ...state, sort: option.value })}
                   label={option.label}
+                  tvFocusable={isTvCompat}
                 />
               ))}
             </div>
@@ -318,6 +321,7 @@ export default function CatalogFiltersBar({
           <div className="relative order-1 min-w-[240px] flex-1 lg:order-1">
             <HiMagnifyingGlass className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
             <input
+              data-tv-focusable={isTvCompat ? true : undefined}
               value={state.search}
               onChange={(event) => commitSearch(event.target.value)}
               placeholder="جستجو..."

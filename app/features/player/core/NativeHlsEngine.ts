@@ -5,6 +5,7 @@ import type {
   EngineLevel,
   EngineSubtitleTrack,
 } from "../types/player.types";
+import { detectDeviceCapabilities } from "../services/capability";
 
 type NativeAudioTrackList = {
   length: number;
@@ -31,7 +32,14 @@ export class NativeHlsEngine implements PlaybackEngine {
   attach(video: HTMLVideoElement, src: string): void {
     this.destroy();
     this.video = video;
+
+    const caps = detectDeviceCapabilities({ video });
+    if (caps.family === "tizen" || caps.family === "webos") {
+      video.setAttribute("type", "application/vnd.apple.mpegurl");
+    }
+
     video.src = src;
+    video.load();
 
     this.onLoadedMetadata = () => {
       this.options.eventBus.emit("manifestParsed");

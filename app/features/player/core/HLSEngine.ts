@@ -182,7 +182,7 @@ export class HLSEngine implements PlaybackEngine {
       });
     });
 
-    this.hls.loadSource(src);
+    this.hls.loadSource(rewriteCdnUrlForPlayback(src));
     this.hls.attachMedia(video);
   }
 

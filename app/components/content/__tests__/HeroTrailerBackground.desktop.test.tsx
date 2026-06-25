@@ -5,6 +5,8 @@ import HeroTrailerBackground from "../HeroTrailerBackground";
 
 vi.mock("../../../hooks/useTvCapabilities", () => ({
   useIsTv: () => false,
+  useIsTvCompat: () => false,
+  useIsTvUi: () => false,
 }));
 
 vi.mock("../images", () => ({

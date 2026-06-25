@@ -39,7 +39,7 @@ const tvCaps = {
 };
 
 describe("resolvePlaybackPolicy", () => {
-  it("selects native HLS on TV when available", () => {
+  it("selects native HLS on TV when MSE is unavailable", () => {
     const result = resolvePlaybackPolicy(
       {
         ...tvCaps,
@@ -52,6 +52,23 @@ describe("resolvePlaybackPolicy", () => {
     if (result.ok) {
       expect(result.policy.engineId).toBe("native-hls");
       expect(result.policy.manifestFormat).toBe("hls");
+    }
+  });
+
+  it("prefers hls.js on Samsung Internet (Tizen browser) when MSE works", () => {
+    const result = resolvePlaybackPolicy(
+      {
+        ...tvCaps,
+        family: "tizen",
+        hasMse: true,
+        preferNativeHls: true,
+      },
+      hlsManifest,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.policy.engineId).toBe("hlsjs");
     }
   });
 

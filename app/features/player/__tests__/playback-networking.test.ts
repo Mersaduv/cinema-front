@@ -79,6 +79,23 @@ describe("playback-networking", () => {
       configurable: true,
       value: {
         location: {
+          href: "http://cinema.af:3000/watch/demo",
+          hostname: "cinema.af",
+          origin: "http://cinema.af:3000",
+        },
+      },
+    });
+
+    expect(
+      rewriteCdnUrlForPlayback(
+        "http://cinema.af/content2/beta/demo/master.m3u8",
+      ),
+    ).toBe("/content2/beta/demo/master.m3u8");
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        location: {
           href: "http://cinema.af/new-cinema/watch/demo",
           hostname: "cinema.af",
           origin: "http://cinema.af",
