@@ -8,7 +8,7 @@ import type {
   EngineLevel,
   EngineSubtitleTrack,
 } from "../types/player.types";
-import { createHlsNetworkingConfig } from "../../../lib/playback-networking";
+import { createHlsNetworkingConfig, rewriteCdnUrlForPlayback } from "../../../lib/playback-networking";
 import { CinemaABRController } from "./CinemaABRController";
 import { CinemaBandwidthEstimator } from "./CinemaBandwidthEstimator";
 

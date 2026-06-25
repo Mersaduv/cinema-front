@@ -62,7 +62,7 @@ export default function ResponsiveImage({
 
   const blurSrc = errored ? undefined : pickBlurSrc(image);
   const srcSet = errored ? undefined : buildSrcSetString(image);
-  const sizesAttr = sizes ?? (usage ? getImageSizes(usage, { isTvCompat }) : undefined);
+  const sizesAttr = sizes ?? (usage ? getImageSizes(usage, { isTv: isTvCompat }) : undefined);
   const objectFitClass = objectFit === "contain" ? "object-contain" : "object-cover";
 
   // Handle already-cached images: browser won't fire onLoad again
