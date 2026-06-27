@@ -126,6 +126,8 @@ export interface AdminSeries {
       imdb_id: string | null;
       tvdb_id: string | null;
       rating: number | null;
+      popularity?: number | null;
+      vote_count?: number | null;
       original_language: string | null;
       episode_runtime_minutes: number | null;
       creators: string[];
@@ -272,6 +274,8 @@ export interface AdminSeriesPayload {
   imdb_id?: string;
   tvdb_id?: string;
   rating?: number | null;
+  popularity?: number | null;
+  vote_count?: number | null;
   original_language?: string;
   creators?: string[];
   directors?: string[];

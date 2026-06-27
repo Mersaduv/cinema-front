@@ -463,6 +463,14 @@ export default function MovieEditorForm({
             typeof nextMovie.metadata?.tmdb?.rating === "number"
               ? String(nextMovie.metadata.tmdb.rating)
               : "",
+          popularity:
+            typeof nextMovie.metadata?.tmdb?.popularity === "number"
+              ? String(nextMovie.metadata.tmdb.popularity)
+              : "",
+          vote_count:
+            typeof nextMovie.metadata?.tmdb?.vote_count === "number"
+              ? String(nextMovie.metadata.tmdb.vote_count)
+              : "",
           poster_url:
             nextMovie.poster_image?.original?.startsWith("/images/")
               ? nextMovie.poster_image.original.split("?")[0]

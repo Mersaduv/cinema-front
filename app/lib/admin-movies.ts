@@ -78,6 +78,8 @@ export interface AdminMovieMetadata {
     backdrop_source_url?: string | null;
     trailer_url: string | null;
     rating: number | null;
+    popularity?: number | null;
+    vote_count?: number | null;
     original_language: string | null;
     runtime_minutes: number | null;
     directors: string[];
