@@ -27,5 +27,16 @@ export default defineConfig({
         hasTouch: false,
       },
     },
+    {
+      name: "webos-tv",
+      use: {
+        ...devices["Desktop Chrome"],
+        userAgent:
+          "Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.79 Safari/537.36 WebAppManager",
+        viewport: { width: 1920, height: 1080 },
+        isMobile: false,
+        hasTouch: false,
+      },
+    },
   ],
 });

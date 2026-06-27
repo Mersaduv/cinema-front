@@ -1,5 +1,5 @@
 /**
- * TV browser CSS compatibility layer (Tizen 6 / Chrome 56, webOS 6 / Chrome 79).
+ * TV browser CSS compatibility layer (Tizen 6 / Chrome 56, webOS 6 / Chrome 79, LG browser).
  *
  * Audit notes (2026-06-15):
  * - @layer from Tailwind v4: unsupported on Chrome <99 — mitigated by loading this

@@ -6,6 +6,7 @@ import type {
 } from "../types/playback.types";
 import Hls from "hls.js";
 import { ShakaEngine } from "./ShakaEngine";
+import { prefersTvBrowserHlsJs } from "../../../lib/tv/tv-playback-policy";
 
 export type PolicyResolution =
   | { ok: true; policy: PlaybackPolicy }
@@ -62,14 +63,8 @@ export function listPlaybackEngineCandidates(
     push("shaka");
   }
 
-  // Samsung Internet on TV: hls.js is more reliable than <video src=m3u8> for multi-variant HLS.
-  if (
-    capabilities.family === "tizen" &&
-    !capabilities.hasTizenAvPlay &&
-    capabilities.hasMse &&
-    Hls.isSupported() &&
-    hlsUrl
-  ) {
+  // TV browser shells (Tizen, webOS, Android TV): hls.js beats native <video> for adaptive HLS.
+  if (prefersTvBrowserHlsJs(capabilities) && hlsUrl) {
     push("hlsjs");
   }
 

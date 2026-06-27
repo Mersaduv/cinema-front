@@ -12,10 +12,14 @@ export const TV_CARD_FOCUS_CLASS =
 export function isBackKey(event: KeyboardEvent): boolean {
   return (
     event.key === "Escape" ||
+    event.key === "Back" ||
     event.key === "BrowserBack" ||
     event.key === "GoBack" ||
+    event.key === "XF86Back" ||
     event.keyCode === 461 ||
     event.keyCode === 10009 ||
+    event.keyCode === 8 ||
+    event.keyCode === 27 ||
     event.keyCode === 4
   );
 }

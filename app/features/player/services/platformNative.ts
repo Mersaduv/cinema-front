@@ -42,7 +42,16 @@ export function detectWebOsPipeline(): boolean {
     return false;
   }
 
-  return Boolean((window as Window & { webOS?: unknown }).webOS);
+  const webOS = (window as Window & {
+    webOS?: { platform?: { tv?: boolean }; service?: unknown };
+  }).webOS;
+
+  if (!webOS) {
+    return false;
+  }
+
+  // Browser shells may expose a stub; require platform.tv for the native pipeline path.
+  return webOS.platform?.tv === true || typeof webOS.service === "object";
 }
 
 export function getExoPlayerBridge(): CinemaNativePlayerBridge | null {

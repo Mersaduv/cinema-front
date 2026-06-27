@@ -29,13 +29,28 @@ export class NativeHlsEngine implements PlaybackEngine {
 
   constructor(private readonly options: EngineOptions) {}
 
+  /** MIME hint for TV native HLS decoders (subclasses may override). */
+  protected getManifestMimeType(family: string): string | null {
+    if (family === "tizen") {
+      return "application/vnd.apple.mpegurl";
+    }
+
+    if (family === "webos") {
+      return "application/x-mpegURL";
+    }
+
+    return null;
+  }
+
   attach(video: HTMLVideoElement, src: string): void {
     this.destroy();
     this.video = video;
 
     const caps = detectDeviceCapabilities({ video });
-    if (caps.family === "tizen" || caps.family === "webos") {
-      video.setAttribute("type", "application/vnd.apple.mpegurl");
+    const mimeType = this.getManifestMimeType(caps.family);
+
+    if (mimeType) {
+      video.setAttribute("type", mimeType);
     }
 
     video.src = src;

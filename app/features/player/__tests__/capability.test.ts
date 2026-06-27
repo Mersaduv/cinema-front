@@ -37,6 +37,23 @@ describe("detectDeviceCapabilities", () => {
     expect(caps.preferNativeHls).toBe(true);
   });
 
+  it("detects LG webOS from Web0S UA", () => {
+    const caps = detectDeviceCapabilities({
+      userAgent:
+        "Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.79 Safari/537.36 WebAppManager",
+      hasMediaSource: true,
+      video: { canPlayType: (type) => (type.includes("mpegurl") ? "maybe" : "") },
+      coarsePointer: true,
+      screenWidth: 1920,
+    });
+
+    expect(caps.family).toBe("webos");
+    expect(caps.isTv).toBe(true);
+    expect(caps.preferNativeHls).toBe(true);
+    expect(caps.preferWorker).toBe(false);
+    expect(caps.hasWebOsPipeline).toBe(false);
+  });
+
   it("prefers hls.js worker on desktop Chrome", () => {
     const caps = detectDeviceCapabilities({
       userAgent:

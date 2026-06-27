@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:tv-smoke": "playwright test e2e/tv-smoke.spec.ts",
+    "test:tv-smoke-webos": "playwright test e2e/tv-smoke-webos.spec.ts",
     "test:watch": "vitest",
     "codegen": "graphql-codegen --config codegen.ts"
   },

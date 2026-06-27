@@ -72,6 +72,42 @@ describe("resolvePlaybackPolicy", () => {
     }
   });
 
+  it("prefers hls.js on LG webOS browser when MSE works", () => {
+    const result = resolvePlaybackPolicy(
+      {
+        ...tvCaps,
+        family: "webos",
+        hasMse: true,
+        preferNativeHls: true,
+        performanceClass: "medium",
+      },
+      hlsManifest,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.policy.engineId).toBe("hlsjs");
+    }
+  });
+
+  it("prefers webos-pipeline when hosted webOS APIs are present", () => {
+    const result = resolvePlaybackPolicy(
+      {
+        ...tvCaps,
+        family: "webos",
+        hasMse: true,
+        hasWebOsPipeline: true,
+        performanceClass: "medium",
+      },
+      hlsManifest,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.policy.engineId).toBe("webos-pipeline");
+    }
+  });
+
   it("selects hls.js when MSE is stable and native is not preferred", () => {
     const result = resolvePlaybackPolicy(
       {

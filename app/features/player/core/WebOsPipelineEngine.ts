@@ -2,20 +2,13 @@ import type { EngineId } from "../types/playback.types";
 import { NativeHlsEngine } from "./NativeHlsEngine";
 
 /**
- * LG webOS Media Pipeline path — uses native HLS with webOS-specific source hints.
+ * LG webOS Media Pipeline path — native HLS with webOS MIME hint.
+ * Used when `window.webOS` is available (hosted TV app). Browser shells use hls.js via policy.
  */
 export class WebOsPipelineEngine extends NativeHlsEngine {
   override readonly id: EngineId = "webos-pipeline";
 
-  attach(video: HTMLVideoElement, src: string): void {
-    super.attach(video, src);
-
-    const webOS = (window as Window & {
-      webOS?: { platform?: { tv?: boolean } };
-    }).webOS;
-
-    if (webOS?.platform?.tv) {
-      video.setAttribute("type", "application/x-mpegURL");
-    }
+  protected override getManifestMimeType(): string {
+    return "application/x-mpegURL";
   }
 }
