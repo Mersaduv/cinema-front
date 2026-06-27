@@ -91,6 +91,8 @@ export type SeriesFormState = {
   imdb_id: string;
   tvdb_id: string;
   rating: string;
+  popularity: string;
+  vote_count: string;
   original_language: string;
   creators: string[];
   directors: string[];
@@ -430,6 +432,10 @@ function applyTmdbSeriesLevelFields(
     homepage_url: payload.homepage_url || current.homepage_url,
     age_rating: payload.age_rating || current.age_rating,
     rating: typeof payload.rating === "number" ? String(payload.rating) : current.rating,
+    popularity:
+      typeof payload.popularity === "number" ? String(payload.popularity) : current.popularity,
+    vote_count:
+      typeof payload.vote_count === "number" ? String(payload.vote_count) : current.vote_count,
     original_language: payload.original_language || current.original_language,
     creators: payload.creators.length
       ? filterLatinPersonNameList(payload.creators)

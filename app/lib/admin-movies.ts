@@ -351,6 +351,8 @@ export interface TmdbSearchResult {
   overview?: string | null;
   release_year: number | null;
   rating: number | null;
+  popularity?: number | null;
+  vote_count?: number | null;
   poster_url: string | null;
   backdrop_url: string | null;
 }

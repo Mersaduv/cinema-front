@@ -8,6 +8,7 @@ import { mediaResolver } from "./MediaResolver";
 import { detectDeviceCapabilities } from "../services/capability";
 import { getPlayerTelemetry } from "../services/telemetry";
 import { backoffDelayMs, isProgressiveAudioUrl } from "../utils/format";
+import { logEngineLifecycle } from "../../../lib/tv/engine-debug";
 import type { PlaybackEngine, EngineId, PlatformFamily } from "../types/playback.types";
 import type {
   MediaSource,
@@ -131,7 +132,7 @@ export class PlayerController {
     return this.engine;
   }
 
-  /** Bind video element and load media source. */
+  /** Bind video element and load media source (first attach). */
   async load(video: HTMLVideoElement, source: MediaSource): Promise<void> {
     this.destroy(false);
     this.video = video;
@@ -149,10 +150,56 @@ export class PlayerController {
     this.startWatchdog();
     this.telemetry.markSessionStart();
 
+    await this.attachResolvedSource();
+  }
+
+  /**
+   * Hot-swap media on the same <video> element — no DOM remount, no event rebinding.
+   * Used for episode transitions and quality/engine recovery on TV.
+   */
+  async reloadSource(source: MediaSource): Promise<void> {
+    if (!this.video) {
+      return;
+    }
+
+    this.softTeardownEngine();
+    this.recoveryAttempt = 0;
+    this.recoveryPhase = "none";
+    this.errorMessage = "";
+    this.currentSource = mediaResolver.resolveSource(source);
+    this.abortController = new AbortController();
+
+    this.transition("load");
+    this.startWatchdog();
+
+    await this.attachResolvedSource();
+  }
+
+  private softTeardownEngine(): void {
+    this.clearWatchdog();
+    this.abortController?.abort();
+    this.abortController = null;
+
+    if (this.engine) {
+      logEngineLifecycle("destroyed", this.engineId);
+      this.engine.destroy();
+      this.engine = null;
+    }
+
+    this.sync.stopSubtitleLoop();
+    this.managedSubtitleEnabled = false;
+    this.nativeSubtitleMode = false;
+    this.externalDubActive = false;
+  }
+
+  private async attachResolvedSource(): Promise<void> {
+    const video = this.video;
+    if (!video || !this.currentSource) {
+      return;
+    }
+
     const resolved = this.currentSource;
     const useExternalDub = isProgressiveAudioUrl(resolved.dubbedAudioUrl);
-    const useManifestAudio =
-      !useExternalDub && (resolved.audioTracks?.length ?? 0) > 0;
 
     this.externalDubActive = useExternalDub;
 
@@ -162,7 +209,6 @@ export class PlayerController {
       this.deactivateExternalDub();
       video.muted = this.outputMuted;
       video.volume = this.outputVolume;
-      void useManifestAudio;
     }
 
     const policyResult = resolvePlaybackPolicy(
@@ -177,6 +223,9 @@ export class PlayerController {
 
     const { policy } = policyResult;
     const engine = this.mountEngine(policy.engineId);
+    logEngineLifecycle("attached", policy.engineId, {
+      manifestFormat: policy.manifestFormat,
+    });
     this.telemetry.trackEngineSelected(policy.engineId, policy.manifestFormat);
     engine.attach(video, policy.manifestUrl);
 
@@ -208,7 +257,7 @@ export class PlayerController {
         try {
           await this.sync.loadExternalSubtitles(
             resolved.subtitleUrl,
-            this.abortController.signal,
+            this.abortController?.signal,
           );
           this.sync.startSubtitleLoop(this.callbacks.onSubtitleLines);
         } catch {
@@ -486,6 +535,9 @@ export class PlayerController {
     this.pendingSeekTime = null;
 
     this.engine?.destroy();
+    if (this.engine) {
+      logEngineLifecycle("destroyed", this.engineId);
+    }
     this.engine = null;
     this.sync.destroy();
 
@@ -765,7 +817,11 @@ export class PlayerController {
       `بازیابی پخش (${this.recoveryAttempt}/${this.config.maxRecoveryRetries})...`,
     );
 
+    this.sync.stopSubtitleLoop();
     this.engine?.destroy();
+    if (this.engine) {
+      logEngineLifecycle("destroyed", this.engineId);
+    }
     this.engine = null;
     this.video.pause();
 
@@ -791,6 +847,9 @@ export class PlayerController {
     }
 
     const engine = this.mountEngine(policyResult.policy.engineId);
+    logEngineLifecycle("attached", policyResult.policy.engineId, {
+      recoveryAttempt: this.recoveryAttempt,
+    });
     engine.attach(this.video, policyResult.policy.manifestUrl);
 
     this.video.currentTime = resumeTime;

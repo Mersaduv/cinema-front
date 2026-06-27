@@ -8,7 +8,7 @@ export default defineConfig({
       "app/features/player/**/*.test.{ts,tsx}",
       "app/features/player/**/__tests__/**/*.test.ts",
       "app/watch/**/*.test.ts",
-      "app/lib/tv/**/__tests__/**/*.test.ts",
+      "app/lib/**/__tests__/**/*.test.ts",
       "app/hooks/**/__tests__/**/*.test.ts",
       "app/components/tv/**/*.test.{ts,tsx}",
       "app/components/catalog/**/*.test.{ts,tsx}",

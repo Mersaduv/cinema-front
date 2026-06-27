@@ -23,22 +23,26 @@ export default function CatalogPosterCard({
   href,
   index = 0,
   carouselItem = false,
+  imageLoading,
 }: {
   item: CatalogListItem;
   href: string;
   index?: number;
   carouselItem?: boolean;
+  imageLoading?: "eager" | "lazy";
 }) {
   const isTvCompat = useIsTvCompat();
   const rating = formatRating(item.rating ?? item.details.rating);
   const genres = item.details.genres.slice(0, 3);
   const dubbed = item.has_dubbed ?? item.has_dubbed_audio;
   const hasSubtitle = Boolean(item.has_subtitle);
-  const eagerImage = isTvCompat && index < 8;
+  const resolvedLoading =
+    imageLoading ?? (isTvCompat && index < 8 ? "eager" : undefined);
 
   return (
     <Link
       href={href}
+      aria-label={item.title}
       data-tv-focusable
       data-tv-grid-item={carouselItem ? undefined : true}
       data-tv-carousel-item={carouselItem ? true : undefined}
@@ -55,7 +59,7 @@ export default function CatalogPosterCard({
           src={item.poster_url}
           fallbackUrl={item.backdrop_url ?? item.details.backdrop_url}
           usage="poster-grid"
-          loading={eagerImage ? "eager" : undefined}
+          loading={resolvedLoading}
           wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
         />
 

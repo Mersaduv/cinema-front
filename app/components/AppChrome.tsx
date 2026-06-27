@@ -24,6 +24,7 @@ export default function AppChrome({
     pathname === "/signup" ||
     pathname === "/tv-login" ||
     pathname?.startsWith("/forgot-password");
+  const isHomeRoute = pathname === "/";
   const isPublicDetailRoute =
     (pathname?.startsWith("/movies/") && pathname.split("/").length === 3) ||
     (pathname?.startsWith("/series/") && pathname.split("/").length === 3) ||
@@ -31,10 +32,13 @@ export default function AppChrome({
   const showTvSidebar =
     isTvUi && !isAdminRoute && !isWatchRoute && !isLoginRoute && !isAuthFullBleedRoute;
   const shouldHideHeader = isAdminRoute || isWatchRoute || showTvSidebar || isAuthFullBleedRoute;
-  const shouldOverlayHeader = isPublicDetailRoute && !showTvSidebar;
+  const shouldOverlayHeader =
+    (isPublicDetailRoute || isHomeRoute) && !showTvSidebar;
 
   useTvPageNavigation(pageRef, {
     enabled: isTvCompat && !isAdminRoute && !isWatchRoute,
+    autoFocus: isTvCompat && isHomeRoute,
+    initialFocusSelector: isHomeRoute ? "[data-home-hero-play]" : undefined,
   });
 
   return (

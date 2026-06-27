@@ -12,6 +12,7 @@ export type CatalogFiltersState = {
   year_from: number | null;
   year_to: number | null;
   min_rating: string;
+  carousel?: boolean;
 };
 
 export const EMPTY_CATALOG_FILTERS: CatalogFiltersState = {

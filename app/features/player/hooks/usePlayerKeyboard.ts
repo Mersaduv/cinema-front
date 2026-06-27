@@ -16,17 +16,7 @@ type KeyboardActions = {
   menuOpen?: boolean;
 };
 
-function isBackKey(event: KeyboardEvent): boolean {
-  return (
-    event.key === "Escape" ||
-    event.key === "BrowserBack" ||
-    event.key === "GoBack" ||
-    event.keyCode === 461 ||
-    event.keyCode === 10009 ||
-    event.keyCode === 4
-  );
-}
-
+import { isBackKey } from "../../../lib/tv/focus";
 function isMediaPlayKey(event: KeyboardEvent): boolean {
   return event.key === "MediaPlayPause" || event.key === "MediaPlay" || event.keyCode === 415;
 }
@@ -72,15 +62,8 @@ export function usePlayerKeyboard(
       }
 
       if (isBackKey(event)) {
-        if (actions.menuOpen) {
-          event.preventDefault();
-          return;
-        }
-
-        if (actions.onBack) {
-          event.preventDefault();
-          actions.onBack();
-        }
+        event.preventDefault();
+        actions.onBack?.();
         return;
       }
 

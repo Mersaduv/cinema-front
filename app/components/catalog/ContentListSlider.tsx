@@ -24,6 +24,7 @@ type ContentListSliderProps = {
   className?: string;
   ariaLabel?: string;
   step?: number;
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 };
 
 type DragState = {
@@ -99,6 +100,7 @@ export default function ContentListSlider({
   className = "",
   ariaLabel,
   step = 3,
+  containerRef,
 }: ContentListSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -108,6 +110,16 @@ export default function ContentListSlider({
   const [canScrollEnd, setCanScrollEnd] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const isTvCompat = useIsTvCompat();
+
+  const setTrackRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      trackRef.current = node;
+      if (containerRef) {
+        containerRef.current = node;
+      }
+    },
+    [containerRef],
+  );
 
   const updateScrollState = useCallback(() => {
     const element = trackRef.current;
@@ -331,7 +343,7 @@ export default function ContentListSlider({
       aria-label={ariaLabel}
     >
       <div
-        ref={trackRef}
+        ref={setTrackRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={resetDrag}

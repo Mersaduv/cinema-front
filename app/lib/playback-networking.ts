@@ -1,3 +1,5 @@
+import { playbackFetchSignal, PLAYBACK_FETCH_TIMEOUT_MS } from "./playback-fetch";
+
 /** Marks in-player segment/manifest traffic so download extensions can ignore it. */
 export const PLAYBACK_REQUEST_HEADER = "X-Cinema-Playback";
 export const PLAYBACK_REQUEST_VALUE = "1";
@@ -131,10 +133,18 @@ export function applyPlaybackFetchInit(
     }
   }
 
+  const signal =
+    init.signal != null
+      ? playbackFetchSignal(init.signal, PLAYBACK_FETCH_TIMEOUT_MS)
+      : typeof window !== "undefined"
+        ? playbackFetchSignal(null, PLAYBACK_FETCH_TIMEOUT_MS)
+        : undefined;
+
   return {
     ...init,
     headers,
     cache: init.cache ?? "no-store",
+    ...(signal ? { signal } : {}),
   };
 }
 
@@ -145,6 +155,7 @@ export function createHlsNetworkingConfig(): {
   return {
     xhrSetup(xhr, url) {
       const rewritten = rewriteCdnUrlForPlayback(url);
+      xhr.timeout = PLAYBACK_FETCH_TIMEOUT_MS;
       for (const [key, value] of Object.entries(applyPlaybackRequestHeaders(rewritten))) {
         xhr.setRequestHeader(key, value);
       }

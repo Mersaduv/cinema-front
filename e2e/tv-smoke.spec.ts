@@ -153,4 +153,66 @@ test.describe("TV browser smoke — unified UI (Tizen UA)", () => {
     await page.waitForTimeout(3000);
     expect(episodeRequests.length).toBeGreaterThan(0);
   });
+
+  test("filter dropdown — genre panel closes with Tizen Back key", async ({ page }) => {
+    await page.goto("/movies", { waitUntil: "networkidle" });
+
+    const genreTrigger = page.getByRole("button", { name: "ژانر", exact: true });
+    await genreTrigger.click();
+
+    const panel = page.getByRole("dialog", { name: "ژانر" });
+    await expect(panel).toBeVisible();
+
+    await page.keyboard.press("BrowserBack");
+    await expect(panel).toHaveCount(0);
+    await expect(genreTrigger).toBeFocused();
+  });
+
+  test("watch page — hls.js engine badge on Tizen UA", async ({ page, request }) => {
+    const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8005/api";
+    const list = await request.get(`${apiBase}/movies?per_page=1`);
+    expect(list.ok()).toBeTruthy();
+    const json = (await list.json()) as {
+      data?: { movies?: Array<{ slug: string; hls_url?: string | null }> };
+    };
+    const movie = json.data?.movies?.[0];
+    test.skip(!movie?.slug, "No published movies in API — seed catalog first");
+
+    const manifestBody = [
+      "#EXTM3U",
+      "#EXT-X-VERSION:3",
+      "#EXT-X-TARGETDURATION:10",
+      "#EXTINF:10.0,",
+      "https://cdn.example.com/seg0.ts",
+      "#EXT-X-ENDLIST",
+    ].join("\n");
+
+    await page.route("**/api/playback/manifest**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/vnd.apple.mpegurl",
+        body: manifestBody,
+      });
+    });
+
+    const consoleErrors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        consoleErrors.push(msg.text());
+      }
+    });
+    page.on("pageerror", (err) => {
+      consoleErrors.push(err.message);
+    });
+
+    await page.goto(`/watch/${movie.slug}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+
+    const engineBadge = page.getByText("Adaptive HLS");
+    await expect(engineBadge).toBeVisible({ timeout: 45_000 });
+
+    const video = page.locator("video.cinema-player-video");
+    await expect(video).toHaveCount(1);
+
+    expect(consoleErrors.filter((e) => !/favicon/i.test(e))).toEqual([]);
+  });
 });

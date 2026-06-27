@@ -6,6 +6,7 @@ import PlayerShell from "../../features/player/components/PlayerShell";
 
 export type HlsVideoPlayerProps = {
   src: string;
+  isSourceTransitioning?: boolean;
   dashUrl?: string | null;
   progressiveUrl?: string | null;
   drm?: import("../../features/player/types/playback.types").DrmConfig | null;
@@ -37,6 +38,7 @@ export type HlsVideoPlayerProps = {
  */
 export default function HlsVideoPlayer({
   src,
+  isSourceTransitioning = false,
   dashUrl,
   progressiveUrl,
   drm,
@@ -56,6 +58,7 @@ export default function HlsVideoPlayer({
   return (
     <PlayerShell
       watchMedia={watchMedia}
+      isSourceTransitioning={isSourceTransitioning}
       media={{
         src,
         dashUrl,

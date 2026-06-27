@@ -599,6 +599,8 @@ function createInitialFormState(): SeriesFormState {
     imdb_id: "",
     tvdb_id: "",
     rating: "",
+    popularity: "",
+    vote_count: "",
     original_language: "",
     creators: [],
     directors: [],
@@ -724,6 +726,14 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
     rating:
       typeof series.metadata?.tmdb?.rating === "number"
         ? String(series.metadata.tmdb.rating)
+        : "",
+    popularity:
+      typeof series.metadata?.tmdb?.popularity === "number"
+        ? String(series.metadata.tmdb.popularity)
+        : "",
+    vote_count:
+      typeof series.metadata?.tmdb?.vote_count === "number"
+        ? String(series.metadata.tmdb.vote_count)
         : "",
     original_language: series.metadata?.tmdb?.original_language || "",
     creators: series.metadata?.tmdb?.creators || [],
@@ -919,6 +929,8 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
     imdb_id: nullableString(form.imdb_id),
     tvdb_id: nullableString(form.tvdb_id),
     rating: nullableNumber(form.rating),
+    popularity: nullableNumber(form.popularity),
+    vote_count: nullableNumber(form.vote_count),
     original_language: nullableString(form.original_language),
     creators: form.creators,
     directors: form.directors,

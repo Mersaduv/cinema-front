@@ -3,6 +3,7 @@ import {
   resolveCdnOriginForPlaylist,
   rewriteM3u8PlaylistBody,
 } from "../../../lib/hls-playlist";
+import { fetchWithPlaybackTimeout } from "../../../lib/playback-fetch";
 import { STREAMING_RESPONSE_HEADERS } from "../../../lib/playback-networking";
 
 const MANIFEST_HEADERS = {
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const upstream = await fetch(src, {
+    const upstream = await fetchWithPlaybackTimeout(src, {
       headers: { Accept: "application/vnd.apple.mpegurl, */*" },
       cache: "no-store",
     });

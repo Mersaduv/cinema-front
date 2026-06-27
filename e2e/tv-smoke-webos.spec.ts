@@ -68,4 +68,51 @@ test.describe("TV browser smoke — unified UI (webOS / LG UA)", () => {
     await expect(page.getByText("WXYZ-5678")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("ورود با گوگل")).toHaveCount(0);
   });
+
+  test("filter dropdown — genre panel closes with webOS Back key", async ({ page }) => {
+    await page.goto("/movies", { waitUntil: "networkidle" });
+
+    const genreTrigger = page.getByRole("button", { name: "ژانر", exact: true });
+    await genreTrigger.click();
+
+    const panel = page.getByRole("dialog", { name: "ژانر" });
+    await expect(panel).toBeVisible();
+
+    await page.keyboard.press("BrowserBack");
+    await expect(panel).toHaveCount(0);
+    await expect(genreTrigger).toBeFocused();
+  });
+
+  test("watch page — hls.js engine badge on webOS UA", async ({ page, request }) => {
+    const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8005/api";
+    const list = await request.get(`${apiBase}/movies?per_page=1`);
+    expect(list.ok()).toBeTruthy();
+    const json = (await list.json()) as {
+      data?: { movies?: Array<{ slug: string }> };
+    };
+    const slug = json.data?.movies?.[0]?.slug;
+    test.skip(!slug, "No published movies in API — seed catalog first");
+
+    const manifestBody = [
+      "#EXTM3U",
+      "#EXT-X-VERSION:3",
+      "#EXT-X-TARGETDURATION:10",
+      "#EXTINF:10.0,",
+      "https://cdn.example.com/seg0.ts",
+      "#EXT-X-ENDLIST",
+    ].join("\n");
+
+    await page.route("**/api/playback/manifest**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/vnd.apple.mpegurl",
+        body: manifestBody,
+      });
+    });
+
+    await page.goto(`/watch/${slug}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+
+    await expect(page.getByText("Adaptive HLS")).toBeVisible({ timeout: 45_000 });
+    await expect(page.locator("video.cinema-player-video")).toHaveCount(1);
+  });
 });

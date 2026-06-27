@@ -187,6 +187,8 @@ export interface TmdbSeriesPayload {
   first_air_date: string | null;
   last_air_date: string | null;
   rating: number | null;
+  popularity?: number | null;
+  vote_count?: number | null;
   age_rating: string | null;
   episode_runtime_minutes: number | null;
   creators: string[];

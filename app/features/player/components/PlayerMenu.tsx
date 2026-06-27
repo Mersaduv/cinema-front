@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { useIsTvCompat } from "../../../hooks/useTvCapabilities";
+import { isBackKey } from "../../../lib/tv/focus";
 
 type PlayerMenuProps = {
   menuId: string;
@@ -26,7 +28,25 @@ export function PlayerMenu({
   children,
   footer,
 }: PlayerMenuProps) {
+  const isTvCompat = useIsTvCompat();
   const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !isTvCompat) {
+      return;
+    }
+
+    const handler = (event: KeyboardEvent) => {
+      if (isBackKey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [isOpen, isTvCompat, onClose]);
 
   useEffect(() => {
     if (!isOpen) {

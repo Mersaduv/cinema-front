@@ -210,6 +210,7 @@ export type PlayerShellProps = {
   watchMedia?: WatchMediaInfo | null;
   backHref?: string;
   immersive?: boolean;
+  isSourceTransitioning?: boolean;
   seriesContext?: SeriesPlaybackContext | null;
   onEpisodeSelect?: (season: number, episode: number) => void;
   onEnded?: () => void;

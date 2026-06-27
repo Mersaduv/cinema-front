@@ -163,6 +163,8 @@ type MovieEditorFormState = {
   tmdb_id: string;
   imdb_id: string;
   rating: string;
+  popularity: string;
+  vote_count: string;
   poster_url: string;
   backdrop_url: string;
   trailer_url: string;
@@ -237,6 +239,8 @@ function createInitialFormState(): MovieEditorFormState {
     tmdb_id: "",
     imdb_id: "",
     rating: "",
+    popularity: "",
+    vote_count: "",
     poster_url: "",
     backdrop_url: "",
     trailer_url: "",
@@ -940,6 +944,10 @@ export default function MovieEditorForm({
       tmdb_id: payload.tmdb_id ? String(payload.tmdb_id) : current.tmdb_id,
       imdb_id: payload.imdb_id || current.imdb_id,
       rating: typeof payload.rating === "number" ? String(payload.rating) : current.rating,
+      popularity:
+        typeof payload.popularity === "number" ? String(payload.popularity) : current.popularity,
+      vote_count:
+        typeof payload.vote_count === "number" ? String(payload.vote_count) : current.vote_count,
       poster_url: payload.poster_url || current.poster_url,
       backdrop_url: payload.backdrop_url || current.backdrop_url,
       trailer_url: payload.trailer_url || current.trailer_url,
@@ -1183,6 +1191,12 @@ export default function MovieEditorForm({
     }
     if (form.rating) {
       formData.append("rating", form.rating);
+    }
+    if (form.popularity) {
+      formData.append("popularity", form.popularity);
+    }
+    if (form.vote_count) {
+      formData.append("vote_count", form.vote_count);
     }
     if (form.original_language.trim()) {
       formData.append("original_language", form.original_language.trim());

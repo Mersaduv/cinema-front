@@ -10,6 +10,9 @@
     "test": "vitest run",
     "test:tv-smoke": "playwright test e2e/tv-smoke.spec.ts",
     "test:tv-smoke-webos": "playwright test e2e/tv-smoke-webos.spec.ts",
+    "test:tv-watch-flow": "playwright test e2e/tv-watch-flow.spec.ts",
+    "test:tv-visual": "playwright test e2e/tv-smoke-visual.spec.ts",
+    "test:tv-visual:update": "playwright test e2e/tv-smoke-visual.spec.ts --update-snapshots",
     "test:watch": "vitest",
     "codegen": "graphql-codegen --config codegen.ts"
   },

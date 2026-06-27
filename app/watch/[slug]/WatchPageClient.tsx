@@ -3,7 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { memo, useCallback, useEffect } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import { Provider } from "urql";
 import { getUrqlClient } from "../../lib/graphql/client";
 import type { PublicMovie } from "../../lib/movies";
@@ -147,6 +147,19 @@ const WatchPageInner = memo(function WatchPageInner() {
     knownTitle,
   } = useWatchData(slug, seasonParam, episodeParam);
 
+  const lastHlsUrlRef = useRef<string | null>(null);
+  const playerEverMountedRef = useRef(false);
+
+  if (hlsUrl) {
+    lastHlsUrlRef.current = hlsUrl;
+    playerEverMountedRef.current = true;
+  }
+
+  const activeHlsUrl = hlsUrl ?? lastHlsUrlRef.current;
+  const isEpisodeTransition =
+    isSeriesPlayback && !hlsUrl && playerEverMountedRef.current;
+  const showInitialSkeleton = showSkeleton && !playerEverMountedRef.current;
+
   useEffect(() => {
     const meta = document.querySelector('meta[name="viewport"]');
     const previous = meta?.getAttribute("content") ?? null;
@@ -193,11 +206,11 @@ const WatchPageInner = memo(function WatchPageInner() {
     return <WatchAuthGate redirectBack={redirectBack} />;
   }
 
-  if (showSkeleton) {
+  if (showInitialSkeleton) {
     return <PlayerSkeleton poster={knownPoster} title={knownTitle} />;
   }
 
-  if (isSeriesPlayback && hlsUrl) {
+  if (isSeriesPlayback && activeHlsUrl) {
     const watch = watchEpisodeData?.watchEpisode;
     const seriesSlug = watch?.series.slug ?? series?.slug ?? slug;
     const seriesTitle = watch?.series.title ?? series?.title ?? knownTitle;
@@ -214,7 +227,8 @@ const WatchPageInner = memo(function WatchPageInner() {
 
     return (
       <HlsVideoPlayer
-        src={hlsUrl}
+        src={activeHlsUrl}
+        isSourceTransitioning={isEpisodeTransition}
         dashUrl={watch?.dash_url ?? undefined}
         drm={buildDrmConfig(watch?.drm)}
         poster={posterUrl}
@@ -247,13 +261,14 @@ const WatchPageInner = memo(function WatchPageInner() {
     );
   }
 
-  if (!isSeriesPlayback && hlsUrl) {
+  if (!isSeriesPlayback && activeHlsUrl) {
     const watchMovie = watchMovieData?.watchMovie;
     const manifestAudioTracks = buildManifestAudioTracks(watchMovie?.audio_tracks);
 
     return (
       <HlsVideoPlayer
-        src={hlsUrl}
+        src={activeHlsUrl}
+        isSourceTransitioning={false}
         dashUrl={watchMovie?.dash_url ?? undefined}
         drm={buildDrmConfig(watchMovie?.drm)}
         poster={movie?.poster_url ?? undefined}

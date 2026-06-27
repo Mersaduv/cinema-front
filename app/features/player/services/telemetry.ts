@@ -297,6 +297,17 @@ export class PlayerTelemetry {
     };
 
     this.record(event);
+
+    if (
+      typeof window !== "undefined" &&
+      process.env.NODE_ENV !== "production"
+    ) {
+      const globalWindow = window as typeof window & {
+        __cinemaQoeEvents?: QoEEvent[];
+      };
+      globalWindow.__cinemaQoeEvents ??= [];
+      globalWindow.__cinemaQoeEvents.push(event);
+    }
   }
 
   private record(event: QoEEvent): void {

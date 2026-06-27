@@ -43,6 +43,7 @@ function PlayerShellComponent({
   watchMedia,
   backHref,
   immersive = false,
+  isSourceTransitioning = false,
   seriesContext,
   onEpisodeSelect,
   onEnded,
@@ -376,6 +377,7 @@ function PlayerShellComponent({
 
   const loadingMessage =
     recoveryMessage ||
+    (isSourceTransitioning ? "در حال بارگذاری قسمت..." : null) ||
     (fsmState === "recovering" ? "بازیابی پخش..." : "در حال بارگذاری پخش...");
 
   const showFullBleedPoster =
@@ -457,6 +459,7 @@ function PlayerShellComponent({
             >
               <button
                 type="button"
+                data-tv-focusable
                 className="inline-flex h-28 w-28 items-center justify-center rounded-full border border-white/20 bg-white/20 text-white focus:outline-none focus:ring-4 focus:ring-white"
                 aria-label="پخش"
               >
@@ -505,7 +508,7 @@ function PlayerShellComponent({
             />
           ) : null}
 
-          {isLoading && !error && !isDraggingSeek ? (
+          {(isLoading || isSourceTransitioning) && !error && !isDraggingSeek ? (
             <LoadingOverlay message={loadingMessage} phase={recoveryMessage} />
           ) : null}
 

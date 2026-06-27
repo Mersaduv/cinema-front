@@ -1,9 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HiOutlineMenuAlt2 } from "react-icons/hi";
+import { useIsTvCompat } from "../../../hooks/useTvCapabilities";
 import { useSeriesEpisodes } from "../../../lib/useSeriesEpisodes";
+import {
+  focusFirstInRoot,
+  isBackKey,
+  TV_FOCUS_RING_CLASS,
+} from "../../../lib/tv/focus";
 import type { PublicSeriesSeason } from "../../../lib/series";
 import type { EpisodeSummary, SeasonSummary } from "../types/player.types";
 
@@ -66,6 +72,8 @@ function EpisodePanelComponent({
   onOpenChange,
   controlsVisible,
 }: EpisodePanelProps) {
+  const isTvCompat = useIsTvCompat();
+  const panelRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [loadRequested, setLoadRequested] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState(nav.currentSeason);
@@ -99,9 +107,39 @@ function EpisodePanelComponent({
     }
   }, [controlsVisible, isOpen, setOpen]);
 
+  useEffect(() => {
+    if (!isOpen || !isTvCompat) {
+      return;
+    }
+
+    const handler = (event: KeyboardEvent) => {
+      if (isBackKey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [isOpen, isTvCompat, setOpen]);
+
   const visibleEpisodes = useMemo(() => {
     return seasons.find((season) => season.seasonNumber === selectedSeason)?.episodes ?? [];
   }, [seasons, selectedSeason]);
+
+  useEffect(() => {
+    if (!isOpen || !isTvCompat || !panelRef.current) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      if (panelRef.current) {
+        focusFirstInRoot(panelRef.current);
+      }
+    });
+  }, [isOpen, isTvCompat, visibleEpisodes.length, selectedSeason, isLoading]);
 
   const handleToggle = useCallback(() => {
     if (!isOpen) {
@@ -151,18 +189,23 @@ function EpisodePanelComponent({
       >
         <button
           type="button"
+          data-tv-focusable={isTvCompat ? true : undefined}
           onClick={handleToggle}
           aria-label={isOpen ? "بستن لیست قسمت‌ها" : "لیست قسمت‌ها"}
           aria-expanded={isOpen}
           className={`inline-flex h-11 w-11 items-center justify-center rounded-lg text-white transition ${
-            isOpen ? "bg-white/15" : "bg-black/35 hover:bg-black/50"
-          }`}
+            isTvCompat ? TV_FOCUS_RING_CLASS : ""
+          } ${isOpen ? "bg-white/15" : "bg-black/35 hover:bg-black/50"}`}
         >
           <HiOutlineMenuAlt2 className="h-6 w-6" />
         </button>
 
         {isOpen ? (
           <div
+            ref={panelRef}
+            role={isTvCompat ? "dialog" : undefined}
+            aria-label={isTvCompat ? "لیست قسمت‌ها" : undefined}
+            data-tv-focus-group="episode-panel"
             className="absolute top-full right-0 mt-2 flex w-[min(92vw,22rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#0b0f14]/95 shadow-2xl backdrop-blur-md sm:w-[24rem]"
             onClick={(event) => event.stopPropagation()}
           >
@@ -194,8 +237,11 @@ function EpisodePanelComponent({
                       <button
                         key={season.seasonNumber}
                         type="button"
+                        data-tv-focusable={isTvCompat ? true : undefined}
                         onClick={() => setSelectedSeason(season.seasonNumber)}
                         className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                          isTvCompat ? TV_FOCUS_RING_CLASS : ""
+                        } ${
                           active
                             ? "border border-white bg-white/10 text-white"
                             : "border border-transparent bg-black/30 text-white/70 hover:bg-white/5"
@@ -219,11 +265,15 @@ function EpisodePanelComponent({
                       <button
                         key={`${ep.seasonNumber}-${ep.episodeNumber}`}
                         type="button"
+                        data-tv-focusable={isTvCompat ? true : undefined}
+                        data-tv-grid-item={isTvCompat ? true : undefined}
                         disabled={!playable}
                         onClick={() =>
                           handleSelect(ep.seasonNumber, ep.episodeNumber, playable)
                         }
                         className={`flex w-full items-center gap-3 px-4 py-3 text-right transition ${
+                          isTvCompat ? TV_FOCUS_RING_CLASS : ""
+                        } ${
                           isCurrent
                             ? "bg-white/10"
                             : playable

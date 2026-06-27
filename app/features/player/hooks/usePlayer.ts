@@ -186,6 +186,19 @@ function applyInitialSubtitleTrack(
   getActions().setSelectedSubtitle(trackIndex);
 }
 
+function resolvePlayerConfig(video: HTMLVideoElement) {
+  const caps = detectDeviceCapabilities({ video });
+  if (!caps.isTv) {
+    return DEFAULT_PLAYER_CONFIG;
+  }
+
+  return {
+    ...DEFAULT_PLAYER_CONFIG,
+    watchdogTimeoutMs: 14_000,
+    maxRecoveryRetries: 4,
+  };
+}
+
 /** Stable store actions — never subscribe to the full store in this hook. */
 function getActions() {
   return usePlayerStore.getState();
@@ -224,6 +237,7 @@ export function usePlayer({
   const tracksReadyRef = useRef(false);
   const audioTrackInitializedRef = useRef(false);
   const subtitleTrackInitializedRef = useRef(false);
+  const loadedSrcRef = useRef<string | null>(null);
 
   initialResumeTimeRef.current = initialResumeTime;
   startupModeRef.current = startupMode;
@@ -435,35 +449,11 @@ export function usePlayer({
       return;
     }
 
-    autoplayAttemptedRef.current = false;
-    startupCompleteRef.current = false;
-    resumeSeekDoneRef.current = false;
-    tracksReadyRef.current = false;
-    audioTrackInitializedRef.current = false;
-    subtitleTrackInitializedRef.current = false;
-    getActions().resetForNewMedia();
     const caps = detectDeviceCapabilities({ video });
     getActions().setCapabilities(caps);
     const prefs = loadPlayerPreferences();
 
-    const scheduleStartupFallback = () => {
-      if (startupFallbackTimerRef.current !== null) {
-        return;
-      }
-
-      startupFallbackTimerRef.current = window.setTimeout(() => {
-        void runStartupPlayback();
-      }, 5000);
-    };
-
-    const onCanPlayStartup = () => {
-      void runStartupPlayback();
-    };
-
-    video.addEventListener("canplay", onCanPlayStartup, { once: true });
-    scheduleStartupFallback();
-
-    const controller = new PlayerController(DEFAULT_PLAYER_CONFIG, {
+    const controller = new PlayerController(resolvePlayerConfig(video), {
       onPlaybackTick: (tick) => {
         getActions().applyPlaybackTick(tick);
       },
@@ -666,7 +656,69 @@ export function usePlayer({
       getActions().applySnapshot({ currentBandwidthMbps: data.estimateMbps });
     });
 
-    void controller.load(video, mediaRef.current).then(() => {
+    return () => {
+      if (controlsTimerRef.current) {
+        window.clearTimeout(controlsTimerRef.current);
+      }
+      if (countdownTimerRef.current) {
+        window.clearInterval(countdownTimerRef.current);
+      }
+      prefetchAbortRef.current?.abort();
+      controller.destroy();
+      controllerRef.current = null;
+      loadedSrcRef.current = null;
+    };
+  }, [subtitleLayerRef, syncTrackOptions]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const controller = controllerRef.current;
+    if (!video || !controller || !media.src) {
+      return;
+    }
+
+    const isSourceChange =
+      loadedSrcRef.current !== null && loadedSrcRef.current !== media.src;
+    const isFirstLoad = loadedSrcRef.current === null;
+
+    if (!isFirstLoad && !isSourceChange) {
+      return;
+    }
+
+    autoplayAttemptedRef.current = false;
+    startupCompleteRef.current = false;
+    resumeSeekDoneRef.current = false;
+    tracksReadyRef.current = false;
+    audioTrackInitializedRef.current = false;
+    subtitleTrackInitializedRef.current = false;
+    getActions().resetForNewMedia();
+
+    const prefs = loadPlayerPreferences();
+
+    const scheduleStartupFallback = () => {
+      if (startupFallbackTimerRef.current !== null) {
+        return;
+      }
+
+      startupFallbackTimerRef.current = window.setTimeout(() => {
+        void runStartupPlayback();
+      }, 5000);
+    };
+
+    const onCanPlayStartup = () => {
+      void runStartupPlayback();
+    };
+
+    video.addEventListener("canplay", onCanPlayStartup, { once: true });
+    scheduleStartupFallback();
+
+    const loadTask = isSourceChange
+      ? controller.reloadSource(mediaRef.current)
+      : controller.load(video, mediaRef.current);
+
+    loadedSrcRef.current = media.src;
+
+    void loadTask.then(() => {
       tracksReadyRef.current = true;
       if (prefs.qualityLevel !== undefined && prefs.qualityLevel >= 0) {
         controller.setQuality(prefs.qualityLevel);
@@ -687,17 +739,8 @@ export function usePlayer({
         window.clearTimeout(startupFallbackTimerRef.current);
         startupFallbackTimerRef.current = null;
       }
-      if (controlsTimerRef.current) {
-        window.clearTimeout(controlsTimerRef.current);
-      }
-      if (countdownTimerRef.current) {
-        window.clearInterval(countdownTimerRef.current);
-      }
-      prefetchAbortRef.current?.abort();
-      controller.destroy();
-      controllerRef.current = null;
     };
-  }, [media.src, runStartupPlayback, subtitleLayerRef, syncTrackOptions]);
+  }, [media.src, runStartupPlayback]);
 
   useEffect(() => {
     const controller = controllerRef.current;

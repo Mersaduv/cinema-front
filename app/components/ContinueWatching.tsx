@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { HiOutlineXMark } from "react-icons/hi2";
+import { HiMiniPlay, HiOutlineXMark } from "react-icons/hi2";
 import { useAuth } from "../contexts/AuthContext";
 import { tokenStorage } from "../lib/token-storage";
 import {
@@ -10,7 +10,11 @@ import {
   ProgressTracker,
 } from "../features/player/services/ProgressTracker";
 import type { WatchProgressRecord } from "../features/player/services/progress.types";
-import { PosterImage } from "./images";
+import ContentListSlider from "./catalog/ContentListSlider";
+import { BackdropImage, PosterImage } from "./images";
+import { VIEWER_ACCENT } from "../lib/viewer-theme";
+import { TV_CARD_FOCUS_CLASS, TV_FOCUS_RING_CLASS } from "../lib/tv/focus";
+import { useIsTvCompat } from "../hooks/useTvCapabilities";
 
 function buildWatchHref(record: WatchProgressRecord): string | null {
   if (record.mediaType === "series") {
@@ -141,41 +145,91 @@ function mergeProgressRows(
   return [...merged, ...localOnlyRows];
 }
 
+const LANDSCAPE_SLIDE_CLASS =
+  "shrink-0 snap-start w-[62%] min-w-[220px] max-w-[340px] sm:w-[44%] md:w-[34%] lg:w-[26%] xl:w-[22%]";
+
+const POSTER_SLIDE_CLASS =
+  "shrink-0 snap-start w-[148px] min-w-[148px] max-w-[168px] sm:w-[168px]";
+
 function ContinueWatchingCard({
   record,
   onRemove,
+  layout,
+  index = 0,
 }: {
   record: WatchProgressRecord;
   onRemove: (record: WatchProgressRecord) => void;
+  layout: "poster" | "landscape";
+  index?: number;
 }) {
+  const isTvCompat = useIsTvCompat();
   const href = buildWatchHref(record);
 
   if (!href) {
     return null;
   }
 
+  const isLandscape = layout === "landscape";
+  const cardTitle = record.title || "ادامه تماشا";
+  const imageLoading = isTvCompat && index < 8 ? "eager" : undefined;
+  const shellAttrs = isLandscape
+    ? { "data-tv-landscape-shell": true }
+    : { "data-tv-poster-shell": true };
+
   return (
-    <div className="group relative w-[148px] shrink-0 sm:w-[168px]">
-      <Link href={href} data-tv-focusable className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#38bdf8]">
-        <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#12161f]">
-          <PosterImage
-            title={record.title || "ادامه تماشا"}
-            src={resolveCardImage(record)}
-            usage="poster-grid"
-            wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04]"
-          />
+    <div className={`group relative ${isLandscape ? "w-full" : ""}`}>
+      <Link
+        href={href}
+        aria-label={cardTitle}
+        data-tv-focusable
+        data-tv-carousel-item
+        tabIndex={0}
+        className={`block rounded-xl ${TV_FOCUS_RING_CLASS}`}
+      >
+        <div
+          {...shellAttrs}
+          className={`relative overflow-hidden rounded-xl bg-[#12161f] ${
+            isLandscape ? "aspect-video" : "aspect-[2/3]"
+          }`}
+        >
+          {isLandscape ? (
+            <BackdropImage
+              title={cardTitle}
+              src={resolveCardImage(record)}
+              usage="detail-backdrop"
+              loading={imageLoading}
+              wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
+            />
+          ) : (
+            <PosterImage
+              title={cardTitle}
+              src={resolveCardImage(record)}
+              usage="poster-grid"
+              loading={imageLoading}
+              wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
+            />
+          )}
+
           <div
-            className="absolute inset-x-0 bottom-0 h-1 bg-white/15"
-            dir="ltr"
+            className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 ${TV_CARD_FOCUS_CLASS}`}
           >
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md">
+              <HiMiniPlay className="h-7 w-7" />
+            </span>
+          </div>
+
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1 bg-white/15" dir="ltr">
             <div
-              className="h-full origin-left bg-[#ef4444] transition-all"
-              style={{ width: `${Math.min(100, record.percentWatched)}%` }}
+              className="h-full transition-all"
+              style={{
+                width: `${Math.min(100, record.percentWatched)}%`,
+                backgroundColor: VIEWER_ACCENT,
+              }}
             />
           </div>
         </div>
-        <p className="mt-2 line-clamp-2 text-right text-xs font-medium text-white/90">
-          {record.title || "بدون عنوان"}
+        <p className="mt-2 line-clamp-2 text-right text-xs font-medium text-white/90 md:text-sm">
+          {cardTitle}
         </p>
         {record.mediaType === "series" &&
         record.seasonNumber &&
@@ -188,8 +242,9 @@ function ContinueWatchingCard({
       <button
         type="button"
         aria-label="حذف از تاریخچه"
+        data-tv-focusable
         onClick={() => onRemove(record)}
-        className="absolute top-2 left-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white/80 opacity-0 transition hover:bg-black group-hover:opacity-100"
+        className={`absolute top-2 left-2 z-30 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white/80 opacity-0 transition hover:bg-black group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 ${TV_FOCUS_RING_CLASS} ${TV_CARD_FOCUS_CLASS}`}
       >
         <HiOutlineXMark className="h-4 w-4" />
       </button>
@@ -201,10 +256,12 @@ export default function ContinueWatching({
   mediaType,
   showCompleted = false,
   limit = 20,
+  layout = "landscape",
 }: {
   mediaType: "movie" | "series" | "all";
   showCompleted?: boolean;
   limit?: number;
+  layout?: "poster" | "landscape";
 }) {
   const { user, isAuthenticated } = useAuth();
   const [items, setItems] = useState<WatchProgressRecord[]>([]);
@@ -351,20 +408,29 @@ export default function ContinueWatching({
     return null;
   }
 
+  const slideClass = layout === "landscape" ? LANDSCAPE_SLIDE_CLASS : POSTER_SLIDE_CLASS;
+
   return (
-    <section className="mb-8" dir="rtl">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white md:text-xl">{heading}</h2>
+    <section className="space-y-4" dir="rtl">
+      <div className="flex items-center justify-between">
+        <h2 className="text-right text-lg font-bold text-white md:text-xl">{heading}</h2>
       </div>
-      <div className="flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {playableItems.map((record) => (
-          <ContinueWatchingCard
+      <ContentListSlider ariaLabel={heading}>
+        {playableItems.map((record, index) => (
+          <div
             key={`${record.mediaId}:${record.episodeId ?? "movie"}`}
-            record={record}
-            onRemove={handleRemove}
-          />
+            data-slider-slide
+            className={slideClass}
+          >
+            <ContinueWatchingCard
+              record={record}
+              onRemove={handleRemove}
+              layout={layout}
+              index={index}
+            />
+          </div>
         ))}
-      </div>
+      </ContentListSlider>
     </section>
   );
 }

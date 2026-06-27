@@ -1,3 +1,5 @@
+import { fetchWithPlaybackTimeout } from "../../lib/playback-fetch";
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
@@ -21,7 +23,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const upstream = await fetch(src, {
+    const upstream = await fetchWithPlaybackTimeout(src, {
       headers: { "User-Agent": "Cinema-SubtitleProxy/1.0" },
     });
 

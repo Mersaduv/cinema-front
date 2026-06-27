@@ -123,6 +123,8 @@ function ControlBarComponent({
   const showNextEpisodePrompt = usePlayerStore((s) => s.showNextEpisodePrompt);
   const isTv = usePlayerStore((s) => s.isTv);
 
+  const tvFocus = isTv ? ({ "data-tv-focusable": true as const }) : {};
+
   const openMenuExclusive = (menu: NonNullable<typeof openMenu>) => {
     setSubtitlePanel("tracks");
     setOpenMenu(openMenu === menu ? null : menu);
@@ -190,6 +192,7 @@ function ControlBarComponent({
             type="button"
             data-player-controls
             tabIndex={0}
+            {...tvFocus}
             onClick={onTogglePlay}
             aria-label={isPlaying ? "توقف" : "پخش"}
             className={playButtonClass}
@@ -205,6 +208,7 @@ function ControlBarComponent({
             type="button"
             data-player-controls
             tabIndex={0}
+            {...tvFocus}
             onClick={() => onSeekBy(-10)}
             aria-label="عقب ۱۰ ثانیه"
             className={iconButtonClass}
@@ -216,6 +220,7 @@ function ControlBarComponent({
             type="button"
             data-player-controls
             tabIndex={0}
+            {...tvFocus}
             onClick={() => onSeekBy(10)}
             aria-label="جلو ۱۰ ثانیه"
             className={iconButtonClass}
@@ -226,6 +231,7 @@ function ControlBarComponent({
           <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-2 text-white">
             <button
               type="button"
+              {...tvFocus}
               onClick={onToggleMute}
               aria-label={isMuted ? "روشن کردن صدا" : "قطع صدا"}
               className="inline-flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-white/10"
@@ -259,6 +265,7 @@ function ControlBarComponent({
           {hasSeriesNav && onPrevEpisode ? (
             <button
               type="button"
+              {...tvFocus}
               onClick={onPrevEpisode}
               className="inline-flex h-11 items-center rounded-full border border-white/10 bg-black/35 px-4 text-sm text-white hover:bg-black/50"
             >
@@ -269,6 +276,7 @@ function ControlBarComponent({
           {showNextEpisodePrompt && onNextEpisode ? (
             <button
               type="button"
+              {...tvFocus}
               onClick={onNextEpisode}
               className="inline-flex h-11 items-center rounded-full bg-white px-5 text-sm font-bold text-black"
             >
