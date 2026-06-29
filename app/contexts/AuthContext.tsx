@@ -22,7 +22,9 @@ interface AuthContextType {
   user: User | null;
   /** True only while verifying a stored token with no cached user snapshot. */
   loading: boolean;
-  /** Synchronous token presence — available immediately on mount. */
+  /** False until client has read localStorage — keeps SSR/hydration markup stable. */
+  authReady: boolean;
+  /** Token presence after client hydration. */
   hasToken: boolean;
   isAuthenticated: boolean;
   isRefreshing: boolean;
@@ -47,6 +49,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const defaultAuthContext: AuthContextType = {
   user: null,
   loading: false,
+  authReady: false,
   hasToken: false,
   isAuthenticated: false,
   isRefreshing: false,
@@ -64,12 +67,10 @@ function readHasToken(): boolean {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [hasToken, setHasToken] = useState(readHasToken);
-
-  const [user, setUser] = useState<User | null>(() => peekCachedSessionUser());
-  const [loading, setLoading] = useState(
-    () => Boolean(tokenStorage.getToken()) && !peekCachedSessionUser(),
-  );
+  const [hasToken, setHasToken] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const refreshUser = useCallback(
@@ -125,27 +126,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const token = tokenStorage.getToken();
-    setHasToken(Boolean(token));
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-
-    const cached = peekCachedSessionUser();
-    if (cached) {
-      setUser(cached);
-      setLoading(false);
-    }
-
     let cancelled = false;
 
-    void (async () => {
-      const needsPermissions =
-        typeof window !== "undefined" &&
-        window.location.pathname.startsWith("/admin");
+    const bootstrap = async () => {
+      const token = tokenStorage.getToken();
+      setHasToken(Boolean(token));
 
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        setAuthReady(true);
+        return;
+      }
+
+      const cached = peekCachedSessionUser();
+      if (cached) {
+        setUser(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
+      setAuthReady(true);
+
+      const needsPermissions = window.location.pathname.startsWith("/admin");
       const result = await fetchCurrentSession({
         includePermissions: needsPermissions,
       });
@@ -163,12 +167,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setLoading(false);
-    })();
+    };
+
+    void bootstrap();
 
     return () => {
       cancelled = true;
     };
-  }, [hasToken]);
+  }, []);
 
   const login = async (email: string, password: string) => {
     try {
@@ -273,6 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       loading,
+      authReady,
       hasToken,
       isAuthenticated: Boolean(user),
       isRefreshing,
@@ -286,6 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [
       user,
       loading,
+      authReady,
       hasToken,
       isRefreshing,
       hasRole,

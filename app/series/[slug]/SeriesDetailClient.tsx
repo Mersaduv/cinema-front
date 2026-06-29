@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
-import { AuthProvider } from "@/app/contexts/AuthContext";
 import ContentDetailPage from "../../components/content/ContentDetailPage";
 import ContentPreviewBanner from "../../components/content/ContentPreviewBanner";
 import DetailScrollReset from "../../components/content/DetailScrollReset";
@@ -138,7 +137,7 @@ export default function SeriesDetailClient({
   );
 
   return (
-    <AuthProvider>
+    <>
       <DetailScrollReset />
       {previewMode ? <ContentPreviewBanner /> : null}
       <ContentDetailPage
@@ -161,6 +160,6 @@ export default function SeriesDetailClient({
           }
         }}
       />
-    </AuthProvider>
+    </>
   );
 }

@@ -24,7 +24,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { login, isAuthenticated, loading: authLoading } = useAuth();
+  const { login, isAuthenticated, authReady, loading: authLoading } = useAuth();
   const router = useRouter();
   const isTvCompat = useIsTvCompat();
 
@@ -40,10 +40,10 @@ export default function LoginPage() {
 
   // Redirect if already authenticated (using useEffect to avoid render error)
   useEffect(() => {
-    if (!authLoading && isAuthenticated) {
+    if (authReady && !authLoading && isAuthenticated) {
       router.replace(resolveRedirect());
     }
-  }, [authLoading, isAuthenticated, router]);
+  }, [authReady, authLoading, isAuthenticated, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

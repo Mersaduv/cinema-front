@@ -85,7 +85,8 @@ export default async function PublicSeriesPage({
         <SeriesDetailClient series={series} />
       </>
     );
-  } catch {
-    notFound();
+  } catch (error) {
+    console.error("[PublicSeriesPage]", slug, error);
+    throw error;
   }
 }

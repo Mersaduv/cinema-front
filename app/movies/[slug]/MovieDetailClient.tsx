@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
-import { AuthProvider } from "@/app/contexts/AuthContext";
 import ContentDetailPage from "../../components/content/ContentDetailPage";
 import ContentPreviewBanner from "../../components/content/ContentPreviewBanner";
 import DetailScrollReset from "../../components/content/DetailScrollReset";
@@ -121,7 +120,7 @@ export default function MovieDetailClient({
   );
 
   return (
-    <AuthProvider>
+    <>
       <DetailScrollReset />
       {previewMode ? <ContentPreviewBanner /> : null}
       <ContentDetailPage
@@ -139,6 +138,6 @@ export default function MovieDetailClient({
           toCatalogItem(item as unknown as Record<string, unknown>, "has_dubbed_audio"),
         )}
       />
-    </AuthProvider>
+    </>
   );
 }

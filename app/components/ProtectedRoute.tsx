@@ -19,7 +19,7 @@ export default function ProtectedRoute({
   requirePermission,
   redirectTo = '/login',
 }: ProtectedRouteProps) {
-  const { loading, isAuthenticated, hasToken, hasRole, hasPermission } = useAuth();
+  const { loading, isAuthenticated, hasToken, authReady, hasRole, hasPermission } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -29,7 +29,7 @@ export default function ProtectedRoute({
       : redirectTo;
 
   useEffect(() => {
-    if (loading) return;
+    if (!authReady || loading) return;
 
     if (requireAuth && !hasToken) {
       router.push(loginRedirect);
@@ -65,6 +65,7 @@ export default function ProtectedRoute({
       }
     }
   }, [
+    authReady,
     loading,
     hasToken,
     isAuthenticated,
@@ -76,6 +77,21 @@ export default function ProtectedRoute({
     router,
     loginRedirect,
   ]);
+
+  if (!authReady && requireAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#121212]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#f5c518]"></div>
+          <p className="mt-4 text-gray-400">در حال بارگذاری...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authReady) {
+    return <>{children}</>;
+  }
 
   if (loading && requireAuth && hasToken && !isAuthenticated) {
     return (

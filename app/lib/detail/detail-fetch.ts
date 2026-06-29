@@ -44,6 +44,7 @@ export const fetchMovieCriticalBySlug = cache(async (slug: string) => {
     {
       revalidate: DETAIL_MOVIE_REVALIDATE,
       tags: ["movies", `movie:${slug}`, `movie-critical:${slug}`],
+      retries: 3,
     },
   );
 
@@ -79,6 +80,7 @@ export const fetchSeriesCriticalBySlug = cache(async (slug: string) => {
     {
       revalidate: DETAIL_SERIES_REVALIDATE,
       tags: ["series", `series:${slug}`, `series-critical:${slug}`],
+      retries: 3,
     },
   );
 

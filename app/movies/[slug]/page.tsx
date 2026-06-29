@@ -78,7 +78,8 @@ export default async function PublicMoviePage({
         <MovieDetailClient movie={movie} />
       </>
     );
-  } catch {
-    notFound();
+  } catch (error) {
+    console.error("[PublicMoviePage]", slug, error);
+    throw error;
   }
 }
