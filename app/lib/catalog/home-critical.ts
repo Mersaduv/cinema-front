@@ -1,7 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
 import type { FilterOptions } from "../filter-options";
 import { fetchFilterOptions } from "../filter-options";
-import { getAppBaseUrl } from "../app-base-url";
 import { HOME_RAIL_CAROUSEL_PER_PAGE } from "./carousel-config";
 import {
   HOME_FEATURED_POOL,
@@ -126,15 +125,7 @@ export async function getCriticalHomeData(): Promise<HomeCriticalData> {
   cacheLife("hero");
   cacheTag("home-critical");
 
-  const baseUrl = getAppBaseUrl();
-  const response = await fetch(`${baseUrl}/api/home-critical`, {
-    headers: { Accept: "application/json" },
-    next: { tags: ["home-critical"] },
-  });
-
-  if (!response.ok) {
-    return loadCriticalHomeData();
-  }
-
-  return (await response.json()) as HomeCriticalData;
+  // Direct call — avoids HTTP loopback to /api/home-critical during `next build`
+  // when the Next server is not listening (ECONNREFUSED).
+  return getCachedCriticalHomePayload();
 }
