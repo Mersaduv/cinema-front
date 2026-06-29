@@ -8,8 +8,6 @@ import { parseCatalogFilters } from "../lib/catalog/search-params";
 import { fetchMoviesCatalogRest } from "../lib/catalog/rest";
 import { fetchFilterOptions } from "../lib/filter-options";
 
-export const dynamic = "force-dynamic";
-
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function MoviesCatalogPage({

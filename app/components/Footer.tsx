@@ -250,7 +250,7 @@ function FooterContent() {
         </div>
 
         <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-6 text-xs text-white/38">
-          <p>© {new Date().getFullYear()} سینما — ارائه‌شده توسط آریابُد</p>
+          <p>© 2026 سینما — ارائه‌شده توسط آریابُد</p>
           <a
             href="https://ariyabod.af/"
             target="_blank"

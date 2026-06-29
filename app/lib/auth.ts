@@ -58,8 +58,10 @@ export const authService = {
     return apiClient.post('/logout');
   },
 
-  async me() {
-    return apiClient.get<{ user: User }>('/me');
+  async me(options?: { includePermissions?: boolean }) {
+    const query =
+      options?.includePermissions === true ? "?include_permissions=1" : "";
+    return apiClient.get<{ user: User }>(`/me${query}`);
   },
 };
 

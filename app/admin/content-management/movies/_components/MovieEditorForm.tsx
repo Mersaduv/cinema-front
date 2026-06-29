@@ -19,6 +19,13 @@ import AdminScheduleDateTimePicker from "../../../../components/admin/AdminSched
 import AdminSelect from "../../../../components/admin/AdminSelect";
 import EditorPublishSubmitBar from "../../../../components/admin/EditorPublishSubmitBar";
 import MovieFormStatusPanel from "../../../../components/admin/MovieFormStatusPanel";
+import TmdbTitleSearch from "../../../../components/admin/TmdbTitleSearch";
+import FormDraftBanner from "../../../../components/admin/FormDraftBanner";
+import SeoFieldsPanel from "../../../../components/admin/SeoFieldsPanel";
+import {
+  ContentWarningsField,
+  ExternalIdsSection,
+} from "../../../../components/admin/ContentMetadataFormFields";
 import PublishOutcomeModal, {
   type PublishOutcomeStatus,
 } from "../../../../components/admin/PublishOutcomeModal";
@@ -68,13 +75,28 @@ import {
   translateProductionStatus,
   translatePublishStatus,
 } from "../../../../lib/production-status";
+import {
+  SlugAvailabilityHint,
+  useSlugAvailability,
+} from "../../../../hooks/useSlugAvailability";
+import {
+  clearDraft,
+  movieDraftKey,
+  stripMovieDraftFields,
+  useDebouncedDraftSave,
+  useFormDraftRecovery,
+} from "../../../../lib/form-draft";
+import { fingerprintMovie } from "../../../../lib/form-fingerprint";
+import {
+  clearPendingMoviePublish,
+  loadPendingMoviePublish,
+  savePendingMoviePublish,
+} from "../../../../lib/pending-publish";
+import PendingPublishBanner from "../../../../components/admin/PendingPublishBanner";
+import ContentChangeHistoryPanel from "../../../../components/admin/ContentChangeHistoryPanel";
 
 type Mode = "create" | "edit";
-type EditorTab = "details" | "media" | "publish";
-
-function movieFormBodyFingerprint(form: MovieEditorFormState): string {
-  return JSON.stringify(form);
-}
+type EditorTab = "details" | "media" | "seo" | "publish";
 
 const ageRatingOptions = [
   { value: "", label: "بدون درجه سنی", description: "در صورت نیاز بعداً تعیین می‌شود" },
@@ -88,6 +110,7 @@ const ageRatingOptions = [
 const tabs: Array<{ key: EditorTab; label: string }> = [
   { key: "details", label: "جزئیات" },
   { key: "media", label: "لینک‌ها" },
+  { key: "seo", label: "سئو" },
   { key: "publish", label: "انتشار" },
 ];
 
@@ -162,6 +185,11 @@ type MovieEditorFormState = {
   release_year: string;
   tmdb_id: string;
   imdb_id: string;
+  homepage_url: string;
+  meta_title: string;
+  meta_description: string;
+  content_warnings: string[];
+  dash_url: string;
   rating: string;
   popularity: string;
   vote_count: string;
@@ -189,6 +217,9 @@ type MovieEditorFormState = {
   actors: TmdbActor[];
   crew: MovieCrewFormRow[];
   belongs_to_collection: TmdbBelongsToCollection | null;
+  is_featured: boolean;
+  catalog_visibility: string;
+  admin_notes: string;
 };
 
 type MovieEditorTextField = Exclude<
@@ -202,6 +233,7 @@ type MovieEditorTextField = Exclude<
   | "actors"
   | "crew"
   | "download_links"
+  | "content_warnings"
 >;
 
 type MovieEditorArrayField = Extract<
@@ -218,12 +250,19 @@ const arrayFieldLabels: Record<MovieEditorArrayField, string> = {
   countries: "کشورها",
 };
 
-const tabOrder: EditorTab[] = ["details", "media", "publish"];
+const tabOrder: EditorTab[] = ["details", "media", "seo", "publish"];
 
 const moviePublishStatusOptions = [
   { value: "draft", label: "پیش نویس", description: "در سایت عمومی نمایش داده نمی شود" },
   { value: "scheduled", label: "زمان بندی شده", description: "در زمان تعیین شده منتشر می شود" },
   { value: "published", label: "منتشر شده", description: "اکنون در سایت قابل مشاهده است" },
+];
+
+const movieCatalogVisibilityOptions = [
+  { value: "catalog_search", label: "کاتالوگ و جستجو", description: "نمایش در لیست‌ها و نتایج جستجو" },
+  { value: "catalog", label: "فقط کاتالوگ", description: "فقط در صفحات لیست فیلم‌ها" },
+  { value: "search", label: "فقط جستجو", description: "فقط در نتایج جستجو" },
+  { value: "hidden", label: "مخفی", description: "فقط از طریق لینک مستقیم قابل دسترسی است" },
 ];
 
 function createInitialFormState(): MovieEditorFormState {
@@ -238,6 +277,11 @@ function createInitialFormState(): MovieEditorFormState {
     release_year: "",
     tmdb_id: "",
     imdb_id: "",
+    homepage_url: "",
+    meta_title: "",
+    meta_description: "",
+    content_warnings: [],
+    dash_url: "",
     rating: "",
     popularity: "",
     vote_count: "",
@@ -265,6 +309,9 @@ function createInitialFormState(): MovieEditorFormState {
     actors: [],
     crew: [],
     belongs_to_collection: null,
+    is_featured: false,
+    catalog_visibility: "catalog_search",
+    admin_notes: "",
   };
 }
 
@@ -385,13 +432,16 @@ export default function MovieEditorForm({
   const latestTmdbRequestRef = useRef("");
   const tmdbImageIngestAbortRef = useRef<AbortController | null>(null);
   const formTopRef = useRef<HTMLDivElement | null>(null);
-  const movieFormBodyFingerprintRef = useRef("");
+  const fingerprintMovieRef = useRef("");
   const pendingNavigationRef = useRef<string | null>(null);
   const hlsPreviewGenerationRef = useRef(0);
   const [form, setForm] = useState<MovieEditorFormState>(createInitialFormState);
   const [hlsSyncMessage, setHlsSyncMessage] = useState("");
   const [publishStatus, setPublishStatus] = useState<PublishStatus>("draft");
   const [scheduledFor, setScheduledFor] = useState("");
+  const [pendingPublishVisible, setPendingPublishVisible] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const publishIdempotencyKeyRef = useRef("");
 
   const sortedActorsWithIndex = useMemo(() => {
     const rows = form.actors
@@ -459,6 +509,11 @@ export default function MovieEditorForm({
             ? String(nextMovie.metadata.tmdb.tmdb_id)
             : "",
           imdb_id: nextMovie.metadata?.tmdb?.imdb_id || "",
+          homepage_url: nextMovie.metadata?.tmdb?.homepage_url || "",
+          meta_title: nextMovie.metadata?.seo?.meta_title || "",
+          meta_description: nextMovie.metadata?.seo?.meta_description || "",
+          content_warnings: nextMovie.metadata?.content_warnings || [],
+          dash_url: nextMovie.metadata?.playback?.dash_url || "",
           rating:
             typeof nextMovie.metadata?.tmdb?.rating === "number"
               ? String(nextMovie.metadata.tmdb.rating)
@@ -519,12 +574,22 @@ export default function MovieEditorForm({
           crew: initialCrew,
           belongs_to_collection:
             nextMovie.metadata?.tmdb?.belongs_to_collection ?? null,
+          is_featured: Boolean(nextMovie.is_featured),
+          catalog_visibility: nextMovie.catalog_visibility || "catalog_search",
+          admin_notes:
+            nextMovie.admin_notes ||
+            nextMovie.metadata?.admin_notes ||
+            "",
         };
         setForm(loadedForm);
+        setPendingPublishVisible(
+          Boolean(nextMovie.publish_completion_pending) ||
+            Boolean(loadPendingMoviePublish(nextMovie.id)),
+        );
         setLastFetchedTmdbCode(
           normalizeTmdbCodeInput(loadedForm.tmdb_id || loadedForm.tmdb_query),
         );
-        movieFormBodyFingerprintRef.current = movieFormBodyFingerprint(loadedForm);
+        fingerprintMovieRef.current = fingerprintMovie(loadedForm);
         setPublishStatus(nextMovie.publish_status || "draft");
         setScheduledFor(apiDateTimeToInputValue(nextMovie.scheduled_for));
       }
@@ -827,9 +892,39 @@ export default function MovieEditorForm({
       ? isDetailsTabComplete
       : activeTab === "media"
         ? isMediaTabComplete
-        : false;
+        : activeTab === "seo"
+          ? true
+          : false;
 
-  const canSubmitForm = isDetailsTabComplete && isMediaTabComplete;
+  const slugAvailability = useSlugAvailability({
+    slug: form.slug,
+    excludeId: movie?.id ?? movieId,
+    check: adminMoviesService.checkSlug,
+  });
+
+  const movieDraftStorageKey = movieDraftKey(null);
+  const draftRecovery = useFormDraftRecovery<MovieEditorFormState>({
+    enabled: mode === "create" && !loading,
+    draftKey: movieDraftStorageKey,
+    onRestore: (draft) => {
+      setForm((current) => ({
+        ...current,
+        ...draft,
+      }));
+    },
+  });
+
+  useDebouncedDraftSave(
+    movieDraftStorageKey,
+    stripMovieDraftFields(form),
+    mode === "create" && !loading,
+  );
+
+  const canSubmitForm =
+    isDetailsTabComplete &&
+    isMediaTabComplete &&
+    !slugAvailability.isChecking &&
+    !slugAvailability.isTaken;
 
   useEffect(() => {
     if (searchParams.get("tab") === "publish") {
@@ -844,6 +939,9 @@ export default function MovieEditorForm({
     if (target === "media") {
       return isDetailsTabComplete;
     }
+    if (target === "seo") {
+      return isDetailsTabComplete && isMediaTabComplete;
+    }
     return isDetailsTabComplete && isMediaTabComplete;
   };
 
@@ -852,7 +950,9 @@ export default function MovieEditorForm({
       setError(
         target === "media"
           ? "ابتدا مرحله جزئیات را کامل کن."
-          : "ابتدا مراحل جزئیات و لینک‌ها را کامل کن."
+          : target === "seo"
+            ? "ابتدا مراحل جزئیات و لینک‌ها را کامل کن."
+            : "ابتدا مراحل جزئیات و لینک‌ها را کامل کن."
       );
       return;
     }
@@ -950,7 +1050,8 @@ export default function MovieEditorForm({
       ),
       release_year: payload.release_year ? String(payload.release_year) : current.release_year,
       tmdb_id: payload.tmdb_id ? String(payload.tmdb_id) : current.tmdb_id,
-      imdb_id: payload.imdb_id || current.imdb_id,
+      imdb_id: current.imdb_id.trim() || payload.imdb_id || current.imdb_id,
+      homepage_url: current.homepage_url.trim() || payload.homepage_url || current.homepage_url,
       rating: typeof payload.rating === "number" ? String(payload.rating) : current.rating,
       popularity:
         typeof payload.popularity === "number" ? String(payload.popularity) : current.popularity,
@@ -1194,6 +1295,19 @@ export default function MovieEditorForm({
     if (form.imdb_id.trim()) {
       formData.append("imdb_id", form.imdb_id.trim());
     }
+    if (form.homepage_url.trim()) {
+      formData.append("homepage_url", form.homepage_url.trim());
+    }
+    if (form.meta_title.trim()) {
+      formData.append("meta_title", form.meta_title.trim());
+    }
+    if (form.meta_description.trim()) {
+      formData.append("meta_description", form.meta_description.trim());
+    }
+    if (form.drm_scheme !== "none" && form.dash_url.trim()) {
+      formData.append("dash_url", form.dash_url.trim());
+    }
+    form.content_warnings.forEach((value) => formData.append("content_warnings[]", value));
     if (form.tmdb_query.trim()) {
       formData.append("tmdb_query", form.tmdb_query.trim());
     }
@@ -1245,6 +1359,9 @@ export default function MovieEditorForm({
     if (form.drm_scheme !== "none" && form.drm_license_url.trim()) {
       formData.append("drm_license_url", form.drm_license_url.trim());
     }
+    formData.append("is_featured", form.is_featured ? "1" : "0");
+    formData.append("catalog_visibility", form.catalog_visibility || "catalog_search");
+    formData.append("admin_notes", form.admin_notes.trim());
     Object.entries(downloadLinks).forEach(([quality, url]) => {
       formData.append(`download_links[${quality}]`, url);
     });
@@ -1345,6 +1462,44 @@ export default function MovieEditorForm({
     return formData;
   };
 
+
+  const createPublishIdempotencyKey = () => {
+    const key =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+    publishIdempotencyKeyRef.current = key;
+    return key;
+  };
+
+  const completePublishStatusUpdate = async (movieId: number) => {
+    const publishResponse = await adminMoviesService.updatePublishStatus(
+      movieId,
+      {
+        publish_status: publishStatus,
+        scheduled_for: publishStatus === "scheduled" ? scheduledFor : null,
+      },
+      { idempotencyKey: publishIdempotencyKeyRef.current || createPublishIdempotencyKey() },
+    );
+
+    if (publishResponse.success && publishResponse.data) {
+      clearPendingMoviePublish(movieId);
+      setPendingPublishVisible(false);
+      return publishResponse.data.movie;
+    }
+
+    savePendingMoviePublish({
+      movieId,
+      targetStatus: publishStatus,
+      scheduledFor: publishStatus === "scheduled" ? scheduledFor : null,
+      pendingPublish: true,
+      savedAt: new Date().toISOString(),
+    });
+    setPendingPublishVisible(true);
+    setError(publishResponse.message || "به‌روزرسانی وضعیت انتشار انجام نشد.");
+    return null;
+  };
+
   const savePublishStatusOnly = async () => {
     if (!movie?.id) {
       return;
@@ -1360,13 +1515,10 @@ export default function MovieEditorForm({
     setError("");
     setSuccessMessage("");
 
-    const publishResponse = await adminMoviesService.updatePublishStatus(movie.id, {
-      publish_status: publishStatus,
-      scheduled_for: publishStatus === "scheduled" ? scheduledFor : null,
-    });
+    createPublishIdempotencyKey();
+    const updatedMovie = await completePublishStatusUpdate(movie.id);
 
-    if (publishResponse.success && publishResponse.data) {
-      const updatedMovie = publishResponse.data.movie;
+    if (updatedMovie) {
       setMovie(updatedMovie);
       setPublishStatus(updatedMovie.publish_status);
       setScheduledFor(apiDateTimeToInputValue(updatedMovie.scheduled_for));
@@ -1379,8 +1531,6 @@ export default function MovieEditorForm({
         revalidateAdminMoviesList(),
         revalidatePublicMoviePages(updatedMovie.slug, movie?.slug, form.slug),
       ]);
-    } else {
-      setError(publishResponse.message || "ذخیره وضعیت انتشار انجام نشد.");
     }
 
     setSubmitting(false);
@@ -1451,7 +1601,7 @@ export default function MovieEditorForm({
       mode === "edit" &&
       movie?.id &&
       activeTab === "publish" &&
-      movieFormBodyFingerprint(form) === movieFormBodyFingerprintRef.current
+      fingerprintMovie(form) === fingerprintMovieRef.current
     ) {
       await savePublishStatusOnly();
       return;
@@ -1552,10 +1702,11 @@ export default function MovieEditorForm({
         !openedPipeline;
 
       const applyPublishOutcome = (updatedMovie: AdminMovie) => {
+        clearDraft(movieDraftStorageKey);
         setMovie(updatedMovie);
         setPublishStatus(updatedMovie.publish_status);
         setScheduledFor(apiDateTimeToInputValue(updatedMovie.scheduled_for));
-        movieFormBodyFingerprintRef.current = movieFormBodyFingerprint(form);
+        fingerprintMovieRef.current = fingerprintMovie(form);
         setSuccessMessage("");
         setPublishOutcomeStatus(updatedMovie.publish_status);
         setPublishOutcomeOpen(true);
@@ -1569,16 +1720,13 @@ export default function MovieEditorForm({
 
       const runPublishStatusUpdate = async (movieId: number) => {
         console.time("movie:publish-status");
-        const publishResponse = await adminMoviesService.updatePublishStatus(movieId, {
-          publish_status: publishStatus,
-          scheduled_for: publishStatus === "scheduled" ? scheduledFor : null,
-        });
+        createPublishIdempotencyKey();
+        const updatedMovie = await completePublishStatusUpdate(movieId);
         console.timeEnd("movie:publish-status");
 
-        if (publishResponse.success && publishResponse.data) {
-          applyPublishOutcome(publishResponse.data.movie);
+        if (updatedMovie) {
+          applyPublishOutcome(updatedMovie);
         } else {
-          setError(publishResponse.message || "به‌روزرسانی وضعیت انتشار انجام نشد.");
           setActiveTab("publish");
         }
       };
@@ -1742,6 +1890,13 @@ export default function MovieEditorForm({
         </div>
       ) : null}
 
+      {draftRecovery.showBanner ? (
+        <FormDraftBanner
+          onRestore={draftRecovery.restoreDraft}
+          onDismiss={draftRecovery.dismissDraft}
+        />
+      ) : null}
+
       {successMessage ? (
         <div className="flex items-center gap-2 rounded-2xl border border-[#34d399]/25 bg-[#34d399]/10 px-4 py-3 text-sm text-[#86efac]">
           <HiOutlineCheckCircle className="h-5 w-5" />
@@ -1776,12 +1931,21 @@ export default function MovieEditorForm({
           <section className="space-y-6">
             {activeTab === "details" ? (
               <div className="space-y-5">
-                <div className="rounded-[28px] border border-[#38bdf8]/20 bg-[#38bdf8]/[0.06] p-5">
+                <div className="rounded-[28px] border border-[#38bdf8]/20 bg-[#38bdf8]/[0.06] p-5 space-y-4">
+                  <TmdbTitleSearch
+                    label="جستجوی عنوان فیلم در TMDB"
+                    placeholder="نام فیلم را بنویسید…"
+                    search={(query) => adminMoviesService.searchTmdb(query, "fa-IR", "movie")}
+                    onSelect={(tmdbId) => {
+                      void fetchAndApplyTmdb(String(tmdbId));
+                    }}
+                  />
+
                   <div className="flex flex-col gap-4">
                     <label className="block">
                       <span className="mb-2 flex items-center gap-2 text-sm text-[#8ea4b3]">
                         <HiOutlineSearch className="h-4 w-4" />
-                        کد TMDB
+                        کد TMDB (یا جایگزین دستی)
                       </span>
                       <input
                         inputMode="numeric"
@@ -1843,7 +2007,13 @@ export default function MovieEditorForm({
                     <input
                       value={form.slug}
                       onChange={(event) => handleChange("slug", event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45"
+                      dir="ltr"
+                      className={`w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrInputClass}`}
+                    />
+                    <SlugAvailabilityHint
+                      status={slugAvailability.status}
+                      suggestion={slugAvailability.suggestion}
+                      onApplySuggestion={(nextSlug) => handleChange("slug", nextSlug)}
                     />
                   </label>
 
@@ -1942,6 +2112,20 @@ export default function MovieEditorForm({
                     options={ageRatingOptions}
                   />
                 </label>
+
+                <ContentWarningsField
+                  values={form.content_warnings}
+                  onChange={(values) =>
+                    setForm((current) => ({ ...current, content_warnings: values }))
+                  }
+                />
+
+                <ExternalIdsSection
+                  imdbId={form.imdb_id}
+                  homepageUrl={form.homepage_url}
+                  onImdbIdChange={(value) => handleChange("imdb_id", value)}
+                  onHomepageUrlChange={(value) => handleChange("homepage_url", value)}
+                />
 
                 <label className="block">
                   <span className="mb-2 block text-sm text-[#8ea4b3]">خلاصه داستان</span>
@@ -2246,7 +2430,16 @@ export default function MovieEditorForm({
                         <span className="mb-2 block text-sm text-[#8ea4b3]">طرح DRM</span>
                         <select
                           value={form.drm_scheme}
-                          onChange={(event) => handleChange("drm_scheme", event.target.value)}
+                          onChange={(event) => {
+                            const nextScheme = event.target.value;
+                            setForm((current) => ({
+                              ...current,
+                              drm_scheme: nextScheme,
+                              ...(nextScheme === "none"
+                                ? { dash_url: "", drm_license_url: "" }
+                                : {}),
+                            }));
+                          }}
                           className="w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45"
                         >
                           <option value="none">بدون DRM</option>
@@ -2257,6 +2450,7 @@ export default function MovieEditorForm({
                       </label>
 
                       {form.drm_scheme !== "none" ? (
+                        <>
                         <label className="block md:col-span-2">
                           <span className="mb-2 block text-sm text-[#8ea4b3]">
                             آدرس سرور لایسنس DRM
@@ -2275,6 +2469,23 @@ export default function MovieEditorForm({
                             آدرس سرور لایسنس DRM ارائه‌دهنده شما (مثلاً BuyDRM، Axinom، Pallycon)
                           </p>
                         </label>
+                        <label className="block md:col-span-2">
+                          <span className="mb-2 block text-sm text-[#8ea4b3]">
+                            DASH URL (اختیاری)
+                          </span>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            value={form.dash_url}
+                            onChange={(event) => handleChange("dash_url", event.target.value)}
+                            placeholder="https://cdn.example.com/movie/manifest.mpd"
+                            className={`w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass}`}
+                          />
+                          <p className="mt-2 text-xs text-[#8ea4b3]">
+                            manifest.mpd برای پخش DRM — فقط وقتی طرح DRM فعال است لازم است
+                          </p>
+                        </label>
+                        </>
                       ) : null}
                     </div>
                   </details>
@@ -2354,6 +2565,37 @@ export default function MovieEditorForm({
               </div>
             ) : null}
 
+            {activeTab === "seo" ? (
+              <div className="space-y-5">
+                <SeoFieldsPanel
+                  title={form.title}
+                  synopsis={form.synopsis}
+                  slug={form.slug}
+                  metaTitle={form.meta_title}
+                  metaDescription={form.meta_description}
+                  onMetaTitleChange={(value) => handleChange("meta_title", value)}
+                  onMetaDescriptionChange={(value) => handleChange("meta_description", value)}
+                />
+
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <button
+                    type="button"
+                    onClick={goToPreviousTab}
+                    className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d]"
+                  >
+                    تب قبلی
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goToNextTab}
+                    className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d]"
+                  >
+                    تب بعدی
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             {activeTab === "publish" ? (
               <div className="space-y-5">
                 <button
@@ -2363,6 +2605,44 @@ export default function MovieEditorForm({
                 >
                   تب قبلی
                 </button>
+
+                <div className="space-y-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#071019] px-4 py-3">
+                    <span>
+                      <span className="block text-sm font-semibold text-white">
+                        نمایش در اسلایدر صفحه اصلی
+                      </span>
+                      <span className="mt-1 block text-xs text-[#8ea4b3]">
+                        این فیلم در ابتدای اسلایدر HomeHero (حداکثر ۳ مورد) قرار می‌گیرد.
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={form.is_featured}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          is_featured: event.target.checked,
+                        }))
+                      }
+                      className="h-5 w-5 rounded border-white/20 bg-transparent accent-[#f5c518]"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm text-[#8ea4b3]">نمایش در کاتالوگ</span>
+                    <AdminSelect
+                      value={form.catalog_visibility}
+                      onChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          catalog_visibility: value,
+                        }))
+                      }
+                      options={movieCatalogVisibilityOptions}
+                    />
+                  </label>
+                </div>
 
                 <div className="grid gap-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5 md:grid-cols-2">
                   <label className="block">
@@ -2420,6 +2700,83 @@ export default function MovieEditorForm({
                   }
                 />
 
+                {pendingPublishVisible && mode === "edit" ? (
+                  <PendingPublishBanner
+                    loading={submitting}
+                    onRetry={() => void savePublishStatusOnly()}
+                  />
+                ) : null}
+
+                <label className="block rounded-[28px] border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-5">
+                  <span className="mb-2 block text-sm text-[#fde68a]">
+                    یادداشت داخلی (فقط برای ادمین‌ها)
+                  </span>
+                  <textarea
+                    value={form.admin_notes}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        admin_notes: event.target.value.slice(0, 2000),
+                      }))
+                    }
+                    rows={4}
+                    className="w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f59e0b]/45"
+                    placeholder="یادداشت داخلی برای تیم..."
+                  />
+                  <span className="mt-2 block text-xs text-[#8ea4b3]">
+                    {form.admin_notes.length}/2000
+                  </span>
+                </label>
+
+                <div className="flex flex-wrap gap-3">
+                  {mode === "edit" && movie?.id ? (
+                    <button
+                      type="button"
+                      disabled={previewLoading}
+                      onClick={() => {
+                        void (async () => {
+                          if (!movie?.id) return;
+                          setPreviewLoading(true);
+                          try {
+                            const response = await adminMoviesService.getPreviewToken(movie.id);
+                            const token = response.data?.token;
+                            const slug =
+                              form.slug.trim() ||
+                              buildSlug(
+                                form.original_title,
+                                form.title,
+                                form.tmdb_id ? `movie-${form.tmdb_id}` : null,
+                              );
+                            if (response.success && token && slug) {
+                              window.open(`/movies/${slug}?preview=${token}`, "_blank");
+                            } else {
+                              setError(response.message || "صدور توکن پیش‌نمایش انجام نشد.");
+                            }
+                          } finally {
+                            setPreviewLoading(false);
+                          }
+                        })();
+                      }}
+                      className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.08] disabled:opacity-60"
+                    >
+                      {previewLoading ? "در حال آماده‌سازی..." : "پیش‌نمایش"}
+                    </button>
+                  ) : null}
+                </div>
+
+                {mode === "edit" && movie?.id ? (
+                  <ContentChangeHistoryPanel
+                    entityLabel="فیلم"
+                    loadHistory={async (page = 1) => {
+                      const response = await adminMoviesService.getHistory(movie.id, page);
+                      if (response.success && response.data) {
+                        return response.data;
+                      }
+                      return null;
+                    }}
+                  />
+                ) : null}
+
                 <EditorPublishSubmitBar
                   onSubmit={() => void handleSubmit()}
                   disabled={!canSubmitForm}
@@ -2429,7 +2786,7 @@ export default function MovieEditorForm({
                     submitting && submitStep
                       ? submitStep
                       : mode === "edit" &&
-                          movieFormBodyFingerprint(form) === movieFormBodyFingerprintRef.current
+                          fingerprintMovie(form) === fingerprintMovieRef.current
                         ? "فقط وضعیت انتشار و زمان‌بندی ذخیره می‌شود (سریع)."
                         : "تمام اطلاعات فیلم و وضعیت انتشار ذخیره می‌شود."
                   }

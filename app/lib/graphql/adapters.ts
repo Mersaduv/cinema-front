@@ -34,6 +34,10 @@ type GraphqlMovieDetail = {
   release_year?: number | null;
   duration_seconds?: number | null;
   age_rating?: string | null;
+  meta_title?: string | null;
+  meta_description?: string | null;
+  content_warnings?: string[];
+  quality_badges?: string[];
   poster_url?: string | null;
   backdrop_url?: string | null;
   poster_image?: GraphqlResponsiveImage | null;
@@ -144,6 +148,10 @@ export type GraphqlSeriesOverview = {
   backdrop_image?: GraphqlResponsiveImage | null;
   trailer_url?: string | null;
   age_rating?: string | null;
+  meta_title?: string | null;
+  meta_description?: string | null;
+  content_warnings?: string[];
+  quality_badges?: string[];
   has_subtitle?: boolean;
   has_dubbed?: boolean;
   total_seasons?: number | null;
@@ -303,6 +311,10 @@ export function graphqlMovieToPublic(movie: GraphqlMovieDetail): PublicMovie {
     has_subtitle: movie.has_subtitle,
     subtitle_source_url: null,
     age_rating: movie.age_rating ?? null,
+    meta_title: movie.meta_title ?? null,
+    meta_description: movie.meta_description ?? null,
+    content_warnings: movie.content_warnings ?? [],
+    quality_badges: movie.quality_badges ?? [],
     cast_members: [],
     cast:
       movie.cast?.map((row) => {
@@ -497,6 +509,10 @@ export function graphqlSeriesOverviewToPublic(
       null,
     trailer_url: series.trailer_url ?? null,
     age_rating: series.age_rating ?? null,
+    meta_title: series.meta_title ?? null,
+    meta_description: series.meta_description ?? null,
+    content_warnings: series.content_warnings ?? [],
+    quality_badges: series.quality_badges ?? [],
     has_subtitle: series.has_subtitle ?? false,
     has_dubbed: series.has_dubbed ?? false,
     cast:
@@ -631,5 +647,101 @@ export function graphqlSeriesCardToCatalogItem(series: GraphqlSeriesListItem) {
       backdrop_url: pickImageSrc(backdropImage, backdrop) ?? backdrop,
       rating: meta?.rating ?? null,
     },
+  };
+}
+
+type MoviePeopleFragment = Pick<GraphqlMovieDetail, "cast" | "crew" | "details">;
+
+export function mergeMoviePeople(
+  base: PublicMovie,
+  people: MoviePeopleFragment,
+): PublicMovie {
+  const enriched = graphqlMovieToPublic({
+    id: String(base.id),
+    slug: base.slug,
+    title: base.title,
+    has_dubbed_audio: base.has_dubbed_audio,
+    has_subtitle: base.has_subtitle,
+    cast: people.cast,
+    crew: people.crew,
+    details: {
+      rating: base.details.rating,
+      original_language: base.details.original_language,
+      directors: base.details.directors,
+      writers: base.details.writers,
+      genres: base.details.genres,
+      languages: base.details.languages,
+      countries: base.details.countries,
+      network: base.details.network,
+      runtime_minutes: base.details.runtime_minutes,
+      actors: people.details?.actors,
+      gallery: base.details.gallery,
+    },
+  });
+
+  return {
+    ...base,
+    cast: enriched.cast,
+    crew: enriched.crew,
+    details: {
+      ...base.details,
+      actors: enriched.details.actors,
+    },
+  };
+}
+
+type SeriesPeopleFragment = Pick<
+  GraphqlSeriesOverview,
+  "cast" | "crew" | "details"
+>;
+
+export function mergeSeriesPeople(
+  base: PublicSeries,
+  people: SeriesPeopleFragment,
+): PublicSeries {
+  const mergedDetails = mapSeriesDetails({
+    ...base.details,
+    actors: people.details?.actors ?? base.details.actors,
+  });
+
+  const cast =
+    people.cast?.map((row) => {
+      const profileImage = mapResponsiveImage(row.profile_image);
+      const metadataActor = people.details?.actors?.find(
+        (actor) => actor.name && actor.name === row.name,
+      );
+      const metadataProfileImage = mapResponsiveImage(metadataActor?.profile_image);
+
+      return {
+        name: row.name ?? "",
+        slug: row.slug ?? null,
+        character: row.character_name ?? null,
+        profile_url:
+          pickProfileImageSrc(metadataProfileImage, metadataActor?.profile_url) ??
+          pickProfileImageSrc(profileImage, row.profile_url),
+        profile_image: metadataProfileImage ?? profileImage,
+        order: row.order ?? null,
+      };
+    }) ?? base.cast;
+
+  const crew =
+    people.crew?.map((row) => {
+      const profileImage = mapResponsiveImage(row.profile_image);
+
+      return {
+        name: row.name ?? "",
+        slug: row.slug ?? null,
+        job: row.job ?? null,
+        department: row.department ?? null,
+        profile_url: pickProfileImageSrc(profileImage, row.profile_url),
+        profile_image: profileImage,
+      };
+    }) ?? base.crew;
+
+  return {
+    ...base,
+    cast,
+    crew,
+    details: mergedDetails,
   };
 }

@@ -156,7 +156,9 @@ function SeekBarComponent({
         >
           <div
             className={`absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-[#1a1a1a] bg-[#F5C518] shadow-[0_0_0_1px_rgba(245,197,24,0.45)] transition-all duration-100 ${
-              isDragging ? "scale-125 opacity-100" : "opacity-0 group-hover:opacity-100"
+              isDragging
+                ? "scale-125 opacity-100"
+                : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
             }`}
           />
         </div>

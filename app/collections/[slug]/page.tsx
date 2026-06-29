@@ -5,8 +5,6 @@ import CatalogPosterCard from "../../components/catalog/CatalogPosterCard";
 import { BackdropImage } from "../../components/images";
 import { fetchCollectionDetailRest } from "../../lib/collections/rest";
 
-export const revalidate = 300;
-
 type PageParams = Promise<{ slug: string }>;
 
 export default async function CollectionDetailPage({

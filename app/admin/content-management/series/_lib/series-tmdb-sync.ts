@@ -84,12 +84,16 @@ export type SeriesFormState = {
   homepage_url: string;
   age_rating: string;
   is_featured: boolean;
+  catalog_visibility: string;
   publish_status: SeriesPublishStatus;
   scheduled_for: string;
   tmdb_query: string;
   tmdb_id: string;
   imdb_id: string;
   tvdb_id: string;
+  meta_title: string;
+  meta_description: string;
+  content_warnings: string[];
   rating: string;
   popularity: string;
   vote_count: string;
@@ -109,6 +113,7 @@ export type SeriesFormState = {
   seasons: SeasonDraft[];
   tmdb_excluded_season_numbers: number[];
   tmdb_excluded_episodes: TmdbExcludedEpisode[];
+  admin_notes: string;
 };
 
 export type TmdbSyncPhase =

@@ -5,7 +5,6 @@ import { HiMiniPlay } from "react-icons/hi2";
 import { PosterImage } from "../images";
 import type { CatalogListItem } from "../../lib/catalog/rest";
 import { TV_CARD_FOCUS_CLASS, TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
-import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 
 function formatRating(value: number | null | undefined): string | null {
   if (value == null || Number.isNaN(value)) {
@@ -24,20 +23,21 @@ export default function CatalogPosterCard({
   index = 0,
   carouselItem = false,
   imageLoading,
+  imageFetchPriority,
 }: {
   item: CatalogListItem;
   href: string;
   index?: number;
   carouselItem?: boolean;
   imageLoading?: "eager" | "lazy";
+  imageFetchPriority?: "high" | "low" | "auto";
 }) {
-  const isTvCompat = useIsTvCompat();
   const rating = formatRating(item.rating ?? item.details.rating);
   const genres = item.details.genres.slice(0, 3);
   const dubbed = item.has_dubbed ?? item.has_dubbed_audio;
   const hasSubtitle = Boolean(item.has_subtitle);
-  const resolvedLoading =
-    imageLoading ?? (isTvCompat && index < 8 ? "eager" : undefined);
+  const resolvedLoading = imageLoading ?? "lazy";
+  const resolvedFetchPriority = imageFetchPriority ?? "auto";
 
   return (
     <Link
@@ -60,6 +60,7 @@ export default function CatalogPosterCard({
           fallbackUrl={item.backdrop_url ?? item.details.backdrop_url}
           usage="poster-grid"
           loading={resolvedLoading}
+          fetchPriority={resolvedFetchPriority}
           wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
         />
 

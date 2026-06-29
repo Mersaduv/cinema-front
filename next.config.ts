@@ -24,6 +24,19 @@ function imageRemotePatterns() {
 }
 
 const nextConfig: NextConfig = {
+  cacheComponents: true,
+  cacheLife: {
+    catalog: {
+      stale: 60,
+      revalidate: 300,
+      expire: 600,
+    },
+    hero: {
+      stale: 30,
+      revalidate: 300,
+      expire: 600,
+    },
+  },
   turbopack: {},
   images: {
     formats: ["image/avif", "image/webp"],

@@ -22,7 +22,7 @@ export default function HomeCatalogRail({
   sort,
   kind,
   filters,
-  priority: _priority = false,
+  isAboveFold = false,
   progressive = true,
   useItemKind = false,
 }: {
@@ -32,11 +32,12 @@ export default function HomeCatalogRail({
   sort: string;
   kind: "movie" | "movies" | "series";
   filters?: CatalogFiltersState;
-  priority?: boolean;
+  isAboveFold?: boolean;
   progressive?: boolean;
   useItemKind?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const prefetchTriggeredRef = useRef(false);
   const isTvCompat = useIsTvCompat();
   const eagerImageCount = isTvCompat ? 8 : 6;
   const config = useMemo(
@@ -79,6 +80,15 @@ export default function HomeCatalogRail({
   const basePath = normalizedKind === "movies" ? "/movies" : "/series";
   const sectionId = `home-rail-${normalizedKind}-${title.replace(/\s+/g, "-")}`;
 
+  const handleRailHover = () => {
+    if (prefetchTriggeredRef.current || !progressive || !hasMore) {
+      return;
+    }
+
+    prefetchTriggeredRef.current = true;
+    loadMore();
+  };
+
   return (
     <section
       className="space-y-4"
@@ -86,6 +96,7 @@ export default function HomeCatalogRail({
       role="region"
       aria-label={title}
       aria-busy={isLoadingMore}
+      onMouseEnter={handleRailHover}
     >
       <h2
         id={sectionId}
@@ -98,7 +109,7 @@ export default function HomeCatalogRail({
         {items.map((item, index) => {
           const href = useItemKind ? getCatalogItemHref(item) : `${basePath}/${item.slug}`;
           const isSentinelCard = progressive && hasMore && index === sentinelIndex;
-          const eagerImage = index < eagerImageCount;
+          const eagerImage = isAboveFold && index < eagerImageCount;
 
           return (
             <div
@@ -113,6 +124,7 @@ export default function HomeCatalogRail({
                 index={index}
                 carouselItem
                 imageLoading={eagerImage ? "eager" : "lazy"}
+                imageFetchPriority={eagerImage ? "high" : "auto"}
               />
             </div>
           );

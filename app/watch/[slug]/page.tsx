@@ -1,7 +1,5 @@
 import WatchPageClient from "./WatchPageClient";
 
-export const dynamic = "force-dynamic";
-
 export const viewport = {
   width: 1920,
   initialScale: 1,

@@ -22,6 +22,7 @@ export type HeroBackdropImageProps = {
   alt?: string;
   title?: string | null;
   priority?: boolean;
+  fetchPriority?: "high" | "low" | "auto";
   className?: string;
   wrapperClassName?: string;
   overlay?: ReactNode;
@@ -43,6 +44,7 @@ export default function HeroBackdropImage({
   alt,
   title,
   priority = true,
+  fetchPriority,
   className = "",
   wrapperClassName = "",
   overlay,
@@ -113,6 +115,7 @@ export default function HeroBackdropImage({
         srcSet={displaySrcSet}
         src={displaySrc}
         loading={priority ? "eager" : "lazy"}
+        fetchPriority={fetchPriority ?? (priority ? "high" : "auto")}
         onLoad={handleLoad}
         onError={handleError}
         className={`object-cover transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"} ${className}`.trim()}

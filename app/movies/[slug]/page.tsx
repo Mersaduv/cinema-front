@@ -1,10 +1,13 @@
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import { graphqlMovieToPublic } from "../../lib/graphql/adapters";
 import { graphqlRequest } from "../../lib/graphql/server";
-import { GET_MOVIE } from "../../lib/graphql/queries";
+import { GET_MOVIE_PREVIEW } from "../../lib/graphql/queries";
+import {
+  fetchMovieCriticalBySlug,
+  fetchMovieMetaBySlug,
+} from "../../lib/detail/detail-fetch";
+import DetailLcpPreload from "../../components/content/DetailLcpPreload";
 import MovieDetailClient from "./MovieDetailClient";
-
-export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -14,20 +17,16 @@ export async function generateMetadata({
   const { slug } = await params;
 
   try {
-    const data = await graphqlRequest<{ movie: Parameters<typeof graphqlMovieToPublic>[0] | null }>(
-      GET_MOVIE,
-      { slug },
-      { revalidate: 60, tags: ["movies", `movie:${slug}`] },
-    );
-    const movie = data.movie;
+    const movie = await fetchMovieMetaBySlug(slug);
 
     if (!movie) {
       return {};
     }
 
     return {
-      title: movie.title,
-      description: movie.synopsis?.slice(0, 160),
+      title: movie.meta_title?.trim() || movie.title,
+      description:
+        movie.meta_description?.trim() || movie.synopsis?.slice(0, 160) || undefined,
       openGraph: {
         images: movie.poster_url ? [movie.poster_url] : [],
       },
@@ -39,23 +38,46 @@ export async function generateMetadata({
 
 export default async function PublicMoviePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ preview?: string }>;
 }) {
   const { slug } = await params;
+  const { preview } = await searchParams;
 
   try {
-    const data = await graphqlRequest<{ movie: Parameters<typeof graphqlMovieToPublic>[0] | null }>(
-      GET_MOVIE,
-      { slug },
-      { revalidate: 60, tags: ["movies", `movie:${slug}`] },
-    );
+    if (preview) {
+      const data = await graphqlRequest<{
+        moviePreview: Parameters<typeof graphqlMovieToPublic>[0] | null;
+      }>(GET_MOVIE_PREVIEW, { slug, token: preview }, { cache: "no-store" });
 
-    if (!data.movie) {
+      if (!data.moviePreview) {
+        notFound();
+      }
+
+      const movie = graphqlMovieToPublic(data.moviePreview);
+
+      return (
+        <>
+          <DetailLcpPreload item={movie} />
+          <MovieDetailClient movie={movie} previewMode />
+        </>
+      );
+    }
+
+    const movie = await fetchMovieCriticalBySlug(slug);
+
+    if (!movie) {
       notFound();
     }
 
-    return <MovieDetailClient movie={graphqlMovieToPublic(data.movie)} />;
+    return (
+      <>
+        <DetailLcpPreload item={movie} />
+        <MovieDetailClient movie={movie} />
+      </>
+    );
   } catch {
     notFound();
   }

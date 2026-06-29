@@ -24,7 +24,8 @@ export function isLatinPersonName(value: string | null | undefined) {
   return latinPersonNamePattern.test(trimmed);
 }
 
-export function resolveLatinPersonName(
+/** Prefer Latin script; fall back to any non-empty name (Persian, Arabic, CJK, etc.). */
+export function resolvePersonName(
   candidates: Array<string | null | undefined>,
 ) {
   for (const candidate of candidates) {
@@ -35,13 +36,41 @@ export function resolveLatinPersonName(
     }
   }
 
+  for (const candidate of candidates) {
+    const trimmed = (candidate ?? "").trim();
+
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+
   return "";
 }
 
-export function filterLatinPersonNameList(values: string[]) {
+/** @deprecated Use resolvePersonName — kept for call sites migrating gradually. */
+export function resolveLatinPersonName(
+  candidates: Array<string | null | undefined>,
+) {
+  return resolvePersonName(candidates);
+}
+
+export function filterPersonNameList(values: string[]) {
   return values
-    .map((value) => resolveLatinPersonName([value]))
+    .map((value) => resolvePersonName([value]))
     .filter((name): name is string => name !== "");
+}
+
+/** @deprecated Use filterPersonNameList */
+export function filterLatinPersonNameList(values: string[]) {
+  return filterPersonNameList(values);
+}
+
+export function shouldIncludePerson(
+  person: { name?: string | null; original_name?: string | null },
+) {
+  return Boolean(
+    (person.name ?? "").trim() || (person.original_name ?? "").trim(),
+  );
 }
 
 export function isAgeRatingSelected(

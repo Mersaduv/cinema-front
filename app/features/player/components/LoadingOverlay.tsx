@@ -12,7 +12,7 @@ function LoadingOverlayComponent({
 }: LoadingOverlayProps) {
   return (
     <div
-      className="absolute inset-0 z-20 flex items-center justify-center bg-black/20"
+      className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/20"
       role="status"
       aria-live="polite"
       aria-busy="true"

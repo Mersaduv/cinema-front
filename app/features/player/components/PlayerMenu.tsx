@@ -96,7 +96,13 @@ export function PlayerMenu({
           <div className="border-b border-white/10 px-4 py-3">
             <h3 className="text-base font-semibold text-white">{title}</h3>
           </div>
-          <div className="max-h-64 space-y-0.5 overflow-y-auto px-2 py-2">{children}</div>
+          <div
+            data-player-menu-scroll
+            className="max-h-64 space-y-0.5 overflow-y-auto overscroll-contain px-2 py-2"
+            style={{ touchAction: "pan-y" }}
+          >
+            {children}
+          </div>
           {footer ? (
             <div className="border-t border-white/10 px-2 py-2">{footer}</div>
           ) : null}

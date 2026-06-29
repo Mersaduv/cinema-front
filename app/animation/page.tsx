@@ -9,8 +9,6 @@ import {
 import { LATEST_FETCH_POOL, pickLatestSliderItems } from "../lib/catalog/latest";
 import { fetchFilterOptions } from "../lib/filter-options";
 
-export const dynamic = "force-dynamic";
-
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function AnimationCatalogPage({

@@ -1,15 +1,18 @@
 import type { AnimationCatalogItem } from "./animation";
 import { getCatalogItemHref } from "./animation";
 import { HOME_RAIL_CAROUSEL_PER_PAGE } from "./carousel-config";
-import { LATEST_CATALOG_FILTERS, sortCatalogByReleaseYear } from "./latest";
+import { filterHomeSliderItems } from "./home-visibility";
+import { LATEST_CATALOG_FILTERS } from "./latest";
 import type { CarouselMeta } from "../../types/carousel";
 import type { CatalogFiltersState } from "./search-params";
 import type { CatalogListItem, PaginationMeta } from "./rest";
 import { isCarouselMeta } from "./rest";
 
 export const HOME_RAIL_FETCH_COUNT = HOME_RAIL_CAROUSEL_PER_PAGE;
-export const HOME_FEATURED_POOL = 24;
+export const HOME_FEATURED_POOL = 8;
 export const HOME_FEATURED_SLIDES = 5;
+export const HOME_FEATURED_EDITORIAL_MAX = 2;
+export const HOME_HERO_MIN_RATING = 6;
 
 const carouselDefaults = { carousel: true } as const;
 
@@ -103,6 +106,10 @@ export const HOME_POPULAR_HYBRID_MOVIES_FILTERS: CatalogFiltersState = {
   ...carouselDefaults,
 };
 
+export const HOME_POPULAR_HYBRID_SERIES_FILTERS: CatalogFiltersState = {
+  ...HOME_POPULAR_HYBRID_MOVIES_FILTERS,
+};
+
 export const HOME_LATEST_RAIL_MOVIES_FILTERS: CatalogFiltersState = {
   ...LATEST_CATALOG_FILTERS,
   ...carouselDefaults,
@@ -124,22 +131,72 @@ function withKind(
   return items.map((item) => ({ ...item, catalogKind: kind }));
 }
 
+function itemRating(item: CatalogListItem): number | null {
+  const rating = item.rating ?? item.details.rating;
+
+  if (rating == null || Number.isNaN(rating)) {
+    return null;
+  }
+
+  return rating;
+}
+
+function hasHeroBackdrop(item: CatalogListItem): boolean {
+  return Boolean(item.backdrop_url ?? item.details.backdrop_url ?? item.backdrop_image);
+}
+
+function dedupeFeaturedBySlug(items: FeaturedCatalogItem[]): FeaturedCatalogItem[] {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    if (seen.has(item.slug)) {
+      return false;
+    }
+
+    seen.add(item.slug);
+    return true;
+  });
+}
+
 export function pickFeaturedHeroSlides(
-  movies: CatalogListItem[],
-  series: CatalogListItem[],
+  newestMovies: CatalogListItem[],
+  newestSeries: CatalogListItem[],
+  hybridMovies: CatalogListItem[],
+  hybridSeries: CatalogListItem[],
   limit = HOME_FEATURED_SLIDES,
 ): FeaturedCatalogItem[] {
-  const merged = sortCatalogByReleaseYear([
-    ...withKind(movies, "movie"),
-    ...withKind(series, "series"),
-  ]);
-
-  const withBackdrop = merged.filter(
-    (item) => item.backdrop_url ?? item.details.backdrop_url ?? item.poster_url,
+  const editorialCandidates = dedupeFeaturedBySlug([
+    ...withKind(filterHomeSliderItems(newestMovies), "movie"),
+    ...withKind(filterHomeSliderItems(newestSeries), "series"),
+    ...withKind(filterHomeSliderItems(hybridMovies), "movie"),
+    ...withKind(filterHomeSliderItems(hybridSeries), "series"),
+  ]).filter(
+    (item) =>
+      item.is_featured &&
+      hasHeroBackdrop(item),
   );
 
-  const pool = withBackdrop.length > 0 ? withBackdrop : merged;
-  return pool.slice(0, limit);
+  const editorial = editorialCandidates.slice(0, HOME_FEATURED_EDITORIAL_MAX);
+  const editorialSlugs = new Set(editorial.map((item) => item.slug));
+
+  const algorithmPool = dedupeFeaturedBySlug([
+    ...withKind(hybridMovies, "movie"),
+    ...withKind(hybridSeries, "series"),
+  ]).filter((item) => {
+    if (editorialSlugs.has(item.slug)) {
+      return false;
+    }
+
+    if (!hasHeroBackdrop(item)) {
+      return false;
+    }
+
+    const rating = itemRating(item);
+
+    return rating != null && rating >= HOME_HERO_MIN_RATING;
+  });
+
+  return [...editorial, ...algorithmPool].slice(0, limit);
 }
 
 export function sliceHomeRailItems<T extends CatalogListItem>(
@@ -186,8 +243,8 @@ export function pickTrendingHomeItems(
   limit = HOME_RAIL_CAROUSEL_PER_PAGE,
 ): Array<CatalogListItem & { catalogKind: "movie" | "series" }> {
   const merged = [
-    ...movies.map((item) => ({ ...item, catalogKind: "movie" as const })),
-    ...series.map((item) => ({ ...item, catalogKind: "series" as const })),
+    ...filterHomeSliderItems(movies).map((item) => ({ ...item, catalogKind: "movie" as const })),
+    ...filterHomeSliderItems(series).map((item) => ({ ...item, catalogKind: "series" as const })),
   ];
 
   if (merged.length >= 6) {
@@ -196,8 +253,8 @@ export function pickTrendingHomeItems(
 
   const existingSlugs = new Set(merged.map((item) => item.slug));
   const fallback = [
-    ...fallbackMovies.map((item) => ({ ...item, catalogKind: "movie" as const })),
-    ...fallbackSeries.map((item) => ({ ...item, catalogKind: "series" as const })),
+    ...filterHomeSliderItems(fallbackMovies).map((item) => ({ ...item, catalogKind: "movie" as const })),
+    ...filterHomeSliderItems(fallbackSeries).map((item) => ({ ...item, catalogKind: "series" as const })),
   ].filter((item) => !existingSlugs.has(item.slug));
 
   return [...merged, ...fallback].slice(0, limit);
@@ -208,15 +265,17 @@ export function pickFreshHomeItems(
   series: CatalogListItem[],
   limit = HOME_RAIL_CAROUSEL_PER_PAGE,
 ): Array<CatalogListItem & { catalogKind: "movie" | "series" }> {
+  const movieItems = filterHomeSliderItems(movies);
+  const seriesItems = filterHomeSliderItems(series);
   const merged: Array<CatalogListItem & { catalogKind: "movie" | "series" }> = [];
-  const maxLen = Math.max(movies.length, series.length);
+  const maxLen = Math.max(movieItems.length, seriesItems.length);
 
   for (let index = 0; index < maxLen; index += 1) {
-    if (movies[index]) {
-      merged.push({ ...movies[index], catalogKind: "movie" });
+    if (movieItems[index]) {
+      merged.push({ ...movieItems[index], catalogKind: "movie" });
     }
-    if (series[index]) {
-      merged.push({ ...series[index], catalogKind: "series" });
+    if (seriesItems[index]) {
+      merged.push({ ...seriesItems[index], catalogKind: "series" });
     }
   }
 

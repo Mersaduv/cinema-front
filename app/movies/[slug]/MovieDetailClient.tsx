@@ -2,17 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
+import { AuthProvider } from "@/app/contexts/AuthContext";
 import ContentDetailPage from "../../components/content/ContentDetailPage";
+import ContentPreviewBanner from "../../components/content/ContentPreviewBanner";
+import DetailScrollReset from "../../components/content/DetailScrollReset";
+import { DETAIL_SWR_DEDUP_MS } from "../../lib/detail/constants";
+import { useMovieDetailPeople } from "../../lib/detail/useDetailPeople";
 import { toCatalogItem } from "../../lib/catalog/rest";
+import { preserveContentWarnings } from "../../lib/preserve-content-warnings";
+import {
+  defaultReviewPaginator,
+  defaultReviewSummary,
+} from "../../lib/reviews";
 import { moviesService, type PublicMovie, type PublicMovieListItem } from "../../lib/movies";
 
 export default function MovieDetailClient({
   movie: initialMovie,
+  previewMode = false,
 }: {
   movie: PublicMovie;
+  previewMode?: boolean;
 }) {
-  const { data: movie = initialMovie } = useSWR(
-    `movie:detail:${initialMovie.slug}`,
+  const { data: refreshedMovie = initialMovie } = useSWR(
+    previewMode ? null : `movie:detail:${initialMovie.slug}`,
     async () => {
       const response = await moviesService.show(initialMovie.slug);
       if (response.success && response.data?.movie) {
@@ -23,10 +35,21 @@ export default function MovieDetailClient({
     },
     {
       fallbackData: initialMovie,
-      revalidateOnMount: true,
-      revalidateOnFocus: true,
-      dedupingInterval: 0,
+      revalidateOnMount: false,
+      revalidateOnFocus: !previewMode,
+      dedupingInterval: DETAIL_SWR_DEDUP_MS,
     },
+  );
+
+  const baseMovie = useMemo(
+    () => preserveContentWarnings(initialMovie, refreshedMovie),
+    [initialMovie, refreshedMovie],
+  );
+
+  const { movie: movieWithPeople, peopleLoading } = useMovieDetailPeople(
+    initialMovie.slug,
+    baseMovie,
+    !previewMode,
   );
 
   const [similarMovies, setSimilarMovies] = useState<PublicMovieListItem[]>([]);
@@ -73,48 +96,49 @@ export default function MovieDetailClient({
     setLoadingSimilar(true);
 
     try {
-      const response = await moviesService.related(movie.slug, 18);
+      const response = await moviesService.related(movieWithPeople.slug, 18);
       if (response.success && response.data?.movies) {
         setSimilarMovies(response.data.movies);
       }
     } finally {
       setLoadingSimilar(false);
     }
-  }, [movie.slug]);
+  }, [movieWithPeople.slug]);
 
   const reviewsProps = useMemo(
     () => ({
-      initialReviews: movie.reviews?.reviews ?? [],
-      initialSummary: movie.reviews?.summary ?? {
-        total_count: 0,
-        average_rating: 0,
-        distribution: Object.fromEntries(
-          Array.from({ length: 10 }, (_, index) => [String(index + 1), 0]),
-        ),
-      },
-      initialPaginator: movie.reviews?.paginatorInfo ?? {
-        currentPage: 1,
-        lastPage: 1,
-        total: 0,
-      },
-      userReview: movie.reviews?.user_review ?? null,
-      cachedAvgRating: movie.cached_avg_rating ?? null,
+      initialReviews: previewMode ? (movieWithPeople.reviews?.reviews ?? []) : [],
+      initialSummary: previewMode
+        ? (movieWithPeople.reviews?.summary ?? defaultReviewSummary())
+        : defaultReviewSummary(),
+      initialPaginator: previewMode
+        ? (movieWithPeople.reviews?.paginatorInfo ?? defaultReviewPaginator())
+        : defaultReviewPaginator(),
+      userReview: previewMode ? (movieWithPeople.reviews?.user_review ?? null) : null,
+      cachedAvgRating: movieWithPeople.cached_avg_rating ?? null,
     }),
-    [movie],
+    [movieWithPeople, previewMode],
   );
 
   return (
-    <ContentDetailPage
-      kind="movie"
-      movie={movie}
-      similarLoading={loadingSimilar}
-      onRequestSimilar={() => {
-        void loadSimilar();
-      }}
-      reviewsProps={reviewsProps}
-      similarItems={similarMovies.map((item) =>
-        toCatalogItem(item as unknown as Record<string, unknown>, "has_dubbed_audio"),
-      )}
-    />
+    <AuthProvider>
+      <DetailScrollReset />
+      {previewMode ? <ContentPreviewBanner /> : null}
+      <ContentDetailPage
+        kind="movie"
+        movie={movieWithPeople}
+        castLoading={!previewMode && peopleLoading}
+        similarLoading={loadingSimilar}
+        onRequestSimilar={() => {
+          if (!previewMode) {
+            void loadSimilar();
+          }
+        }}
+        reviewsProps={reviewsProps}
+        similarItems={similarMovies.map((item) =>
+          toCatalogItem(item as unknown as Record<string, unknown>, "has_dubbed_audio"),
+        )}
+      />
+    </AuthProvider>
   );
 }

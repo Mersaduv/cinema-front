@@ -5,10 +5,13 @@ import {
 } from "../../lib/graphql/adapters";
 import { normalizeImageAsset, pickImageSrc } from "../../lib/cinema-image";
 import { graphqlRequest } from "../../lib/graphql/server";
-import { GET_SERIES_OVERVIEW } from "../../lib/graphql/queries";
+import { GET_SERIES_OVERVIEW_PREVIEW } from "../../lib/graphql/queries";
+import {
+  fetchSeriesCriticalBySlug,
+  fetchSeriesMetaBySlug,
+} from "../../lib/detail/detail-fetch";
+import DetailLcpPreload from "../../components/content/DetailLcpPreload";
 import SeriesDetailClient from "./SeriesDetailClient";
-
-export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -18,18 +21,16 @@ export async function generateMetadata({
   const { slug } = await params;
 
   try {
-    const data = await graphqlRequest<{
-      seriesOverview: GraphqlSeriesOverview | null;
-    }>(GET_SERIES_OVERVIEW, { slug }, { revalidate: 300, tags: ["series", `series:${slug}`] });
+    const series = await fetchSeriesMetaBySlug(slug);
 
-    const series = data.seriesOverview;
     if (!series) {
       return {};
     }
 
     return {
-      title: series.title,
-      description: series.synopsis?.slice(0, 160),
+      title: series.meta_title?.trim() || series.title,
+      description:
+        series.meta_description?.trim() || series.synopsis?.slice(0, 160) || undefined,
       openGraph: {
         images: [
           pickImageSrc(normalizeImageAsset(series.poster_image), series.poster_url) ??
@@ -44,24 +45,45 @@ export async function generateMetadata({
 
 export default async function PublicSeriesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ preview?: string }>;
 }) {
   const { slug } = await params;
+  const { preview } = await searchParams;
 
   try {
-    const data = await graphqlRequest<{
-      seriesOverview: GraphqlSeriesOverview | null;
-    }>(GET_SERIES_OVERVIEW, { slug }, { revalidate: 300, tags: ["series", `series:${slug}`] });
+    if (preview) {
+      const data = await graphqlRequest<{
+        seriesOverviewPreview: GraphqlSeriesOverview | null;
+      }>(GET_SERIES_OVERVIEW_PREVIEW, { slug, token: preview }, { cache: "no-store" });
 
-    if (!data.seriesOverview) {
+      if (!data.seriesOverviewPreview) {
+        notFound();
+      }
+
+      const series = graphqlSeriesOverviewToPublic(data.seriesOverviewPreview);
+
+      return (
+        <>
+          <DetailLcpPreload item={series} />
+          <SeriesDetailClient series={series} previewMode />
+        </>
+      );
+    }
+
+    const series = await fetchSeriesCriticalBySlug(slug);
+
+    if (!series) {
       notFound();
     }
 
     return (
-      <SeriesDetailClient
-        series={graphqlSeriesOverviewToPublic(data.seriesOverview)}
-      />
+      <>
+        <DetailLcpPreload item={series} />
+        <SeriesDetailClient series={series} />
+      </>
     );
   } catch {
     notFound();

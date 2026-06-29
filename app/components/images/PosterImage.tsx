@@ -18,12 +18,16 @@ export default function PosterImage({
   alt,
   usage = "poster-card",
   placeholderPath = "/placeholders/poster.svg",
-  loading = usage === "detail-poster" || usage === "poster-grid" ? "eager" : "lazy",
+  loading,
+  fetchPriority,
   image,
   src,
   fallbackUrl,
   ...rest
 }: PosterImageProps) {
+  const resolvedLoading =
+    loading ?? (usage === "detail-poster" ? "eager" : "lazy");
+
   return (
     <ResponsiveImage
       image={image}
@@ -33,7 +37,8 @@ export default function PosterImage({
       usage={usage}
       aspectRatio="2 / 3"
       objectFit="cover"
-      loading={loading}
+      loading={resolvedLoading}
+      fetchPriority={fetchPriority}
       placeholderPath={placeholderPath}
       fill
       {...rest}

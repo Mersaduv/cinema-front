@@ -1,6 +1,7 @@
 import type { FilterGenreOption, FilterOptions } from "../filter-options";
 import { HOME_RAIL_CAROUSEL_PER_PAGE } from "./carousel-config";
 import { toCarouselMeta } from "./home";
+import { filterHomeCatalogFetchResult, filterHomeSliderItems } from "./home-visibility";
 import {
   fetchMoviesCatalogRest,
   fetchSeriesCatalogRest,
@@ -60,6 +61,107 @@ export type HomeGenreRailData = {
   kind: "movies" | "series";
   progressive: boolean;
 };
+
+export type HomeGenreRailConfig = Omit<HomeGenreRailData, "items" | "meta">;
+
+export function resolveHomeGenreRailConfig(
+  filterOptions: FilterOptions,
+  definition: HomeGenreRailDefinition,
+): HomeGenreRailConfig | null {
+  const genre = findGenreBySlug(filterOptions, definition.slug);
+  if (!genre) {
+    return null;
+  }
+
+  const genreId = String(genre.id);
+  const filters = buildGenrePopularFilters(genreId);
+
+  if (definition.kind === "movies") {
+    return {
+      definition,
+      genreId,
+      filters,
+      useItemKind: false,
+      kind: "movies",
+      progressive: true,
+    };
+  }
+
+  if (definition.kind === "series") {
+    return {
+      definition,
+      genreId,
+      filters,
+      useItemKind: false,
+      kind: "series",
+      progressive: true,
+    };
+  }
+
+  return {
+    definition,
+    genreId,
+    filters,
+    useItemKind: true,
+    kind: "movies",
+    progressive: false,
+  };
+}
+
+export async function fetchHomeGenreRailByConfig(
+  config: HomeGenreRailConfig,
+): Promise<HomeGenreRailData | null> {
+  const { definition, filters } = config;
+
+  if (definition.kind === "movies") {
+    const result = filterHomeCatalogFetchResult(
+      await fetchMoviesCatalogRest(filters, 1, HOME_RAIL_CAROUSEL_PER_PAGE),
+    );
+    if (result.items.length === 0) {
+      return null;
+    }
+
+    return {
+      ...config,
+      items: result.items,
+      meta: toCarouselMeta(result.meta, result.items.length),
+    };
+  }
+
+  if (definition.kind === "series") {
+    const result = filterHomeCatalogFetchResult(
+      await fetchSeriesCatalogRest(filters, 1, HOME_RAIL_CAROUSEL_PER_PAGE),
+    );
+    if (result.items.length === 0) {
+      return null;
+    }
+
+    return {
+      ...config,
+      items: result.items,
+      meta: toCarouselMeta(result.meta, result.items.length),
+    };
+  }
+
+  const [moviesResult, seriesResult] = await Promise.all([
+    fetchMoviesCatalogRest(filters, 1, HOME_RAIL_CAROUSEL_PER_PAGE),
+    fetchSeriesCatalogRest(filters, 1, HOME_RAIL_CAROUSEL_PER_PAGE),
+  ]);
+
+  const items = mergePopularItems(
+    filterHomeSliderItems(moviesResult.items),
+    filterHomeSliderItems(seriesResult.items),
+  );
+  if (items.length === 0) {
+    return null;
+  }
+
+  return {
+    ...config,
+    items,
+    meta: combineCarouselMeta(moviesResult.meta, seriesResult.meta, items.length),
+  };
+}
 
 function genrePool(filterOptions: FilterOptions): FilterGenreOption[] {
   const seen = new Set<number>();
@@ -141,70 +243,12 @@ export async function fetchHomeGenreRail(
   filterOptions: FilterOptions,
   definition: HomeGenreRailDefinition,
 ): Promise<HomeGenreRailData | null> {
-  const genre = findGenreBySlug(filterOptions, definition.slug);
-  if (!genre) {
+  const config = resolveHomeGenreRailConfig(filterOptions, definition);
+  if (!config) {
     return null;
   }
 
-  const genreId = String(genre.id);
-  const filters = buildGenrePopularFilters(genreId);
-
-  if (definition.kind === "movies") {
-    const result = await fetchMoviesCatalogRest(filters, 1, HOME_RAIL_CAROUSEL_PER_PAGE);
-    if (result.items.length === 0) {
-      return null;
-    }
-
-    return {
-      definition,
-      genreId,
-      filters,
-      items: result.items,
-      meta: toCarouselMeta(result.meta, result.items.length),
-      useItemKind: false,
-      kind: "movies",
-      progressive: true,
-    };
-  }
-
-  if (definition.kind === "series") {
-    const result = await fetchSeriesCatalogRest(filters, 1, HOME_RAIL_CAROUSEL_PER_PAGE);
-    if (result.items.length === 0) {
-      return null;
-    }
-
-    return {
-      definition,
-      genreId,
-      filters,
-      items: result.items,
-      meta: toCarouselMeta(result.meta, result.items.length),
-      useItemKind: false,
-      kind: "series",
-      progressive: true,
-    };
-  }
-
-  const [moviesResult, seriesResult] = await Promise.all([
-    fetchMoviesCatalogRest(filters, 1, HOME_RAIL_CAROUSEL_PER_PAGE),
-    fetchSeriesCatalogRest(filters, 1, HOME_RAIL_CAROUSEL_PER_PAGE),
-  ]);
-
-  const items = mergePopularItems(moviesResult.items, seriesResult.items);
-  if (items.length === 0) {
-    return null;
-  }
-
-  return {
-    definition,
-    genreId,
-    filters,
-    items,
-    meta: combineCarouselMeta(moviesResult.meta, seriesResult.meta, items.length),
-    useItemKind: true,
-    kind: "movies",
-    progressive: false,
-  };
+  return fetchHomeGenreRailByConfig(config);
 }
 
 export async function fetchAllHomeGenreRails(

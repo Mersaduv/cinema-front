@@ -17,14 +17,20 @@
 
 html {
   scroll-behavior: smooth;
+  background-color: var(--background);
+  color-scheme: dark;
+  scrollbar-color: rgba(255, 255, 255, 0.22) var(--background);
+  scrollbar-gutter: stable;
 }
 
 body {
   background:
     radial-gradient(circle at top, rgba(245, 197, 24, 0.06), transparent 32%),
     linear-gradient(180deg, #06090e 0%, #05070b 100%);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-iran-sans-x), Tahoma, "Segoe UI", Arial, Helvetica, sans-serif;
+  min-height: 100%;
 }
 
 [data-tv-focusable]:focus-visible,
@@ -34,24 +40,29 @@ body {
   box-shadow: 0 0 0 2px #05070b, 0 0 0 4px #38bdf8;
 }
 
-* {
-  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
-}
-
 ::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--background);
 }
 
 ::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
+  border: 2px solid var(--background);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.2);
   background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--background);
 }
 
 .cinema-player-video::cue {

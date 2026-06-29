@@ -34,6 +34,7 @@ export default function BackdropImage({
         title={title}
         alt={alt}
         priority={loading === "eager"}
+        fetchPriority={loading === "eager" ? "high" : "auto"}
         placeholderPath={placeholderPath}
         {...rest}
       />

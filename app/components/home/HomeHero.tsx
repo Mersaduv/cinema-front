@@ -37,6 +37,16 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
   }, [slideIds]);
 
   useEffect(() => {
+    if (slides.length === 0) {
+      return;
+    }
+
+    if (activeIndex >= slides.length) {
+      setActiveIndex(Math.max(0, slides.length - 1));
+    }
+  }, [activeIndex, slides.length]);
+
+  useEffect(() => {
     if (isPaused || slides.length <= 1) {
       return undefined;
     }
@@ -49,7 +59,8 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
     return null;
   }
 
-  const activeItem = slides[activeIndex] ?? slides[0];
+  const safeIndex = Math.min(activeIndex, slides.length - 1);
+  const activeItem = slides[safeIndex] ?? slides[0];
   const metadata = formatFeaturedMetadata(activeItem);
   const statusLabel = activeItem.status_label_fa?.trim() || "اکنون در سینما";
 
@@ -67,16 +78,13 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
         }
       }}
     >
-      {slides.map((item, index) => {
-        const isActive = index === activeIndex;
-
-        return (
+      {slides.map((item, index) => (
           <div
             key={`${item.catalogKind}-${item.id}`}
             className={`absolute inset-0 transition-opacity duration-700 ${
-              isActive ? "opacity-100" : "pointer-events-none opacity-0"
+              index === safeIndex ? "opacity-100" : "pointer-events-none opacity-0"
             }`}
-            aria-hidden={!isActive}
+            aria-hidden={index !== safeIndex}
           >
             <BackdropImage
               title={item.title}
@@ -84,12 +92,12 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
               src={item.backdrop_url ?? item.details.backdrop_url}
               fallbackUrl={item.poster_url}
               usage="hero-backdrop"
+              loading={index === 0 ? "eager" : "lazy"}
               wrapperClassName="h-full w-full"
               className="scale-105 object-cover"
             />
           </div>
-        );
-      })}
+        ))}
 
       <div className="absolute inset-0 bg-[linear-gradient(270deg,rgba(5,7,11,0.05)_0%,rgba(5,7,11,0.45)_38%,rgba(5,7,11,0.88)_68%,rgba(5,7,11,0.97)_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,7,11,0.2)_0%,rgba(5,7,11,0.15)_45%,rgba(5,7,11,0.92)_88%,rgba(5,7,11,1)_100%)]" />
@@ -146,11 +154,11 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
                   key={`dot-${item.catalogKind}-${item.id}`}
                   type="button"
                   aria-label={`اسلاید ${index + 1}: ${item.title}`}
-                  aria-current={index === activeIndex ? "true" : undefined}
+                  aria-current={index === safeIndex ? "true" : undefined}
                   data-tv-focusable
                   onClick={() => setActiveIndex(index)}
                   className={`h-1 rounded-full transition-all duration-300 ${TV_FOCUS_RING_CLASS} ${
-                    index === activeIndex
+                    index === safeIndex
                       ? "w-8 bg-[#f5c518]"
                       : "w-2 bg-white/30 hover:bg-white/50"
                   }`}

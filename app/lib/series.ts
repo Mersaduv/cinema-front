@@ -83,6 +83,10 @@ export interface PublicSeries {
   backdrop_image?: ResponsiveImageAsset | null;
   trailer_url: string | null;
   age_rating: string | null;
+  meta_title?: string | null;
+  meta_description?: string | null;
+  content_warnings?: string[];
+  quality_badges?: string[];
   genres?: PublicGenre[];
   origin_country?: string | null;
   original_language?: string | null;

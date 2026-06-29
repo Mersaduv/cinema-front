@@ -24,7 +24,7 @@ const navItems = [
 
 export default function Header({ overlay = false, isTv = false }: { overlay?: boolean; isTv?: boolean }) {
   const pathname = usePathname();
-  const { user, isAuthenticated, loading: authLoading, logout, hasRole } = useAuth();
+  const { user, isAuthenticated, hasToken, loading: authLoading, logout, hasRole } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -120,13 +120,20 @@ export default function Header({ overlay = false, isTv = false }: { overlay?: bo
             <HiMagnifyingGlass className="h-5 w-5" />
           </Link>
 
-          {!authLoading && !isAuthenticated ? (
+          {!hasToken && !authLoading ? (
             <Link
               href={`/login${pathname && pathname !== "/login" ? `?redirect=${encodeURIComponent(pathname)}` : ""}`}
               className="hidden rounded-2xl border border-[#f5c518]/30 bg-[#f5c518]/10 px-5 py-2.5 text-sm font-bold text-[#f8d977] transition hover:bg-[#f5c518]/20 md:inline-flex"
             >
               ورود
             </Link>
+          ) : null}
+
+          {hasToken && !user && authLoading ? (
+            <div
+              className="hidden h-11 w-28 animate-pulse rounded-2xl bg-white/10 md:block"
+              aria-hidden
+            />
           ) : null}
 
           {isAuthenticated && user ? (

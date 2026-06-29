@@ -33,6 +33,9 @@ export type CatalogListItem = {
   rating?: number | null;
   playback_quality?: string | null;
   content_type?: "movie" | "series";
+  is_featured?: boolean;
+  exclude_from_slider?: boolean;
+  catalog_visibility?: string;
   details: {
     genres: string[];
     backdrop_url?: string | null;
@@ -132,6 +135,8 @@ export function toCatalogItem(
       null,
     playback_quality: (row.playback_quality as string | null) ?? null,
     content_type: contentType,
+    is_featured: Boolean(row.is_featured),
+    exclude_from_slider: Boolean(row.exclude_from_slider),
     catalogKind: contentType,
     details: {
       ...details,
@@ -187,7 +192,9 @@ export async function fetchMoviesCatalogRest(
         Accept: "application/json",
         "Accept-Encoding": "gzip",
       },
-      ...(isServer ? { next: { revalidate: 300 } } : { cache: "no-store" }),
+      ...(isServer
+        ? { next: { tags: ["catalog", "catalog-movies"] } }
+        : { cache: "no-store" }),
       signal,
     });
     if (!response.ok) {
@@ -285,7 +292,9 @@ export async function fetchSeriesCatalogRest(
         Accept: "application/json",
         "Accept-Encoding": "gzip",
       },
-      ...(isServer ? { next: { revalidate: 300 } } : { cache: "no-store" }),
+      ...(isServer
+        ? { next: { tags: ["catalog", "catalog-movies"] } }
+        : { cache: "no-store" }),
       signal,
     });
     if (!response.ok) {

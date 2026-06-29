@@ -115,6 +115,7 @@ export interface AdminSeries {
   drm_license_url?: string | null;
   catalog_visibility: string;
   is_featured: boolean;
+  exclude_from_slider?: boolean;
   publish_status: SeriesPublishStatus;
   pipeline_status?: SeriesPipelineStatus;
   scheduled_for: string | null;
@@ -154,7 +155,16 @@ export interface AdminSeries {
       tv_show_style: string;
       episode_methods: string[];
     };
+    seo?: {
+      meta_title?: string | null;
+      meta_description?: string | null;
+    };
+    content_warnings?: string[];
+    quality_badges?: string[];
+    admin_notes?: string | null;
   };
+  admin_notes?: string | null;
+  has_admin_notes?: boolean;
   seasons?: AdminSeriesSeason[];
   created_at: string | null;
   updated_at: string | null;
@@ -267,12 +277,17 @@ export interface AdminSeriesPayload {
   age_rating?: string;
   catalog_visibility?: string;
   is_featured?: boolean;
+  exclude_from_slider?: boolean;
   publish_status?: SeriesPublishStatus;
   scheduled_for?: string | null;
   tmdb_query?: string;
   tmdb_id?: number | null;
   imdb_id?: string;
   tvdb_id?: string;
+  meta_title?: string;
+  meta_description?: string;
+  content_warnings?: string[];
+  quality_badges?: string[];
   rating?: number | null;
   popularity?: number | null;
   vote_count?: number | null;
@@ -292,6 +307,7 @@ export interface AdminSeriesPayload {
   seasons?: AdminSeriesSeason[];
   tmdb_excluded_season_numbers?: number[];
   tmdb_excluded_episodes?: Array<{ season_number: number; episode_number: number }>;
+  admin_notes?: string | null;
 }
 
 export const adminSeriesService = {
@@ -344,6 +360,26 @@ export const adminSeriesService = {
 
   async show(seriesId: string | number) {
     return apiClient.get<{ series: AdminSeries }>(`/admin/series/${seriesId}`);
+  },
+
+  async searchTmdb(query: string, language = "fa-IR") {
+    const params = new URLSearchParams({ query, language, type: "tv" });
+
+    return apiClient.get<{ results: import("./admin-movies").TmdbSearchResult[] }>(
+      `/admin/tmdb/search?${params.toString()}`,
+    );
+  },
+
+  async checkSlug(slug: string, excludeId?: string | number) {
+    const params = new URLSearchParams({ slug });
+
+    if (excludeId !== undefined && excludeId !== "") {
+      params.set("exclude_id", String(excludeId));
+    }
+
+    return apiClient.get<{ available: boolean; suggestion?: string | null }>(
+      `/admin/series/check-slug?${params.toString()}`,
+    );
   },
 
   async fetchTmdb(
@@ -410,6 +446,49 @@ export const adminSeriesService = {
       `/admin/series/${seriesId}/publish-status`,
       payload,
     );
+  },
+
+  async upsertEpisode(
+    seriesId: string | number,
+    seasonNumber: number,
+    episodeNumber: number,
+    payload: AdminSeriesEpisode & {
+      season?: {
+        hls_base_url?: string | null;
+        name?: string | null;
+      };
+    },
+  ) {
+    const cleaned = cleanPayload(payload);
+
+    return apiClient.patch<{
+      episode: AdminSeriesEpisode;
+      series: AdminSeries;
+    }>(
+      `/admin/series/${seriesId}/seasons/${seasonNumber}/episodes/${episodeNumber}`,
+      cleaned,
+      { timeoutMs: 30_000 },
+    );
+  },
+
+  async getPreviewToken(seriesId: string | number) {
+    return apiClient.get<{ token: string; expires_at: string }>(
+      `/admin/series/${seriesId}/preview-token`,
+    );
+  },
+
+  async getHistory(seriesId: string | number, page = 1) {
+    const params = new URLSearchParams({ page: String(page) });
+
+    return apiClient.get<{
+      history: import("./content-change-history").ContentChangeLogEntry[];
+      pagination: {
+        current_page: number;
+        last_page: number;
+        per_page: number;
+        total: number;
+      };
+    }>(`/admin/series/${seriesId}/history?${params.toString()}`);
   },
 
   async remove(seriesId: string | number) {

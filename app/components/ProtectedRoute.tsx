@@ -19,7 +19,7 @@ export default function ProtectedRoute({
   requirePermission,
   redirectTo = '/login',
 }: ProtectedRouteProps) {
-  const { loading, isAuthenticated, hasRole, hasPermission } = useAuth();
+  const { loading, isAuthenticated, hasToken, hasRole, hasPermission } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -31,7 +31,12 @@ export default function ProtectedRoute({
   useEffect(() => {
     if (loading) return;
 
-    if (requireAuth && !isAuthenticated) {
+    if (requireAuth && !hasToken) {
+      router.push(loginRedirect);
+      return;
+    }
+
+    if (requireAuth && hasToken && !isAuthenticated) {
       router.push(loginRedirect);
       return;
     }
@@ -61,6 +66,7 @@ export default function ProtectedRoute({
     }
   }, [
     loading,
+    hasToken,
     isAuthenticated,
     requireAuth,
     requireRole,
@@ -71,7 +77,7 @@ export default function ProtectedRoute({
     loginRedirect,
   ]);
 
-  if (loading) {
+  if (loading && requireAuth && hasToken && !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#121212]">
         <div className="text-center">
@@ -80,6 +86,10 @@ export default function ProtectedRoute({
         </div>
       </div>
     );
+  }
+
+  if (requireAuth && !hasToken) {
+    return null;
   }
 
   if (requireAuth && !isAuthenticated) {

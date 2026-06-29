@@ -3,7 +3,8 @@
 import { useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
-import { tokenStorage } from "../../lib/auth";
+import { tokenStorage, type User } from "../../lib/auth";
+import { primeSessionUser } from "../../lib/session-service";
 
 export default function AuthCallbackClient() {
   const router = useRouter();
@@ -39,6 +40,17 @@ export default function AuthCallbackClient() {
     }
 
     tokenStorage.setToken(token);
+
+    if (userParam) {
+      try {
+        const parsedUser = JSON.parse(atob(userParam)) as User;
+        if (parsedUser?.id) {
+          primeSessionUser(parsedUser);
+        }
+      } catch (error) {
+        console.error("Error parsing user data:", error);
+      }
+    }
 
     let isCancelled = false;
 

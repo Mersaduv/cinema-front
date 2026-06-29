@@ -16,8 +16,9 @@ import {
   HiOutlineFilm,
 } from "react-icons/hi";
 import HeroTrailerBackground from "./HeroTrailerBackground";
+import ContentMetadataPills from "./ContentMetadataPills";
 import EpisodeDownloadMenu from "./EpisodeDownloadMenu";
-import { useAuth } from "../../contexts/AuthContext";
+import { useOptionalAuth } from "../../contexts/AuthContext";
 import { sortCastByOrder } from "../../lib/cast-utils";
 import { formatGregorianDate } from "../../lib/date-format";
 import { resolveEpisodeTitle } from "../../lib/episode-title";
@@ -33,7 +34,6 @@ import RelatedContentSlider from "../catalog/RelatedContentSlider";
 import CastSlider from "./CastSlider";
 import SaveFeedbackToast from "./SaveFeedbackToast";
 import {
-  BackdropImage,
   EpisodeStillImage,
   PosterImage,
 } from "../images";
@@ -104,10 +104,6 @@ function formatDuration(seconds: number | null, runtimeMinutes: number | null) {
   return `${hours} ساعت و ${minutes} دقیقه`;
 }
 
-function normalizeImageCandidates(values: Array<string | null | undefined>) {
-  return Array.from(new Set(values.filter(Boolean))) as string[];
-}
-
 function buildTabs(kind: ContentKind) {
   if (kind === "series") {
     return [
@@ -154,6 +150,23 @@ function EpisodeGridSkeleton() {
   );
 }
 
+function CastSliderSkeleton() {
+  return (
+    <div className="flex gap-4 overflow-hidden">
+      {Array.from({ length: 8 }).map((_, index) => (
+        <div
+          key={`cast-slider-skeleton-${index}`}
+          className="w-32 shrink-0 space-y-3"
+        >
+          <div className="aspect-[2/3] animate-pulse rounded-2xl bg-white/8" />
+          <div className="mx-auto h-3 w-20 animate-pulse rounded bg-white/10" />
+          <div className="mx-auto h-3 w-16 animate-pulse rounded bg-white/8" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ContentDetailPage({
   kind,
   movie,
@@ -161,6 +174,7 @@ export default function ContentDetailPage({
   similarItems,
   episodesLoading = false,
   similarLoading = false,
+  castLoading = false,
   onRequestEpisodes,
   onRequestSimilar,
   reviewsProps,
@@ -171,6 +185,7 @@ export default function ContentDetailPage({
   similarItems: CatalogListItem[];
   episodesLoading?: boolean;
   similarLoading?: boolean;
+  castLoading?: boolean;
   onRequestEpisodes?: () => void;
   onRequestSimilar?: () => void;
   reviewsProps?: {
@@ -186,7 +201,7 @@ export default function ContentDetailPage({
   const isTvCompat = useIsTvCompat();
   const pageRef = useRef<HTMLDivElement>(null);
   const playButtonRef = useRef<HTMLAnchorElement>(null);
-  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useOptionalAuth();
   const [activeTab, setActiveTab] = useState<DetailTabKey>("details");
   const [watchlistVersion, setWatchlistVersion] = useState(0);
   const [showAuthRequiredModal, setShowAuthRequiredModal] = useState(false);
@@ -276,6 +291,8 @@ export default function ContentDetailPage({
   });
   const trailerUrl = kind === "movie" ? movie?.trailer_url : series?.trailer_url;
   const ageRating = kind === "movie" ? movie?.age_rating : series?.age_rating;
+  const contentWarnings =
+    kind === "movie" ? movie?.content_warnings : series?.content_warnings;
   const rawGenres =
     kind === "movie" ? movie?.details.genres || [] : series?.details.genres || [];
   const genres = localizeGenreLabels(rawGenres);
@@ -438,27 +455,6 @@ export default function ContentDetailPage({
           value: series.status_label_fa || series.status || "ثبت نشده",
         },
       ];
-    }
-
-    return [];
-  }, [kind, movie, series]);
-
-  const galleryImages = useMemo(() => {
-    if (kind === "movie" && movie) {
-      return normalizeImageCandidates([
-        ...(movie.details.gallery || []),
-        movie.details.backdrop_url,
-        movie.poster_url,
-      ]);
-    }
-
-    if (kind === "series" && series) {
-      return normalizeImageCandidates([
-        ...(series.details.gallery || []),
-        series.details.backdrop_url,
-        series.backdrop_url,
-        series.poster_url,
-      ]);
     }
 
     return [];
@@ -692,6 +688,7 @@ export default function ContentDetailPage({
                       ) : null}
                     </div>
                   ) : null}
+                  <ContentMetadataPills contentWarnings={contentWarnings} />
                 </div>
               </div>
 
@@ -873,9 +870,7 @@ export default function ContentDetailPage({
               </p>
             </section>
 
-
-
-            <CastSlider cast={castRows} />
+            {castLoading ? <CastSliderSkeleton /> : <CastSlider cast={castRows} />}
 
             <section className="space-y-7">
               <SectionTitle icon={<HiOutlineCollection className="h-5 w-5" />}>

@@ -206,6 +206,7 @@ function EpisodePanelComponent({
             role={isTvCompat ? "dialog" : undefined}
             aria-label={isTvCompat ? "لیست قسمت‌ها" : undefined}
             data-tv-focus-group="episode-panel"
+            data-episode-panel
             className="absolute top-full right-0 mt-2 flex w-[min(92vw,22rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#0b0f14]/95 shadow-2xl backdrop-blur-md sm:w-[24rem]"
             onClick={(event) => event.stopPropagation()}
           >
@@ -229,7 +230,10 @@ function EpisodePanelComponent({
               </p>
             ) : (
               <>
-                <div className="flex gap-2 overflow-x-auto border-b border-white/10 px-4 py-3">
+                <div
+                  className="flex gap-2 overflow-x-auto border-b border-white/10 px-4 py-3"
+                  style={{ touchAction: "pan-x" }}
+                >
                   {seasons.map((season) => {
                     const active = season.seasonNumber === selectedSeason;
 
@@ -253,7 +257,10 @@ function EpisodePanelComponent({
                   })}
                 </div>
 
-                <div className="max-h-[min(60vh,28rem)] overflow-y-auto">
+                <div
+                  className="max-h-[min(60vh,28rem)] overflow-y-auto overscroll-contain"
+                  style={{ touchAction: "pan-y" }}
+                >
                   {visibleEpisodes.map((ep) => {
                     const isCurrent =
                       ep.seasonNumber === nav.currentSeason &&

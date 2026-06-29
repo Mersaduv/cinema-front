@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import Script from "next/script";
+import { Suspense } from "react";
 import "./globals.css";
 import "./tv-compat.css";
-import AppChrome from "./components/AppChrome";
-import { AuthProvider } from "./contexts/AuthContext";
-import TvCompatRoot from "./components/tv/TvCompatRoot";
+import Providers from "./providers";
+import { ResourceHints } from "./components/ResourceHints";
 import { BROWSER_COMPAT_POLYFILLS } from "./lib/browser-compat";
 
 const iranSansX = localFont({
@@ -88,6 +88,7 @@ export default function RootLayout({
   return (
     <html lang="fa" dir="rtl" data-scroll-behavior="smooth">
       <head>
+        <ResourceHints />
         <Script
           id="browser-compat-polyfills"
           strategy="beforeInteractive"
@@ -95,10 +96,9 @@ export default function RootLayout({
         />
       </head>
       <body className={`${iranSansX.variable} font-sans antialiased`}>
-        <TvCompatRoot />
-        <AuthProvider>
-          <AppChrome>{children}</AppChrome>
-        </AuthProvider>
+        <Suspense fallback={null}>
+          <Providers>{children}</Providers>
+        </Suspense>
       </body>
     </html>
   );

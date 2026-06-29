@@ -72,6 +72,7 @@ export interface AdminMovieMetadata {
     query: string | null;
     tmdb_id: number | null;
     imdb_id: string | null;
+    homepage_url?: string | null;
     poster_url: string | null;
     poster_source_url?: string | null;
     backdrop_url: string | null;
@@ -97,8 +98,16 @@ export interface AdminMovieMetadata {
   };
   playback: {
     hls_url: string | null;
+    dash_url?: string | null;
     downloads: Record<string, string>;
   };
+  seo?: {
+    meta_title?: string | null;
+    meta_description?: string | null;
+  };
+  content_warnings?: string[];
+  quality_badges?: string[];
+  admin_notes?: string | null;
 }
 
 export interface AdminMovie {
@@ -132,6 +141,9 @@ export interface AdminMovie {
   subtitle_source_url: string | null;
   drm_scheme?: string | null;
   drm_license_url?: string | null;
+  is_featured?: boolean;
+  exclude_from_slider?: boolean;
+  catalog_visibility?: string;
   age_rating: string | null;
   cast_members: string[];
   publish_status: PublishStatus;
@@ -150,6 +162,9 @@ export interface AdminMovie {
     name: string;
     email: string;
   } | null;
+  admin_notes?: string | null;
+  has_admin_notes?: boolean;
+  publish_completion_pending?: boolean;
   media_asset: AdminMovieMediaAsset | null;
   /** Loaded on detail when credits are synced */
   cast?: MovieCastApiRow[];
@@ -368,6 +383,7 @@ export type TmdbBelongsToCollection = {
 
 export interface TmdbMoviePayload extends TmdbSearchResult {
   imdb_id: string | null;
+  homepage_url?: string | null;
   original_language: string | null;
   trailer_url: string | null;
   genres: string[];
@@ -624,11 +640,39 @@ export const adminMoviesService = {
       publish_status: PublishStatus;
       scheduled_for?: string | null;
     },
+    options?: { idempotencyKey?: string },
   ) {
+    const headers: Record<string, string> = {};
+
+    if (options?.idempotencyKey) {
+      headers["X-Idempotency-Key"] = options.idempotencyKey;
+    }
+
     return apiClient.put<{ movie: AdminMovie }>(
       `/admin/movies/${movieId}/publish-status`,
       payload,
+      { headers },
     );
+  },
+
+  async getPreviewToken(movieId: string | number) {
+    return apiClient.get<{ token: string; expires_at: string }>(
+      `/admin/movies/${movieId}/preview-token`,
+    );
+  },
+
+  async getHistory(movieId: string | number, page = 1) {
+    const params = new URLSearchParams({ page: String(page) });
+
+    return apiClient.get<{
+      history: import("./content-change-history").ContentChangeLogEntry[];
+      pagination: {
+        current_page: number;
+        last_page: number;
+        per_page: number;
+        total: number;
+      };
+    }>(`/admin/movies/${movieId}/history?${params.toString()}`);
   },
 
   async updatePublicationForm(
@@ -653,11 +697,23 @@ export const adminMoviesService = {
     );
   },
 
-  async searchTmdb(query: string, language = "fa-IR") {
-    const params = new URLSearchParams({ query, language });
+  async searchTmdb(query: string, language = "fa-IR", type: "movie" | "tv" = "movie") {
+    const params = new URLSearchParams({ query, language, type });
 
     return apiClient.get<{ results: TmdbSearchResult[] }>(
       `/admin/tmdb/search?${params.toString()}`
+    );
+  },
+
+  async checkSlug(slug: string, excludeId?: string | number) {
+    const params = new URLSearchParams({ slug });
+
+    if (excludeId !== undefined && excludeId !== "") {
+      params.set("exclude_id", String(excludeId));
+    }
+
+    return apiClient.get<{ available: boolean; suggestion?: string | null }>(
+      `/admin/movies/check-slug?${params.toString()}`,
     );
   },
 

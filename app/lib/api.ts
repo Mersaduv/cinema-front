@@ -18,10 +18,14 @@ class ApiClient {
     this.baseURL = baseURL;
   }
 
-  private async request<T>(
+  async request<T>(
     endpoint: string,
     options: RequestInit = {},
-    requestOptions?: { timeoutMs?: number; signal?: AbortSignal },
+    requestOptions?: {
+      timeoutMs?: number;
+      signal?: AbortSignal;
+      headers?: Record<string, string>;
+    },
   ): Promise<ApiResponse<T>> {
     const token = tokenStorage.getToken();
 
@@ -29,6 +33,7 @@ class ApiClient {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       ...(options.headers as Record<string, string>),
+      ...(requestOptions?.headers ?? {}),
     };
 
     if (token) {
@@ -113,7 +118,11 @@ class ApiClient {
 
   async get<T>(
     endpoint: string,
-    requestOptions?: { timeoutMs?: number; signal?: AbortSignal },
+    requestOptions?: {
+      timeoutMs?: number;
+      signal?: AbortSignal;
+      headers?: Record<string, string>;
+    },
   ): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'GET' }, requestOptions);
   }
@@ -192,7 +201,11 @@ class ApiClient {
   async put<T>(
     endpoint: string,
     body?: unknown,
-    requestOptions?: { timeoutMs?: number; signal?: AbortSignal },
+    requestOptions?: {
+      timeoutMs?: number;
+      signal?: AbortSignal;
+      headers?: Record<string, string>;
+    },
   ): Promise<ApiResponse<T>> {
     return this.request<T>(
       endpoint,

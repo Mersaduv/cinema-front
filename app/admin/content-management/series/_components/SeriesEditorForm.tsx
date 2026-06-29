@@ -16,6 +16,7 @@ import {
   HiOutlinePhotograph,
   HiOutlinePlay,
   HiOutlinePlus,
+  HiOutlineSave,
   HiOutlineTrash,
   HiOutlineUserGroup,
   HiOutlineVolumeUp,
@@ -28,6 +29,13 @@ import PublishOutcomeModal, {
   type PublishOutcomeStatus,
 } from "../../../../components/admin/PublishOutcomeModal";
 import TmdbPreviewSkeleton from "../../../../components/admin/TmdbPreviewSkeleton";
+import TmdbTitleSearch from "../../../../components/admin/TmdbTitleSearch";
+import FormDraftBanner from "../../../../components/admin/FormDraftBanner";
+import SeoFieldsPanel from "../../../../components/admin/SeoFieldsPanel";
+import {
+  ContentWarningsField,
+  ExternalIdsSection,
+} from "../../../../components/admin/ContentMetadataFormFields";
 import { BackdropImage, PersonProfileImage, PosterImage } from "../../../../components/images";
 import SeriesFormStatusPanel from "../../../../components/admin/SeriesFormStatusPanel";
 import {
@@ -90,7 +98,12 @@ import {
   translatePublishStatus,
 } from "../../../../lib/production-status";
 
-const DEFAULT_CATALOG_VISIBILITY = "catalog";
+const seriesCatalogVisibilityOptions = [
+  { value: "catalog_search", label: "کاتالوگ و جستجو", description: "نمایش در لیست‌ها و نتایج جستجو" },
+  { value: "catalog", label: "فقط کاتالوگ", description: "فقط در صفحات لیست سریال‌ها" },
+  { value: "search", label: "فقط جستجو", description: "فقط در نتایج جستجو" },
+  { value: "hidden", label: "مخفی", description: "فقط از طریق لینک مستقیم قابل دسترسی است" },
+];
 
 const downloadQualityOptions = [
   { value: "2160p", label: "2160p", description: "4K Ultra HD" },
@@ -155,6 +168,17 @@ import {
   type SeriesPublishStatus,
 } from "../../../../lib/admin-series";
 import {
+  SlugAvailabilityHint,
+  useSlugAvailability,
+} from "../../../../hooks/useSlugAvailability";
+import {
+  clearDraft,
+  seriesDraftKey,
+  stripSeriesDraftFields,
+  useDebouncedDraftSave,
+  useFormDraftRecovery,
+} from "../../../../lib/form-draft";
+import {
   applyTmdbSeasonToForm,
   applyTmdbSeriesOverviewToForm,
   finalizeTmdbSeriesSyncExclusions,
@@ -167,9 +191,16 @@ import {
   type MergeSeasonFromTmdbOptions,
   type TmdbSyncState,
 } from "../_lib/series-tmdb-sync";
+import {
+  buildEpisodeUpsertPayload,
+  episodeDraftFingerprint,
+  mergeSavedEpisodeIntoDraft,
+  seedEpisodeSavedFingerprints,
+} from "../_lib/series-episode-payload";
+import ContentChangeHistoryPanel from "../../../../components/admin/ContentChangeHistoryPanel";
 
 type Mode = "create" | "edit";
-type SeriesEditorTab = "identity" | "catalog" | "seasons" | "publish";
+type SeriesEditorTab = "identity" | "catalog" | "seo" | "seasons" | "publish";
 
 type SeriesArrayField =
   | "creators"
@@ -288,6 +319,7 @@ function EpisodeHlsSyncStatus({
 const tabs: Array<{ key: SeriesEditorTab; label: string; icon: React.ReactNode }> = [
   { key: "identity", label: "اطلاعات سریال", icon: <HiOutlineFilm className="h-5 w-5" /> },
   { key: "catalog", label: "تصاویر", icon: <HiOutlinePhotograph className="h-5 w-5" /> },
+  { key: "seo", label: "سئو", icon: <HiOutlineGlobeAlt className="h-5 w-5" /> },
   { key: "seasons", label: "فصل ها و قسمت ها", icon: <HiOutlineCollection className="h-5 w-5" /> },
   { key: "publish", label: "انتشار", icon: <HiOutlineCheckCircle className="h-5 w-5" /> },
 ];
@@ -321,7 +353,7 @@ const defaultStatusOptions = [
 ];
 
 const ltrInputClass = "text-left";
-const tabOrder: SeriesEditorTab[] = ["identity", "catalog", "seasons", "publish"];
+const tabOrder: SeriesEditorTab[] = ["identity", "catalog", "seo", "seasons", "publish"];
 
 const arrayFieldLabels: Record<SeriesArrayField, string> = {
   creators: "سازندگان",
@@ -592,12 +624,16 @@ function createInitialFormState(): SeriesFormState {
     homepage_url: "",
     age_rating: "",
     is_featured: false,
+    catalog_visibility: "catalog_search",
     publish_status: "draft",
     scheduled_for: "",
     tmdb_query: "",
     tmdb_id: "",
     imdb_id: "",
     tvdb_id: "",
+    meta_title: "",
+    meta_description: "",
+    content_warnings: [],
     rating: "",
     popularity: "",
     vote_count: "",
@@ -617,6 +653,7 @@ function createInitialFormState(): SeriesFormState {
     seasons: [createSeasonDraft(1)],
     tmdb_excluded_season_numbers: [],
     tmdb_excluded_episodes: [],
+    admin_notes: "",
   };
 }
 
@@ -717,12 +754,17 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
     homepage_url: series.homepage_url || "",
     age_rating: series.age_rating || "",
     is_featured: Boolean(series.is_featured),
+    catalog_visibility: series.catalog_visibility || "catalog_search",
     publish_status: series.publish_status || "draft",
     scheduled_for: apiDateTimeToInputValue(series.scheduled_for),
+    admin_notes: series.admin_notes || series.metadata?.admin_notes || "",
     tmdb_query: series.metadata?.tmdb?.query || "",
     tmdb_id: series.metadata?.tmdb?.tmdb_id ? String(series.metadata.tmdb.tmdb_id) : "",
     imdb_id: series.metadata?.tmdb?.imdb_id || "",
     tvdb_id: series.metadata?.tmdb?.tvdb_id || "",
+    meta_title: series.metadata?.seo?.meta_title || "",
+    meta_description: series.metadata?.seo?.meta_description || "",
+    content_warnings: series.metadata?.content_warnings || [],
     rating:
       typeof series.metadata?.tmdb?.rating === "number"
         ? String(series.metadata.tmdb.rating)
@@ -863,11 +905,20 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
           air_date: nullableString(episode.air_date) || null,
           duration_minutes: nullableNumber(episode.duration_minutes),
           still_url: nullableString(episode.still_url) || null,
-          source_method: "hls",
-          video_url: null,
-          embed_url: null,
-          hls_url: episode.hls_verified ? nullableString(episode.hls_url) || null : null,
-          hls_verified: Boolean(episode.hls_verified),
+          source_method: episode.source_method || "hls",
+          video_url:
+            episode.source_method === "url" || episode.source_method === "upload"
+              ? nullableString(episode.video_url) || null
+              : null,
+          embed_url:
+            episode.source_method === "embed"
+              ? nullableString(episode.embed_url) || null
+              : null,
+          hls_url:
+            episode.source_method === "hls" && episode.hls_verified
+              ? nullableString(episode.hls_url) || null
+              : null,
+          hls_verified: episode.source_method === "hls" ? Boolean(episode.hls_verified) : false,
           dash_url: episode.dash_verified ? nullableString(episode.dash_url) || null : null,
           dash_verified: Boolean(episode.dash_verified),
           download_links: (() => {
@@ -917,7 +968,7 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
     homepage_url: nullableString(form.homepage_url),
     hls_base_url: nullableString(seriesHlsBase),
     age_rating: nullableString(form.age_rating),
-    catalog_visibility: DEFAULT_CATALOG_VISIBILITY,
+    catalog_visibility: form.catalog_visibility || "catalog_search",
     is_featured: form.is_featured,
     drm_scheme: form.drm_scheme || "none",
     drm_license_url:
@@ -928,6 +979,9 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
     tmdb_id: nullableNumber(form.tmdb_id),
     imdb_id: nullableString(form.imdb_id),
     tvdb_id: nullableString(form.tvdb_id),
+    meta_title: nullableString(form.meta_title),
+    meta_description: nullableString(form.meta_description),
+    content_warnings: form.content_warnings,
     rating: nullableNumber(form.rating),
     popularity: nullableNumber(form.popularity),
     vote_count: nullableNumber(form.vote_count),
@@ -963,6 +1017,7 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
       })),
     tmdb_excluded_season_numbers: form.tmdb_excluded_season_numbers,
     tmdb_excluded_episodes: form.tmdb_excluded_episodes,
+    admin_notes: nullableString(form.admin_notes) || null,
     seasons,
   };
 }
@@ -987,6 +1042,7 @@ export default function SeriesEditorForm({
 
     return "identity";
   });
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [publishOutcomeOpen, setPublishOutcomeOpen] = useState(false);
   const [publishOutcomeStatus, setPublishOutcomeStatus] =
     useState<PublishOutcomeStatus>("draft");
@@ -1017,6 +1073,11 @@ export default function SeriesEditorForm({
   const [expandedEpisodeKeys, setExpandedEpisodeKeys] = useState<string[]>([]);
   const [episodeHlsSyncMessage, setEpisodeHlsSyncMessage] = useState<Record<string, string>>({});
   const [episodeHlsSyncPending, setEpisodeHlsSyncPending] = useState<Record<string, boolean>>({});
+  const [episodeSavingKeys, setEpisodeSavingKeys] = useState<Record<string, boolean>>({});
+  const [episodeSaveFeedback, setEpisodeSaveFeedback] = useState<Record<string, string>>({});
+  const [episodeSavedFingerprints, setEpisodeSavedFingerprints] = useState<
+    Record<string, string>
+  >({});
   const [seriesHlsSyncMessage, setSeriesHlsSyncMessage] = useState("");
   const tmdbAbortControllerRef = useRef<AbortController | null>(null);
   const tmdbImageIngestAbortRef = useRef<AbortController | null>(null);
@@ -1079,6 +1140,7 @@ export default function SeriesEditorForm({
           normalizeTmdbCodeInput(nextForm.tmdb_id || nextForm.tmdb_query),
         );
         seriesFormBodyFingerprintRef.current = seriesFormBodyFingerprint(nextForm);
+        setEpisodeSavedFingerprints(seedEpisodeSavedFingerprints(nextForm));
         lastCommittedSeriesHlsBaseRef.current = normalizeHlsBaseUrl(nextForm.hls_base_url);
         hlsAutoSyncBootstrappedRef.current = true;
         lastHlsFingerprintRef.current = buildHlsSyncFingerprint(nextForm);
@@ -1807,21 +1869,53 @@ export default function SeriesEditorForm({
   const isPublishScheduleComplete =
     form.publish_status !== "scheduled" || form.scheduled_for.trim() !== "";
 
+  const slugAvailability = useSlugAvailability({
+    slug: form.slug,
+    excludeId: series?.id ?? seriesId,
+    check: adminSeriesService.checkSlug,
+  });
+
+  const seriesDraftStorageKey = seriesDraftKey(null);
+  const draftRecovery = useFormDraftRecovery<SeriesFormState>({
+    enabled: mode === "create" && !loading,
+    draftKey: seriesDraftStorageKey,
+    onRestore: (draft) => {
+      setForm((current) => ({
+        ...current,
+        ...draft,
+      }));
+    },
+  });
+
+  useDebouncedDraftSave(
+    seriesDraftStorageKey,
+    stripSeriesDraftFields(form),
+    mode === "create" && !loading,
+  );
+
   const canSubmitForm =
     isIdentityTabComplete &&
     isSeasonsTabComplete &&
-    isPublishScheduleComplete;
+    isPublishScheduleComplete &&
+    !slugAvailability.isChecking &&
+    !slugAvailability.isTaken;
 
   const canProceedToNextTab =
     activeTab === "identity"
       ? isIdentityTabComplete
       : activeTab === "catalog"
         ? true
-        : activeTab === "seasons"
-          ? isSeasonsStructureComplete
-          : false;
+        : activeTab === "seo"
+          ? true
+          : activeTab === "seasons"
+            ? isSeasonsStructureComplete
+            : false;
 
   const canAccessTab = (target: SeriesEditorTab) => {
+    if (mode === "edit") {
+      return true;
+    }
+
     if (target === "identity") {
       return true;
     }
@@ -2932,6 +3026,7 @@ export default function SeriesEditorForm({
       }));
 
       const savedPublishStatus = savedSeries.publish_status || form.publish_status;
+      clearDraft(seriesDraftStorageKey);
       setPublishOutcomeStatus(savedPublishStatus);
       setPublishOutcomeOpen(true);
       setActiveTab("publish");
@@ -2961,6 +3056,109 @@ export default function SeriesEditorForm({
       ]).finally(() => {
         router.replace(nextPath);
         router.refresh();
+      });
+    }
+  };
+
+  const saveEpisodeOnly = async (seasonId: string, episodeId: string) => {
+    if (!seriesId) {
+      setError("برای ذخیره قسمت، ابتدا اطلاعات اصلی سریال را یک‌بار ذخیره کنید.");
+      setActiveTab("identity");
+      return;
+    }
+
+    const season = form.seasons.find((item) => item.id === seasonId);
+    const episode = season?.episodes.find((item) => item.id === episodeId);
+
+    if (!season || !episode) {
+      return;
+    }
+
+    if (!season.season_number.trim()) {
+      setError("شماره فصل را وارد کنید.");
+      return;
+    }
+
+    if (!episode.episode_number.trim()) {
+      setError("شماره قسمت را وارد کنید.");
+      return;
+    }
+
+    flushEpisodeHlsBatchSync();
+
+    const snapshot = formRef.current;
+    const snapshotSeason = snapshot.seasons.find((item) => item.id === seasonId);
+    const snapshotEpisode = snapshotSeason?.episodes.find((item) => item.id === episodeId);
+
+    if (!snapshotSeason || !snapshotEpisode) {
+      return;
+    }
+
+    const episodeKey = seasonEpisodeKey(seasonId, episodeId);
+
+    setEpisodeSavingKeys((current) => ({ ...current, [episodeKey]: true }));
+    setEpisodeSaveFeedback((current) => ({ ...current, [episodeKey]: "" }));
+    setError("");
+
+    try {
+      const payload = buildEpisodeUpsertPayload(
+        snapshotEpisode,
+        snapshotSeason,
+        snapshot,
+      );
+      const response = await adminSeriesService.upsertEpisode(
+        seriesId,
+        Number(snapshotSeason.season_number),
+        Number(snapshotEpisode.episode_number),
+        payload,
+      );
+
+      if (!(response.success && response.data?.episode)) {
+        setEpisodeSaveFeedback((current) => ({
+          ...current,
+          [episodeKey]: response.message || "ذخیره قسمت انجام نشد.",
+        }));
+        return;
+      }
+
+      const savedEpisode = response.data.episode;
+      const mergedEpisode = {
+        ...snapshotEpisode,
+        ...mergeSavedEpisodeIntoDraft(snapshotEpisode, savedEpisode),
+      };
+
+      updateEpisode(seasonId, episodeId, mergeSavedEpisodeIntoDraft(snapshotEpisode, savedEpisode));
+      setEpisodeSavedFingerprints((current) => ({
+        ...current,
+        [episodeKey]: episodeDraftFingerprint(mergedEpisode),
+      }));
+
+      if (response.data.series) {
+        setSeries((current) =>
+          current ? { ...current, ...response.data!.series } : response.data!.series,
+        );
+      }
+
+      setEpisodeSaveFeedback((current) => ({
+        ...current,
+        [episodeKey]: "ذخیره شد",
+      }));
+
+      void Promise.all([
+        revalidateAdminSeriesList(),
+        revalidatePublicSeriesPages(series?.slug, form.slug),
+      ]);
+    } catch (err) {
+      setEpisodeSaveFeedback((current) => ({
+        ...current,
+        [episodeKey]:
+          err instanceof Error ? err.message : "ذخیره قسمت انجام نشد.",
+      }));
+    } finally {
+      setEpisodeSavingKeys((current) => {
+        const next = { ...current };
+        delete next[episodeKey];
+        return next;
       });
     }
   };
@@ -3069,7 +3267,10 @@ export default function SeriesEditorForm({
       ]);
 
       setSubmitStep("۳/۳ — نهایی‌سازی (اعتبارسنجی در پس‌زمینه)...");
+      seriesFormBodyFingerprintRef.current = seriesFormBodyFingerprint(form);
+      setEpisodeSavedFingerprints(seedEpisodeSavedFingerprints(form));
       setSuccessMessage("ذخیره شد — اعتبار بازیگران در پس‌زمینه انجام می‌شود.");
+      clearDraft(seriesDraftStorageKey);
       setPublishOutcomeStatus(savedSeries.publish_status || form.publish_status);
       setPublishOutcomeOpen(true);
       setActiveTab("publish");
@@ -3169,6 +3370,13 @@ export default function SeriesEditorForm({
         </div>
       ) : null}
 
+      {draftRecovery.showBanner ? (
+        <FormDraftBanner
+          onRestore={draftRecovery.restoreDraft}
+          onDismiss={draftRecovery.dismissDraft}
+        />
+      ) : null}
+
       {successMessage ? (
         <div className="rounded-2xl border border-[#34d399]/25 bg-[#34d399]/10 px-4 py-3 text-sm text-[#bbf7d0]">
           {successMessage}
@@ -3205,16 +3413,25 @@ export default function SeriesEditorForm({
                 icon={<HiOutlineFilm className="h-5 w-5" />}
                 title="شناسه و اطلاعات اصلی"
               />
-              <div className="rounded-[28px] border border-[#38bdf8]/18 bg-[#38bdf8]/[0.06] p-4">
+              <div className="rounded-[28px] border border-[#38bdf8]/18 bg-[#38bdf8]/[0.06] p-4 space-y-4">
+                <TmdbTitleSearch
+                  label="جستجوی عنوان سریال در TMDB"
+                  placeholder="نام سریال را بنویسید…"
+                  search={(query) => adminSeriesService.searchTmdb(query, "fa-IR")}
+                  onSelect={(tmdbId) => {
+                    void fetchAndApplyTmdb(String(tmdbId));
+                  }}
+                />
+
                 <div className="grid gap-4 xl:grid-cols-[1.2fr_auto] xl:items-end">
                   <div className="whitespace-nowrap">
                     <TextField
-                      label="کد یا لینک TMDb سریال"
+                      label="کد TMDb (یا جایگزین دستی)"
                       value={form.tmdb_query}
                       onChange={handleTmdbCodeChange}
                       dir="ltr"
                       required
-                      placeholder="124364 یا https://www.themoviedb.org/tv/124364-from"
+                      placeholder="124364"
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -3244,7 +3461,14 @@ export default function SeriesEditorForm({
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField label="عنوان فارسی/نمایشی" value={form.title} onChange={(value) => updateField("title", value)} required />
                 <TextField label="عنوان اصلی" value={form.original_title} onChange={(value) => updateField("original_title", value)} />
-                <TextField label="Slug" value={form.slug} onChange={(value) => updateField("slug", value)} dir="ltr" placeholder="show-slug" />
+                <div>
+                  <TextField label="Slug" value={form.slug} onChange={(value) => updateField("slug", value)} dir="ltr" placeholder="show-slug" />
+                  <SlugAvailabilityHint
+                    status={slugAvailability.status}
+                    suggestion={slugAvailability.suggestion}
+                    onApplySuggestion={(nextSlug) => updateField("slug", nextSlug)}
+                  />
+                </div>
                 <TextField label="شبکه پخش" value={form.network} onChange={(value) => updateField("network", value)} placeholder="HBO, Netflix, ..." />
                 <TextField label="امتیاز" value={form.rating} onChange={(value) => updateField("rating", value)} dir="ltr" placeholder="8.4" />
                 <TextField label="تاریخ شروع پخش" type="date" value={form.first_air_date} onChange={(value) => updateField("first_air_date", value)} />
@@ -3265,6 +3489,22 @@ export default function SeriesEditorForm({
                   />
                 </label>
               </div>
+
+              <ContentWarningsField
+                values={form.content_warnings}
+                onChange={(values) =>
+                  setForm((current) => ({ ...current, content_warnings: values }))
+                }
+              />
+
+              <ExternalIdsSection
+                imdbId={form.imdb_id}
+                tvdbId={form.tvdb_id}
+                homepageUrl={form.homepage_url}
+                onImdbIdChange={(value) => updateField("imdb_id", value)}
+                onTvdbIdChange={(value) => updateField("tvdb_id", value)}
+                onHomepageUrlChange={(value) => updateField("homepage_url", value)}
+              />
 
               <TextAreaField
                 label="خلاصه داستان"
@@ -3433,6 +3673,41 @@ export default function SeriesEditorForm({
                 <TextField label="Trailer URL" value={form.trailer_url} onChange={(value) => updateField("trailer_url", value)} dir="ltr" className={ltrInputClass} />
                 <TextField label="Homepage URL" value={form.homepage_url} onChange={(value) => updateField("homepage_url", value)} dir="ltr" className={ltrInputClass} />
               </div>
+
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                <button
+                  type="button"
+                  onClick={goToPreviousTab}
+                  className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d]"
+                >
+                  تب قبلی
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNextTab}
+                  className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d]"
+                >
+                  تب بعدی
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {activeTab === "seo" ? (
+            <div className="space-y-6">
+              <SectionHeading
+                icon={<HiOutlineGlobeAlt className="h-5 w-5" />}
+                title="بهینه‌سازی موتور جستجو"
+              />
+              <SeoFieldsPanel
+                title={form.title}
+                synopsis={form.synopsis}
+                slug={form.slug}
+                metaTitle={form.meta_title}
+                metaDescription={form.meta_description}
+                onMetaTitleChange={(value) => updateField("meta_title", value)}
+                onMetaDescriptionChange={(value) => updateField("meta_description", value)}
+              />
 
               <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                 <button
@@ -3626,6 +3901,10 @@ export default function SeriesEditorForm({
                           {season.episodes.map((episode) => {
                             const episodeKey = seasonEpisodeKey(season.id, episode.id);
                             const isEpisodeExpanded = expandedEpisodeKeys.includes(episodeKey);
+                            const isEpisodeDirty =
+                              episodeSavedFingerprints[episodeKey] === undefined ||
+                              episodeSavedFingerprints[episodeKey] !==
+                                episodeDraftFingerprint(episode);
                             const resolvedEpisodeHls = resolveEpisodeHlsUrl({
                               seriesBase: form.hls_base_url,
                               seasonBase: season.hls_base_url,
@@ -3663,6 +3942,11 @@ export default function SeriesEditorForm({
                                             منتشر نمی‌شود
                                           </span>
                                         ) : null}
+                                        {isEpisodeDirty ? (
+                                          <span className="rounded-full border border-[#38bdf8]/30 bg-[#38bdf8]/10 px-2 py-0.5 text-[10px] font-semibold text-[#7dd3fc]">
+                                            ذخیره نشده
+                                          </span>
+                                        ) : null}
                                       </h4>
                                       <p className="mt-1 text-xs text-[#8ea4b3]">
                                         {episode.air_date
@@ -3675,12 +3959,41 @@ export default function SeriesEditorForm({
                                         checking={episodeHlsSyncPending[episodeKey]}
                                         message={episodeHlsSyncMessage[episodeKey]}
                                       />
+                                      {episodeSaveFeedback[episodeKey] ? (
+                                        <p
+                                          className={`mt-1 text-xs ${
+                                            episodeSaveFeedback[episodeKey] === "ذخیره شد"
+                                              ? "text-[#86efac]"
+                                              : "text-[#fca5a5]"
+                                          }`}
+                                        >
+                                          {episodeSaveFeedback[episodeKey]}
+                                        </p>
+                                      ) : null}
                                     </div>
                                   </button>
                                   <div
-                                    className="flex items-center px-4 py-3"
+                                    className="flex items-center gap-2 px-4 py-3"
                                     onClick={(event) => event.stopPropagation()}
                                   >
+                                    <button
+                                      type="button"
+                                      onClick={() => void saveEpisodeOnly(season.id, episode.id)}
+                                      disabled={
+                                        Boolean(episodeSavingKeys[episodeKey]) || !seriesId
+                                      }
+                                      title={
+                                        !seriesId
+                                          ? "ابتدا سریال را یک‌بار ذخیره کنید"
+                                          : undefined
+                                      }
+                                      className="inline-flex items-center gap-1.5 rounded-2xl border border-[#f5c518]/35 bg-[#f5c518]/12 px-3 py-2 text-xs font-semibold text-[#f8d977] transition hover:bg-[#f5c518]/18 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <HiOutlineSave className="h-3.5 w-3.5" />
+                                      {episodeSavingKeys[episodeKey]
+                                        ? "در حال ذخیره…"
+                                        : "ذخیره قسمت"}
+                                    </button>
                                     <button
                                       type="button"
                                       onClick={() => removeEpisode(season.id, episode.id)}
@@ -3699,32 +4012,97 @@ export default function SeriesEditorForm({
                                     <TextField label="تاریخ پخش" type="date" value={episode.air_date} onChange={(value) => updateEpisode(season.id, episode.id, { air_date: value })} />
                                     <TextField label="مدت قسمت" value={episode.duration_minutes} onChange={(value) => updateEpisode(season.id, episode.id, { duration_minutes: value.replace(/[^\d]/g, "") })} dir="ltr" />
                                     <div className="md:col-span-2 space-y-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                                      <TextField
-                                        label="مسیر HLS"
-                                        value={episode.hls_url}
-                                        onChange={(value) =>
-                                          handleEpisodeHlsChange(season.id, episode.id, value)
-                                        }
-                                        placeholder="پوشهٔ پکیج یا آدرس کامل master.m3u8"
-                                        dir="ltr"
-                                        className={ltrInputClass}
-                                      />
-                                      <EpisodeHlsSyncStatus
-                                        checking={episodeHlsSyncPending[episodeKey]}
-                                        message={episodeHlsSyncMessage[episodeKey]}
-                                      />
-                                      {!episode.hls_url.trim() && resolvedEpisodeHls.hlsUrl ? (
-                                        <p className="text-xs text-[#8ea4b3]">
-                                          پیش‌فرض از{" "}
-                                          {resolvedEpisodeHls.source === "season"
-                                            ? "فصل"
-                                            : resolvedEpisodeHls.source === "series"
-                                              ? "سریال"
-                                              : "مسیر بالادست"}
-                                          :{" "}
-                                          <span dir="ltr">{resolvedEpisodeHls.hlsUrl}</span>
-                                        </p>
+                                      <div>
+                                        <p className="mb-2 text-sm text-[#8ea4b3]">روش پخش قسمت</p>
+                                        <div className="flex flex-wrap gap-2">
+                                          {(
+                                            [
+                                              { value: "hls", label: "HLS" },
+                                              { value: "url", label: "ویدیو مستقیم" },
+                                              { value: "embed", label: "Embed" },
+                                            ] as const
+                                          ).map((option) => (
+                                            <button
+                                              key={option.value}
+                                              type="button"
+                                              onClick={() =>
+                                                updateEpisode(season.id, episode.id, {
+                                                  source_method: option.value,
+                                                })
+                                              }
+                                              className={`rounded-2xl border px-4 py-2 text-xs font-semibold transition ${
+                                                episode.source_method === option.value
+                                                  ? "border-[#f5c518]/45 bg-[#f5c518]/15 text-white"
+                                                  : "border-white/10 bg-[#071019] text-[#c7d5de] hover:border-white/20"
+                                              }`}
+                                            >
+                                              {option.label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {episode.source_method === "hls" ? (
+                                        <>
+                                          <TextField
+                                            label="مسیر HLS"
+                                            value={episode.hls_url}
+                                            onChange={(value) =>
+                                              handleEpisodeHlsChange(season.id, episode.id, value)
+                                            }
+                                            placeholder="پوشهٔ پکیج یا آدرس کامل master.m3u8"
+                                            dir="ltr"
+                                            className={ltrInputClass}
+                                          />
+                                          <EpisodeHlsSyncStatus
+                                            checking={episodeHlsSyncPending[episodeKey]}
+                                            message={episodeHlsSyncMessage[episodeKey]}
+                                          />
+                                          {!episode.hls_url.trim() && resolvedEpisodeHls.hlsUrl ? (
+                                            <p className="text-xs text-[#8ea4b3]">
+                                              پیش‌فرض از{" "}
+                                              {resolvedEpisodeHls.source === "season"
+                                                ? "فصل"
+                                                : resolvedEpisodeHls.source === "series"
+                                                  ? "سریال"
+                                                  : "مسیر بالادست"}
+                                              :{" "}
+                                              <span dir="ltr">{resolvedEpisodeHls.hlsUrl}</span>
+                                            </p>
+                                          ) : null}
+                                        </>
                                       ) : null}
+
+                                      {episode.source_method === "url" ? (
+                                        <TextField
+                                          label="آدرس ویدیو مستقیم (MP4)"
+                                          value={episode.video_url}
+                                          onChange={(value) =>
+                                            updateEpisode(season.id, episode.id, {
+                                              video_url: value,
+                                            })
+                                          }
+                                          placeholder="https://cdn.example.com/episodes/s01e01.mp4"
+                                          dir="ltr"
+                                          className={ltrInputClass}
+                                        />
+                                      ) : null}
+
+                                      {episode.source_method === "embed" ? (
+                                        <TextField
+                                          label="آدرس Embed (iframe src)"
+                                          value={episode.embed_url}
+                                          onChange={(value) =>
+                                            updateEpisode(season.id, episode.id, {
+                                              embed_url: value,
+                                            })
+                                          }
+                                          placeholder="https://player.example.com/embed/123"
+                                          dir="ltr"
+                                          className={ltrInputClass}
+                                        />
+                                      ) : null}
+
                                       <TextField
                                         label="لینک زیرنویس"
                                         value={episode.subtitle_url}
@@ -3833,6 +4211,45 @@ export default function SeriesEditorForm({
                 icon={<HiOutlineGlobeAlt className="h-5 w-5" />}
                 title="انتشار"
               />
+
+              <div className="space-y-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#071019] px-4 py-3">
+                  <span>
+                    <span className="block text-sm font-semibold text-white">
+                      نمایش در اسلایدر صفحه اصلی
+                    </span>
+                    <span className="mt-1 block text-xs text-[#8ea4b3]">
+                      این سریال در ابتدای اسلایدر HomeHero (حداکثر ۳ مورد) قرار می‌گیرد.
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={form.is_featured}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        is_featured: event.target.checked,
+                      }))
+                    }
+                    className="h-5 w-5 rounded border-white/20 bg-transparent accent-[#f5c518]"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm text-[#8ea4b3]">نمایش در کاتالوگ</span>
+                  <AdminSelect
+                    value={form.catalog_visibility}
+                    onChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        catalog_visibility: value,
+                      }))
+                    }
+                    options={seriesCatalogVisibilityOptions}
+                  />
+                </label>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <AdminSelectField
                   label="وضعیت انتشار"
@@ -3918,6 +4335,69 @@ export default function SeriesEditorForm({
                 hasSubtitle={hasSubtitle}
                 hasDubbed={hasDubbed}
               />
+
+              <label className="block rounded-[28px] border border-[#f59e0b]/20 bg-[#f59e0b]/5 p-5">
+                <span className="mb-2 block text-sm text-[#fde68a]">
+                  یادداشت داخلی (فقط برای ادمین‌ها)
+                </span>
+                <textarea
+                  value={form.admin_notes}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      admin_notes: event.target.value.slice(0, 2000),
+                    }))
+                  }
+                  rows={4}
+                  className="w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f59e0b]/45"
+                  placeholder="یادداشت داخلی برای تیم..."
+                />
+                <span className="mt-2 block text-xs text-[#8ea4b3]">
+                  {form.admin_notes.length}/2000
+                </span>
+              </label>
+
+              <div className="flex flex-wrap gap-3">
+                {mode === "edit" && seriesId ? (
+                  <button
+                    type="button"
+                    disabled={previewLoading}
+                    onClick={() => {
+                      void (async () => {
+                        setPreviewLoading(true);
+                        try {
+                          const response = await adminSeriesService.getPreviewToken(seriesId);
+                          const token = response.data?.token;
+                          const slug = form.slug.trim();
+                          if (response.success && token && slug) {
+                            window.open(`/series/${slug}?preview=${token}`, "_blank");
+                          } else {
+                            setError(response.message || "صدور توکن پیش‌نمایش انجام نشد.");
+                          }
+                        } finally {
+                          setPreviewLoading(false);
+                        }
+                      })();
+                    }}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.08] disabled:opacity-60"
+                  >
+                    {previewLoading ? "در حال آماده‌سازی..." : "پیش‌نمایش"}
+                  </button>
+                ) : null}
+              </div>
+
+              {mode === "edit" && seriesId ? (
+                <ContentChangeHistoryPanel
+                  entityLabel="سریال"
+                  loadHistory={async (page = 1) => {
+                    const response = await adminSeriesService.getHistory(seriesId, page);
+                    if (response.success && response.data) {
+                      return response.data;
+                    }
+                    return null;
+                  }}
+                />
+              ) : null}
 
               <EditorPublishSubmitBar
                 onSubmit={() => void handleSubmit()}

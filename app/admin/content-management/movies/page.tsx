@@ -8,6 +8,7 @@ import {
   HiOutlinePlus,
   HiOutlineSearch,
   HiOutlineTrash,
+  HiOutlineDocumentText,
 } from "react-icons/hi";
 import {
   MdOutlineLocalMovies,
@@ -427,6 +428,19 @@ export default function AllMoviesPage() {
                             <p className="mt-2 text-sm text-[#8ea4b3]">/{movie.slug}</p>
                           </div>
                           <div className="flex flex-wrap justify-end gap-2">
+                            {movie.has_admin_notes ? (
+                              <span
+                                className="rounded-full border border-[#f59e0b]/25 bg-[#f59e0b]/10 px-2.5 py-1 text-xs text-[#fde68a]"
+                                title="یادداشت داخلی دارد"
+                              >
+                                <HiOutlineDocumentText className="inline h-3.5 w-3.5" />
+                              </span>
+                            ) : null}
+                            {movie.publish_completion_pending ? (
+                              <span className="rounded-full border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-1 text-xs text-[#fde68a]">
+                                انتشار ناتمام
+                              </span>
+                            ) : null}
                             <span
                               className={`rounded-full border px-3 py-1 text-xs ${publish.className}`}
                             >

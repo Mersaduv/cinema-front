@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePlayerStore } from "../store/playerStore";
 
 export type PlayerBootPhase = "stream" | "controls" | "progress";
 
@@ -13,7 +12,6 @@ export function usePlayerBootPhase(
   isPlaying: boolean,
   videoRef?: React.RefObject<HTMLVideoElement | null>,
 ) {
-  const isTv = usePlayerStore((state) => state.isTv);
   const [phase, setPhase] = useState<PlayerBootPhase>("stream");
 
   useEffect(() => {
@@ -66,7 +64,5 @@ export function usePlayerBootPhase(
     phase,
     controlsEnabled: phase !== "stream",
     progressEnabled: phase === "progress",
-    /** TV browsers require explicit play intent — no silent autoplay during boot. */
-    skipSilentAutoplay: isTv,
   };
 }

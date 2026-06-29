@@ -277,9 +277,13 @@ export const usePlayerStore = create<PlayerStoreState & PlayerStoreActions>(
 
     resetForNewMedia: () => {
       const prefs = loadPlayerPreferences();
+      const { isTv, capabilities, platformFamily } = usePlayerStore.getState();
 
       set({
         ...initialState,
+        isTv,
+        capabilities,
+        platformFamily,
         volume: 1,
         playbackRate: prefs.playbackRate ?? 1,
         selectedQuality: prefs.qualityLevel ?? -1,

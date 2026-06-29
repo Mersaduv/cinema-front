@@ -128,6 +128,7 @@ export type PlayerConfig = {
   watchdogTimeoutMs: number;
   maxRecoveryRetries: number;
   controlsHideDelayMs: number;
+  mobileControlsHideDelayMs: number;
   prefetchThresholdSeconds: number;
   initialBufferTargetSeconds: number;
   steadyBufferTargetSeconds: number;
@@ -142,6 +143,8 @@ export const DEFAULT_PLAYER_CONFIG: PlayerConfig = {
   watchdogTimeoutMs: 8000,
   maxRecoveryRetries: 3,
   controlsHideDelayMs: 3000,
+  /** Longer auto-hide on touch devices so controls stay tappable. */
+  mobileControlsHideDelayMs: 6000,
   prefetchThresholdSeconds: 120,
   initialBufferTargetSeconds: 3,
   steadyBufferTargetSeconds: 30,

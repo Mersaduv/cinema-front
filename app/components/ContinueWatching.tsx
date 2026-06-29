@@ -263,7 +263,7 @@ export default function ContinueWatching({
   limit?: number;
   layout?: "poster" | "landscape";
 }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, hasToken, isAuthenticated } = useAuth();
   const [items, setItems] = useState<WatchProgressRecord[]>([]);
   const [ready, setReady] = useState(false);
 
@@ -291,7 +291,7 @@ export default function ContinueWatching({
   }, [isAuthenticated, limit, mediaType, showCompleted, userId]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (hasToken) {
       return;
     }
 
@@ -299,19 +299,16 @@ export default function ContinueWatching({
       loadLocal();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [isAuthenticated, loadLocal]);
+  }, [hasToken, loadLocal]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!hasToken) {
       return;
     }
 
     const token = tokenStorage.getToken();
     if (!token) {
-      const timer = window.setTimeout(() => {
-        loadLocal();
-      }, 0);
-      return () => window.clearTimeout(timer);
+      return;
     }
 
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005/api";
@@ -360,8 +357,10 @@ export default function ContinueWatching({
         loadLocal();
       });
 
-    return () => controller.abort();
-  }, [isAuthenticated, limit, loadLocal, mediaType, showCompleted, userId]);
+    return () => {
+      controller.abort();
+    };
+  }, [hasToken, isAuthenticated, limit, loadLocal, mediaType, showCompleted, userId]);
 
   const playableItems = items.filter((record) => buildWatchHref(record) !== null);
   const hasItems = playableItems.length > 0;

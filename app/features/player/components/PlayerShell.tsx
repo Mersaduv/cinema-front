@@ -51,6 +51,7 @@ function PlayerShellComponent({
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const controlsRef = useRef<HTMLDivElement | null>(null);
+  const tvGateButtonRef = useRef<HTMLButtonElement | null>(null);
   const subtitleLayerRef = useRef<SubtitleLayerHandle | null>(null);
   const managedSubtitleUrl = useMemo(
     () => buildPlaybackSubtitleUrl(media.subtitleUrl),
@@ -115,6 +116,7 @@ function PlayerShellComponent({
     setSubtitleStyle,
     recover,
     revealControls,
+    toggleControls,
     cancelAutoplay,
     skipIntro,
     skipRecap,
@@ -249,12 +251,12 @@ function PlayerShellComponent({
     }
   }, [onEpisodeSelect, seriesContext?.nextEpisode]);
 
-  const handleVideoClick = useCallback(() => {
-    revealControls();
-    if (isPlaying) {
-      pause();
-    }
-  }, [isPlaying, pause, revealControls]);
+  const handleVideoAreaClick = useCallback(() => {
+    toggleControls();
+  }, [toggleControls]);
+
+  const controlsInteractive =
+    showControls || !isPlaying || openMenu !== null || episodePanelOpen;
 
   const handleResume = useCallback(() => {
     setResumePromptDismissedFor(resumeSessionKey);
@@ -342,6 +344,7 @@ function PlayerShellComponent({
       setVolume,
       volume,
       revealControls,
+      toggleControls,
     },
     controlsEnabled,
   );
@@ -355,6 +358,18 @@ function PlayerShellComponent({
     return () =>
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, [setIsFullscreen]);
+
+  useEffect(() => {
+    if (!tvPlayBlocked || !isTv) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      tvGateButtonRef.current?.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isTv, tvPlayBlocked]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -401,7 +416,7 @@ function PlayerShellComponent({
         onTouchEnd={(e) =>
           onTouchEnd(e, containerRef.current?.clientWidth ?? window.innerWidth)
         }
-        style={{ touchAction: "none" }}
+        style={{ touchAction: "manipulation" }}
         className={`relative overflow-hidden bg-black focus:outline-none focus-visible:ring-2 focus-visible:ring-[#38bdf8] ${
           immersive
             ? "h-dvh w-screen rounded-none border-0"
@@ -440,7 +455,7 @@ function PlayerShellComponent({
             <div className="pointer-events-none absolute inset-0 z-[3] bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.12),rgba(0,0,0,0.7)_88%)]" />
           ) : null}
 
-          {tvPlayBlocked && controlsEnabled ? (
+          {tvPlayBlocked ? (
             <div
               className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60"
               data-player-controls
@@ -458,6 +473,7 @@ function PlayerShellComponent({
               }}
             >
               <button
+                ref={tvGateButtonRef}
                 type="button"
                 data-tv-focusable
                 className="inline-flex h-28 w-28 items-center justify-center rounded-full border border-white/20 bg-white/20 text-white focus:outline-none focus:ring-4 focus:ring-white"
@@ -471,12 +487,14 @@ function PlayerShellComponent({
             </div>
           ) : null}
 
-          {isPlaying ? (
+          {isPlaying && !openMenu ? (
             <button
               type="button"
-              aria-label="توقف پخش"
-              className="absolute inset-0 z-20 cursor-pointer border-0 bg-transparent p-0"
-              onClick={handleVideoClick}
+              aria-label={showControls ? "پنهان کردن کنترل‌ها" : "نمایش کنترل‌ها"}
+              className={`absolute inset-0 z-20 cursor-pointer border-0 bg-transparent p-0 ${
+                showControls ? "pointer-events-none" : "pointer-events-auto"
+              }`}
+              onClick={handleVideoAreaClick}
             />
           ) : null}
 
@@ -513,7 +531,7 @@ function PlayerShellComponent({
           ) : null}
 
           {!isDraggingSeek && fsmState === "seeking" && !error ? (
-            <div className="pointer-events-none absolute inset-0 z-25 flex items-center justify-center">
+            <div className="pointer-events-none absolute inset-0 z-[25] flex items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-[#38bdf8] opacity-80" />
             </div>
           ) : null}
@@ -521,7 +539,7 @@ function PlayerShellComponent({
           {seekFeedback ? (
             <div
               key={seekFeedback.key}
-              className={`animate-seek-feedback pointer-events-none absolute top-1/2 z-25 flex -translate-y-1/2 flex-col items-center gap-1 ${
+              className={`animate-seek-feedback pointer-events-none absolute top-1/2 z-[25] flex -translate-y-1/2 flex-col items-center gap-1 ${
                 seekFeedback.side === "left" ? "left-16" : "right-16"
               }`}
             >
@@ -573,13 +591,13 @@ function PlayerShellComponent({
 
           <div
             className={`pointer-events-none absolute inset-0 z-30 flex flex-col justify-between bg-[linear-gradient(180deg,rgba(4,12,19,0.75),rgba(4,12,19,0.12)_35%,rgba(4,12,19,0.85))] p-4 transition duration-300 md:p-6 ${
-              showControls || !isPlaying ? "opacity-100" : "opacity-0"
+              controlsInteractive ? "opacity-100" : "opacity-0"
             }`}
           >
             {immersive ? (
               <div
                 className={`flex items-start justify-between gap-3 ${
-                  showControls || !isPlaying ? "pointer-events-auto" : ""
+                  controlsInteractive ? "pointer-events-auto" : ""
                 }`}
                 dir="rtl"
               >
@@ -603,7 +621,7 @@ function PlayerShellComponent({
             ) : (
               <div
                 className={`flex items-start justify-between gap-3 ${
-                  showControls || !isPlaying ? "pointer-events-auto" : ""
+                  controlsInteractive ? "pointer-events-auto" : ""
                 }`}
                 dir="rtl"
               >
@@ -646,7 +664,7 @@ function PlayerShellComponent({
               ref={controlsRef}
               data-player-controls
               className={
-                showControls || !isPlaying ? "pointer-events-auto" : ""
+                controlsInteractive ? "pointer-events-auto" : ""
               }
             >
             <ControlBar

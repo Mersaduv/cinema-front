@@ -29,6 +29,7 @@ import {
 } from "../utils/labels";
 import { mediaResolver } from "../core/MediaResolver";
 import { detectDeviceCapabilities } from "../services/capability";
+import { shouldShowTvPlayGate } from "../utils/tv-autoplay-result";
 
 type UsePlayerOptions = Pick<
   PlayerShellProps,
@@ -66,6 +67,22 @@ function hasSavedPreference<K extends keyof PlayerPreferences>(
   key: K,
 ): boolean {
   return Object.prototype.hasOwnProperty.call(prefs, key);
+}
+
+/** After silent play(): mark success or show TV gate only when autoplay is blocked. */
+function applySilentAutoplayResult(
+  started: boolean,
+  video: HTMLVideoElement,
+  autoplayAttemptedRef: { current: boolean },
+): void {
+  if (started) {
+    autoplayAttemptedRef.current = true;
+  }
+
+  const isTv = detectDeviceCapabilities({ video }).isTv;
+  usePlayerStore
+    .getState()
+    .setTvPlayBlocked(shouldShowTvPlayGate(started, isTv));
 }
 
 function isDubbedLanguage(language?: string): boolean {
@@ -322,13 +339,35 @@ export function usePlayer({
     if (controlsTimerRef.current) {
       window.clearTimeout(controlsTimerRef.current);
     }
+
+    const caps = detectDeviceCapabilities({ video: videoRef.current });
+    const hideDelay =
+      caps.isCoarsePointer || caps.family === "mobile"
+        ? DEFAULT_PLAYER_CONFIG.mobileControlsHideDelayMs
+        : DEFAULT_PLAYER_CONFIG.controlsHideDelayMs;
+
     controlsTimerRef.current = window.setTimeout(() => {
-      if (usePlayerStore.getState().isPlaying) {
+      const state = usePlayerStore.getState();
+      if (state.isPlaying && state.openMenu === null) {
         getActions().setShowControls(false);
-        getActions().setOpenMenu(null);
       }
-    }, DEFAULT_PLAYER_CONFIG.controlsHideDelayMs);
+    }, hideDelay);
   }, []);
+
+  const toggleControls = useCallback(() => {
+    const state = usePlayerStore.getState();
+    if (state.isPlaying && state.showControls) {
+      if (controlsTimerRef.current) {
+        window.clearTimeout(controlsTimerRef.current);
+        controlsTimerRef.current = null;
+      }
+      getActions().setShowControls(false);
+      getActions().setOpenMenu(null);
+      return;
+    }
+
+    revealControls();
+  }, [revealControls]);
 
   const attemptAutoplay = useCallback(async () => {
     const controller = controllerRef.current;
@@ -349,9 +388,7 @@ export function usePlayer({
     autoplayInFlightRef.current = true;
     try {
       const started = await controller.play({ silent: true });
-      if (started) {
-        autoplayAttemptedRef.current = true;
-      }
+      applySilentAutoplayResult(started, video, autoplayAttemptedRef);
     } finally {
       autoplayInFlightRef.current = false;
     }
@@ -383,12 +420,6 @@ export function usePlayer({
       return;
     }
 
-    const caps = detectDeviceCapabilities({ video });
-    if (caps.isTv) {
-      getActions().setTvPlayBlocked(true);
-      return;
-    }
-
     const resumeAt = initialResumeTimeRef.current;
     if (
       resumeAt != null &&
@@ -403,12 +434,7 @@ export function usePlayer({
     autoplayInFlightRef.current = true;
     try {
       const started = await controller.play({ silent: true });
-      if (started) {
-        autoplayAttemptedRef.current = true;
-        getActions().setTvPlayBlocked(false);
-      } else if (detectDeviceCapabilities({ video }).isTv) {
-        getActions().setTvPlayBlocked(true);
-      }
+      applySilentAutoplayResult(started, video, autoplayAttemptedRef);
     } finally {
       autoplayInFlightRef.current = false;
     }
@@ -428,19 +454,20 @@ export function usePlayer({
       await waitForSeek(video, resumeAt);
     }
 
-    await controller.play({ silent: true });
-    autoplayAttemptedRef.current = true;
+    const started = await controller.play({ silent: true });
+    applySilentAutoplayResult(started, video, autoplayAttemptedRef);
   }, []);
 
   const confirmStartOver = useCallback(async () => {
     const controller = controllerRef.current;
-    if (!controller) {
+    const video = videoRef.current;
+    if (!controller || !video) {
       return;
     }
 
     resumeSeekDoneRef.current = true;
-    await controller.play({ silent: true });
-    autoplayAttemptedRef.current = true;
+    const started = await controller.play({ silent: true });
+    applySilentAutoplayResult(started, video, autoplayAttemptedRef);
   }, []);
 
   useEffect(() => {
@@ -900,6 +927,7 @@ export function usePlayer({
     setSubtitleStyle,
     recover,
     revealControls,
+    toggleControls,
     cancelAutoplay,
     skipIntro,
     skipRecap,

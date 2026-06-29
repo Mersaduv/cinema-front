@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from "react";
 import { clamp } from "../utils/format";
+import { isPlayerChromeTarget } from "../utils/gesture-target";
 
 type GestureActions = {
   pause: () => void;
@@ -10,10 +11,11 @@ type GestureActions = {
   setVolume: (volume: number) => void;
   volume: number;
   revealControls: () => void;
+  toggleControls: () => void;
 };
 
 /**
- * Touch gestures: double-tap seek, vertical swipe volume.
+ * Touch gestures: double-tap seek, vertical swipe volume, single-tap toggle controls.
  */
 export function usePlayerGestures(actions: GestureActions, enabled = true) {
   const lastTapRef = useRef<{ time: number; x: number } | null>(null);
@@ -21,22 +23,26 @@ export function usePlayerGestures(actions: GestureActions, enabled = true) {
     null,
   );
 
-  const onTouchStart = useCallback((event: React.TouchEvent) => {
-    if (!enabled) {
-      return;
-    }
+  const onTouchStart = useCallback(
+    (event: React.TouchEvent) => {
+      if (!enabled || isPlayerChromeTarget(event.target)) {
+        return;
+      }
 
-    const touch = event.touches[0];
-    touchStartRef.current = {
-      x: touch.clientX,
-      y: touch.clientY,
-      time: Date.now(),
-    };
-  }, [enabled]);
+      const touch = event.touches[0];
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: Date.now(),
+      };
+    },
+    [enabled],
+  );
 
   const onTouchEnd = useCallback(
     (event: React.TouchEvent, containerWidth: number) => {
-      if (!enabled) {
+      if (!enabled || isPlayerChromeTarget(event.target)) {
+        touchStartRef.current = null;
         return;
       }
 
@@ -71,11 +77,7 @@ export function usePlayerGestures(actions: GestureActions, enabled = true) {
           lastTapRef.current = { time: now, x: touch.clientX };
           window.setTimeout(() => {
             if (lastTapRef.current?.time === now) {
-              if (actions.isPlaying) {
-                actions.pause();
-              } else {
-                actions.revealControls();
-              }
+              actions.toggleControls();
               lastTapRef.current = null;
             }
           }, 320);
