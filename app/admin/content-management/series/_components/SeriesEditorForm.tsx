@@ -47,6 +47,8 @@ import {
   buildEpisodeHlsUrl,
   buildHlsExistsCheckGroups,
   buildSeasonHlsBase,
+  buildEmptyEpisodeHlsDiscoveryGroups,
+  applyDiscoveredEpisodeHlsToForm,
   comparableHlsPlaylistUrl,
   deriveEpisodeHlsUrl,
   deriveSeasonHlsBase,
@@ -157,7 +159,7 @@ function episodeDownloadMapFromRows(rows: EpisodeDownloadLinkRow[]): Record<stri
   }, {});
 }
 import { revalidateAdminSeriesList } from "../../../../lib/admin-series-revalidate";
-import { revalidatePublicSeriesPages } from "../../../../lib/catalog/revalidate";
+import { revalidatePublicSeriesPages, syncViewerCacheAfterAdminSave } from "../../../../lib/catalog/revalidate";
 import {
   adminSeriesService,
   type AdminSeries,
@@ -251,6 +253,56 @@ function collectEpisodeHlsSyncTargets(
   }
 
   return targets;
+}
+
+async function discoverAndFillEmptyEpisodeHls(
+  form: SeriesFormState,
+): Promise<{ nextForm: SeriesFormState; filled: EpisodeHlsSyncTarget[] }> {
+  const groups = buildEmptyEpisodeHlsDiscoveryGroups(form);
+
+  if (groups.length === 0) {
+    return { nextForm: form, filled: [] };
+  }
+
+  const discoveries: EpisodeHlsSyncTarget[] = [];
+
+  await Promise.all(
+    groups.map(async (group) => {
+      const response = await adminMoviesService.checkHlsExists(
+        group.baseUrl,
+        group.episodes,
+      );
+      const items = unwrapCheckHlsExistsItems(response);
+
+      for (const item of items) {
+        if (!item.exists) {
+          continue;
+        }
+
+        const resolvedUrl = item.hls_url?.trim();
+
+        if (!resolvedUrl) {
+          continue;
+        }
+
+        const target = group.targetByKey.get(
+          hlsExistsEpisodeKey(item.season, item.episode),
+        );
+
+        if (!target) {
+          continue;
+        }
+
+        discoveries.push({
+          seasonId: target.seasonId,
+          episodeId: target.episodeId,
+          hlsUrl: toMasterPlaylistUrl(resolvedUrl),
+        });
+      }
+    }),
+  );
+
+  return applyDiscoveredEpisodeHlsToForm(form, discoveries);
 }
 
 type EpisodeHlsSyncMessageTone = "success" | "warning" | "error";
@@ -970,6 +1022,7 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
     age_rating: nullableString(form.age_rating),
     catalog_visibility: form.catalog_visibility || "catalog_search",
     is_featured: form.is_featured,
+    exclude_from_slider: !form.is_featured,
     drm_scheme: form.drm_scheme || "none",
     drm_license_url:
       form.drm_scheme !== "none" ? nullableString(form.drm_license_url) || null : null,
@@ -1078,7 +1131,6 @@ export default function SeriesEditorForm({
   const [episodeSavedFingerprints, setEpisodeSavedFingerprints] = useState<
     Record<string, string>
   >({});
-  const [seriesHlsSyncMessage, setSeriesHlsSyncMessage] = useState("");
   const tmdbAbortControllerRef = useRef<AbortController | null>(null);
   const tmdbImageIngestAbortRef = useRef<AbortController | null>(null);
   const episodeHlsBatchDebounceTimerRef = useRef<number | null>(null);
@@ -1541,8 +1593,6 @@ export default function SeriesEditorForm({
     });
     setError("");
 
-    const previousComparables = new Map(episodeHlsComparableMapRef.current);
-
     try {
       const overviewResponse = await adminSeriesService.fetchTmdb(tmdbId, {
         includeSeasons: false,
@@ -1678,22 +1728,70 @@ export default function SeriesEditorForm({
       }
 
       const finalizedForm = finalizeTmdbSeriesSyncExclusions(latestForm);
-      setForm(finalizedForm);
+      const discoveryGroups = buildEmptyEpisodeHlsDiscoveryGroups(finalizedForm);
+
+      if (discoveryGroups.length > 0) {
+        setEpisodeHlsSyncPending((current) => {
+          const next = { ...current };
+
+          for (const group of discoveryGroups) {
+            for (const target of group.targetByKey.values()) {
+              next[seasonEpisodeKey(target.seasonId, target.episodeId)] = true;
+            }
+          }
+
+          return next;
+        });
+      }
+
+      const { nextForm: formWithHls, filled: filledHlsTargets } =
+        await discoverAndFillEmptyEpisodeHls(finalizedForm);
+      setForm(formWithHls);
+
+      if (discoveryGroups.length > 0) {
+        const filledKeys = new Set(
+          filledHlsTargets.map((target) =>
+            seasonEpisodeKey(target.seasonId, target.episodeId),
+          ),
+        );
+
+        for (const group of discoveryGroups) {
+          for (const target of group.targetByKey.values()) {
+            const syncKey = seasonEpisodeKey(target.seasonId, target.episodeId);
+
+            if (filledKeys.has(syncKey)) {
+              continue;
+            }
+
+            clearEpisodeHlsSyncPending(syncKey);
+            setEpisodeHlsSyncMessage((current) => ({
+              ...current,
+              [syncKey]: HLS_NOT_READY_MESSAGE,
+            }));
+          }
+        }
+      }
 
       if (primaryIngestPromise) {
         await primaryIngestPromise;
       }
 
       await runSeriesImageIngestPipeline(
-        finalizedForm,
+        formWithHls,
         imageSession.signal,
         "seasons-only",
-        finalizedForm.seasons,
+        formWithHls.seasons,
         { announceStart: false, announceComplete: true },
       );
 
       setExpandedEpisodeKeys([]);
-      scheduleEpisodeHlsBatchSyncDebounced(previousComparables);
+      episodeHlsComparableMapRef.current = buildEpisodeHlsComparableMap(formWithHls);
+      lastHlsFingerprintRef.current = buildHlsSyncFingerprint(formWithHls);
+      hlsAutoSyncBootstrappedRef.current = true;
+
+      if (filledHlsTargets.length > 0) {
+        void scheduleEpisodeHlsSyncForForm(formWithHls, { targets: filledHlsTargets });
+      }
       setTmdbSyncState({
         phase: "done",
         overviewReady: true,
@@ -1765,7 +1863,6 @@ export default function SeriesEditorForm({
     }
 
     if (response.success && response.data?.season) {
-      const previousComparables = new Map(episodeHlsComparableMapRef.current);
       let nextFormSnapshot: SeriesFormState | undefined;
 
       setForm((current) => {
@@ -1779,7 +1876,62 @@ export default function SeriesEditorForm({
       });
 
       if (nextFormSnapshot) {
-        scheduleEpisodeHlsSyncAfterFormChange(previousComparables, nextFormSnapshot);
+        const discoveryGroups = buildEmptyEpisodeHlsDiscoveryGroups(nextFormSnapshot);
+
+        if (discoveryGroups.length > 0) {
+          setEpisodeHlsSyncPending((current) => {
+            const next = { ...current };
+
+            for (const group of discoveryGroups) {
+              for (const target of group.targetByKey.values()) {
+                next[seasonEpisodeKey(target.seasonId, target.episodeId)] = true;
+              }
+            }
+
+            return next;
+          });
+        }
+
+        const { nextForm: formWithHls, filled: filledHlsTargets } =
+          await discoverAndFillEmptyEpisodeHls(nextFormSnapshot);
+
+        if (filledHlsTargets.length > 0) {
+          setForm(formWithHls);
+          nextFormSnapshot = formWithHls;
+        }
+
+        if (discoveryGroups.length > 0) {
+          const filledKeys = new Set(
+            filledHlsTargets.map((target) =>
+              seasonEpisodeKey(target.seasonId, target.episodeId),
+            ),
+          );
+
+          for (const group of discoveryGroups) {
+            for (const target of group.targetByKey.values()) {
+              const syncKey = seasonEpisodeKey(target.seasonId, target.episodeId);
+
+              if (filledKeys.has(syncKey)) {
+                continue;
+              }
+
+              clearEpisodeHlsSyncPending(syncKey);
+              setEpisodeHlsSyncMessage((current) => ({
+                ...current,
+                [syncKey]: HLS_NOT_READY_MESSAGE,
+              }));
+            }
+          }
+        }
+
+        episodeHlsComparableMapRef.current = buildEpisodeHlsComparableMap(nextFormSnapshot);
+        lastHlsFingerprintRef.current = buildHlsSyncFingerprint(nextFormSnapshot);
+        hlsAutoSyncBootstrappedRef.current = true;
+
+        if (filledHlsTargets.length > 0) {
+          void scheduleEpisodeHlsSyncForForm(nextFormSnapshot, { targets: filledHlsTargets });
+        }
+
         const mergedSeason = nextFormSnapshot.seasons.find(
           (season) => season.season_number.trim() === String(seasonNumber).trim(),
         );
@@ -2070,7 +2222,11 @@ export default function SeriesEditorForm({
     void drainEpisodeHlsPreviewQueue();
   };
 
-  const scheduleEpisodeHlsSync = (seasonId: string, episodeId: string, hlsUrl: string) => {
+  const scheduleEpisodeHlsSync = (
+    seasonId: string,
+    episodeId: string,
+    hlsUrl: string,
+  ) => {
     const key = seasonEpisodeKey(seasonId, episodeId);
     const raw = toMasterPlaylistUrl(hlsUrl);
 
@@ -2242,7 +2398,12 @@ export default function SeriesEditorForm({
   };
 
   const applyHlsExistsCheckResults = (
-    items: Array<{ season: number; episode: number; exists: boolean }>,
+    items: Array<{
+      season: number;
+      episode: number;
+      exists: boolean;
+      hls_url?: string | null;
+    }>,
     targetByKey: Map<string, EpisodeHlsSyncTarget>,
     handledSyncKeys: Set<string>,
   ) => {
@@ -2258,7 +2419,31 @@ export default function SeriesEditorForm({
       handledSyncKeys.add(syncKey);
 
       if (item.exists) {
-        scheduleEpisodeHlsSync(target.seasonId, target.episodeId, target.hlsUrl);
+        const resolvedUrl = toMasterPlaylistUrl(item.hls_url?.trim() || target.hlsUrl);
+
+        if (item.hls_url?.trim() && item.hls_url.trim() !== target.hlsUrl) {
+          setForm((current) => ({
+            ...current,
+            seasons: current.seasons.map((season) =>
+              season.id !== target.seasonId
+                ? season
+                : {
+                    ...season,
+                    episodes: season.episodes.map((episode) =>
+                      episode.id !== target.episodeId
+                        ? episode
+                        : {
+                            ...episode,
+                            hls_url: item.hls_url!.trim(),
+                            hls_verified: false,
+                          },
+                    ),
+                  },
+            ),
+          }));
+        }
+
+        scheduleEpisodeHlsSync(target.seasonId, target.episodeId, resolvedUrl);
         continue;
       }
 
@@ -3031,7 +3216,7 @@ export default function SeriesEditorForm({
       setPublishOutcomeOpen(true);
       setActiveTab("publish");
       pendingNavigationRef.current = "/admin/content-management/series";
-      void Promise.all([
+      await Promise.all([
         revalidateAdminSeriesList(),
         revalidatePublicSeriesPages(savedSeries.slug, series?.slug, form.slug),
       ]);
@@ -3226,6 +3411,10 @@ export default function SeriesEditorForm({
       const savedSeries = response.data.series;
       setSeries(savedSeries);
 
+      await syncViewerCacheAfterAdminSave({
+        seriesSlugs: [savedSeries.slug, series?.slug, form.slug],
+      });
+
       const processedPoster =
         savedSeries.poster_image?.original?.startsWith("/images/")
           ? savedSeries.poster_image.original
@@ -3261,7 +3450,7 @@ export default function SeriesEditorForm({
         return;
       }
 
-      void Promise.all([
+      await Promise.all([
         revalidateAdminSeriesList(),
         revalidatePublicSeriesPages(savedSeries.slug, series?.slug, form.slug),
       ]);
@@ -3765,11 +3954,9 @@ export default function SeriesEditorForm({
                 />
                 <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
                   با تغییر ریشه سریال، مسیر فصل‌ها و قسمت‌ها خودکار همگام می‌شود. اگر فیلدی را
-                  دستی عوض کنید، دیگر بازنویسی نمی‌شود.
+                  دستی عوض کنید، دیگر بازنویسی نمی‌شود. پس از «همگام‌سازی از TMDB»، مسیر HLS فقط
+                  برای قسمت‌هایی که خالی است از ریشه سریال و فصل پر می‌شود.
                 </p>
-                {seriesHlsSyncMessage ? (
-                  <p className="mt-2 text-xs text-[#86efac]">{seriesHlsSyncMessage}</p>
-                ) : null}
               </div>
 
               <div className="space-y-5">

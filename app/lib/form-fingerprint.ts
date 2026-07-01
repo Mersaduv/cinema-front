@@ -36,14 +36,8 @@ function sortedStrings(values: string[] | undefined): string[] {
 }
 
 export function fingerprintMovie(form: MovieFormFingerprintInput): string {
-  const {
-    is_featured: _isFeatured,
-    catalog_visibility: _catalogVisibility,
-    ...body
-  } = form;
-
   const normalized = {
-    ...body,
+    ...form,
     actors: [...form.actors].sort((left, right) =>
       (left.name ?? "").localeCompare(right.name ?? ""),
     ),

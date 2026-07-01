@@ -4,4 +4,3 @@ export type { PlaybackEngine, EngineId, PlatformFamily } from "./types/playback.
 export { detectDeviceCapabilities, detectWatchPlatform, getEngineLabel, probeMediaSource } from "./services/capability";
 export { fetchPlaybackSession, clearPlaybackSessionCache } from "./services/StreamAccessManager";
 export type { DrmConfig, DrmScheme } from "./types/playback.types";
-export { getPlayerTelemetry } from "./services/telemetry";

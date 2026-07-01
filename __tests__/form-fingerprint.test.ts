@@ -76,14 +76,18 @@ describe("fingerprintMovie", () => {
     expect(fingerprintMovie(changed)).not.toBe(fingerprintMovie(base));
   });
 
-  it("does not change when publish-only fields change", () => {
+  it("changes when home slider visibility fields change", () => {
     const base = createBaseForm();
-    const publishOnly = {
+    const featured = {
       ...base,
       is_featured: true,
+    };
+    const hiddenCatalog = {
+      ...base,
       catalog_visibility: "hidden",
     };
 
-    expect(fingerprintMovie(publishOnly)).toBe(fingerprintMovie(base));
+    expect(fingerprintMovie(featured)).not.toBe(fingerprintMovie(base));
+    expect(fingerprintMovie(hiddenCatalog)).not.toBe(fingerprintMovie(base));
   });
 });

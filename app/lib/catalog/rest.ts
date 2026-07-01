@@ -45,6 +45,8 @@ export type CatalogListItem = {
 
 export type CatalogFetchOptions = {
   cursor?: string | null;
+  /** When true, bypass Next fetch cache — parent `"use cache"` owns TTL. */
+  skipFetchCache?: boolean;
 };
 
 export type CatalogFetchResult = {
@@ -137,6 +139,8 @@ export function toCatalogItem(
     content_type: contentType,
     is_featured: Boolean(row.is_featured),
     exclude_from_slider: Boolean(row.exclude_from_slider),
+    catalog_visibility:
+      typeof row.catalog_visibility === "string" ? row.catalog_visibility : undefined,
     catalogKind: contentType,
     details: {
       ...details,
@@ -193,7 +197,9 @@ export async function fetchMoviesCatalogRest(
         "Accept-Encoding": "gzip",
       },
       ...(isServer
-        ? { next: { tags: ["catalog", "catalog-movies"] } }
+        ? options?.skipFetchCache
+          ? { cache: "no-store" as const }
+          : { next: { tags: ["catalog", "catalog-movies"] } }
         : { cache: "no-store" }),
       signal,
     });
@@ -293,7 +299,9 @@ export async function fetchSeriesCatalogRest(
         "Accept-Encoding": "gzip",
       },
       ...(isServer
-        ? { next: { tags: ["catalog", "catalog-movies"] } }
+        ? options?.skipFetchCache
+          ? { cache: "no-store" as const }
+          : { next: { tags: ["catalog", "catalog-series"] } }
         : { cache: "no-store" }),
       signal,
     });

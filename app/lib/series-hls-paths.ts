@@ -302,15 +302,267 @@ export function deriveEpisodeHlsUrl(
   seasonNumber: number | string,
   episodeNumber: number | string,
 ) {
-  const fromSeason = seasonBase.trim()
-    ? buildEpisodeHlsUrl(seasonBase, episodeNumber)
-    : "";
+  const candidates = buildEpisodeHlsPathCandidates({
+    seriesBase,
+    seasonBase,
+    seasonNumber,
+    episodeNumber,
+  });
 
-  if (fromSeason) {
-    return fromSeason;
+  return candidates[0] || "";
+}
+
+/** Candidate master playlist URLs ordered from most specific to nested season layout. */
+export function buildEpisodeHlsPathCandidates(input: {
+  seriesBase: string;
+  seasonBase: string;
+  seasonNumber: number | string;
+  episodeNumber: number | string;
+}): string[] {
+  const seriesBase = normalizeHlsBaseUrl(input.seriesBase);
+  const seasonBase = input.seasonBase.trim();
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (value: string) => {
+    const master = toMasterPlaylistUrl(value);
+
+    if (!master) {
+      return;
+    }
+
+    const key = comparableHlsPlaylistUrl(master);
+
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    candidates.push(master);
+  };
+
+  if (seasonBase) {
+    push(buildEpisodeHlsUrl(seasonBase, input.episodeNumber));
   }
 
-  return buildEpisodeHlsUrlFromSeries(seriesBase, seasonNumber, episodeNumber);
+  if (seriesBase) {
+    push(buildEpisodeHlsUrl(seriesBase, input.episodeNumber));
+    push(buildEpisodeHlsUrlFromSeries(seriesBase, input.seasonNumber, input.episodeNumber));
+  }
+
+  return candidates;
+}
+
+export function resolveHlsDiscoveryBaseUrl(
+  seriesBaseUrl: string,
+  season: { hls_base_url: string; season_number: string },
+) {
+  const seasonBase = season.hls_base_url.trim();
+
+  if (seasonBase) {
+    return coerceRemoteMediaUrl(seasonBase).replace(/\/+$/u, "");
+  }
+
+  return normalizeHlsBaseUrl(seriesBaseUrl);
+}
+
+export type EpisodeHlsFillTarget = {
+  seasonId: string;
+  episodeId: string;
+  hlsUrl: string;
+};
+
+export type EpisodeHlsFillInput = {
+  hls_base_url: string;
+  seasons: Array<{
+    id: string;
+    season_number: string;
+    hls_base_url: string;
+    episodes: Array<{
+      id: string;
+      episode_number: string;
+      hls_url: string;
+      hls_verified: boolean;
+    }>;
+  }>;
+};
+
+/** Fill empty episode HLS paths using the first layout candidate (sync fallback). */
+export function fillEmptyEpisodeHlsFromBases<T extends EpisodeHlsFillInput>(
+  form: T,
+): { nextForm: T; filled: EpisodeHlsFillTarget[] } {
+  const seriesBase = normalizeHlsBaseUrl(form.hls_base_url);
+
+  if (!seriesBase) {
+    return { nextForm: form, filled: [] };
+  }
+
+  const filled: EpisodeHlsFillTarget[] = [];
+  let changed = false;
+
+  const nextSeasons = form.seasons.map((season) => {
+    const seasonBase = season.hls_base_url.trim();
+
+    const nextEpisodes = season.episodes.map((episode) => {
+      if (episode.hls_url.trim()) {
+        return episode;
+      }
+
+      const candidates = buildEpisodeHlsPathCandidates({
+        seriesBase,
+        seasonBase,
+        seasonNumber: season.season_number,
+        episodeNumber: episode.episode_number,
+      });
+      const derived = candidates[0] || "";
+
+      if (!derived) {
+        return episode;
+      }
+
+      changed = true;
+
+      filled.push({
+        seasonId: season.id,
+        episodeId: episode.id,
+        hlsUrl: derived,
+      });
+
+      return {
+        ...episode,
+        hls_url: derived,
+        hls_verified: false,
+      };
+    });
+
+    if (nextEpisodes.every((episode, index) => episode === season.episodes[index])) {
+      return season;
+    }
+
+    return {
+      ...season,
+      episodes: nextEpisodes,
+    };
+  });
+
+  if (!changed) {
+    return { nextForm: form, filled: [] };
+  }
+
+  return {
+    nextForm: { ...form, seasons: nextSeasons },
+    filled,
+  };
+}
+
+export type EpisodeHlsDiscoveryGroup = {
+  baseUrl: string;
+  episodes: HlsExistsCheckEpisode[];
+  targetByKey: Map<string, { seasonId: string; episodeId: string }>;
+};
+
+/** Group episodes with empty HLS paths for server-side layout probing. */
+export function buildEmptyEpisodeHlsDiscoveryGroups(
+  form: EpisodeHlsFillInput,
+): EpisodeHlsDiscoveryGroup[] {
+  const groupMap = new Map<string, EpisodeHlsDiscoveryGroup>();
+
+  for (const season of form.seasons) {
+    const seasonNumber = Number(season.season_number);
+
+    if (!Number.isFinite(seasonNumber) || seasonNumber < 1) {
+      continue;
+    }
+
+    const baseUrl = resolveHlsDiscoveryBaseUrl(form.hls_base_url, season);
+
+    if (!baseUrl) {
+      continue;
+    }
+
+    for (const episode of season.episodes) {
+      if (episode.hls_url.trim()) {
+        continue;
+      }
+
+      const episodeNumber = Number(episode.episode_number);
+
+      if (!Number.isFinite(episodeNumber) || episodeNumber < 1) {
+        continue;
+      }
+
+      const episodeKey = hlsExistsEpisodeKey(seasonNumber, episodeNumber);
+      const existing = groupMap.get(baseUrl);
+
+      if (existing) {
+        existing.episodes.push({ season: seasonNumber, episode: episodeNumber });
+        existing.targetByKey.set(episodeKey, {
+          seasonId: season.id,
+          episodeId: episode.id,
+        });
+        continue;
+      }
+
+      groupMap.set(baseUrl, {
+        baseUrl,
+        episodes: [{ season: seasonNumber, episode: episodeNumber }],
+        targetByKey: new Map([
+          [
+            episodeKey,
+            {
+              seasonId: season.id,
+              episodeId: episode.id,
+            },
+          ],
+        ]),
+      });
+    }
+  }
+
+  return [...groupMap.values()];
+}
+
+export function applyDiscoveredEpisodeHlsToForm<T extends EpisodeHlsFillInput>(
+  form: T,
+  discoveries: EpisodeHlsFillTarget[],
+): { nextForm: T; filled: EpisodeHlsFillTarget[] } {
+  if (discoveries.length === 0) {
+    return { nextForm: form, filled: [] };
+  }
+
+  const discoveryByEpisodeId = new Map(
+    discoveries.map((row) => [`${row.seasonId}:${row.episodeId}`, row.hlsUrl] as const),
+  );
+
+  const filled: EpisodeHlsFillTarget[] = [];
+
+  const nextSeasons = form.seasons.map((season) => ({
+    ...season,
+    episodes: season.episodes.map((episode) => {
+      const discovered = discoveryByEpisodeId.get(`${season.id}:${episode.id}`);
+
+      if (!discovered || episode.hls_url.trim()) {
+        return episode;
+      }
+
+      filled.push({
+        seasonId: season.id,
+        episodeId: episode.id,
+        hlsUrl: toMasterPlaylistUrl(discovered),
+      });
+
+      return {
+        ...episode,
+        hls_url: discovered,
+        hls_verified: false,
+      };
+    }),
+  }));
+
+  return {
+    nextForm: { ...form, seasons: nextSeasons },
+    filled,
+  };
 }
 
 export function resolveEpisodeHlsUrl(input: {
@@ -337,10 +589,17 @@ export function resolveEpisodeHlsUrl(input: {
   }
 
   const seriesBase = input.seriesBase?.trim() || "";
+  const normalizedSeriesBase = normalizeHlsBaseUrl(seriesBase);
 
-  if (seriesBase) {
+  if (normalizedSeriesBase) {
+    const flatFromSeries = buildEpisodeHlsUrl(normalizedSeriesBase, input.episodeNumber);
+
+    if (flatFromSeries) {
+      return { hlsUrl: flatFromSeries, source: "series" };
+    }
+
     const fromSeries = buildEpisodeHlsUrlFromSeries(
-      seriesBase,
+      normalizedSeriesBase,
       input.seasonNumber,
       input.episodeNumber,
     );
@@ -402,10 +661,7 @@ export function buildHlsExistsCheckGroups(input: {
       continue;
     }
 
-    const baseUrl =
-      normalizeHlsBaseUrl(input.seriesBaseUrl) ||
-      normalizeHlsBaseUrl(season.hls_base_url) ||
-      normalizeHlsBaseUrl(buildSeasonHlsBase(input.seriesBaseUrl, seasonNumber));
+    const baseUrl = resolveHlsDiscoveryBaseUrl(input.seriesBaseUrl, season);
 
     if (!baseUrl) {
       continue;

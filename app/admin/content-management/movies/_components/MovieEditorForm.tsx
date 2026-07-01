@@ -40,7 +40,7 @@ import {
   sanitizeLatinPersonName,
 } from "../../../../lib/person-name";
 import { revalidateAdminMoviesList } from "../../../../lib/admin-movies-revalidate";
-import { revalidatePublicMoviePages } from "../../../../lib/catalog/revalidate";
+import { revalidatePublicMoviePages, syncViewerCacheAfterAdminSave } from "../../../../lib/catalog/revalidate";
 import {
   adminMoviesService,
   type AdminMovie,
@@ -1360,6 +1360,7 @@ export default function MovieEditorForm({
       formData.append("drm_license_url", form.drm_license_url.trim());
     }
     formData.append("is_featured", form.is_featured ? "1" : "0");
+    formData.append("exclude_from_slider", form.is_featured ? "0" : "1");
     formData.append("catalog_visibility", form.catalog_visibility || "catalog_search");
     formData.append("admin_notes", form.admin_notes.trim());
     Object.entries(downloadLinks).forEach(([quality, url]) => {
@@ -1527,7 +1528,7 @@ export default function MovieEditorForm({
       setPublishOutcomeOpen(true);
       setActiveTab("publish");
       pendingNavigationRef.current = "/admin/content-management/movies";
-      void Promise.all([
+      await Promise.all([
         revalidateAdminMoviesList(),
         revalidatePublicMoviePages(updatedMovie.slug, movie?.slug, form.slug),
       ]);
@@ -1661,6 +1662,10 @@ export default function MovieEditorForm({
       let savedMovie = saveResponse.data.movie;
       setMovie(savedMovie);
 
+      await syncViewerCacheAfterAdminSave({
+        movieSlugs: [savedMovie.slug, movie?.slug, form.slug],
+      });
+
       const processedPoster =
         savedMovie.poster_image?.original?.startsWith("/images/")
           ? savedMovie.poster_image.original
@@ -1701,7 +1706,7 @@ export default function MovieEditorForm({
         publishStatus === "published" &&
         !openedPipeline;
 
-      const applyPublishOutcome = (updatedMovie: AdminMovie) => {
+      const applyPublishOutcome = async (updatedMovie: AdminMovie) => {
         clearDraft(movieDraftStorageKey);
         setMovie(updatedMovie);
         setPublishStatus(updatedMovie.publish_status);
@@ -1712,7 +1717,7 @@ export default function MovieEditorForm({
         setPublishOutcomeOpen(true);
         setActiveTab("publish");
         pendingNavigationRef.current = "/admin/content-management/movies";
-        void Promise.all([
+        await Promise.all([
           revalidateAdminMoviesList(),
           revalidatePublicMoviePages(updatedMovie.slug, movie?.slug, form.slug),
         ]);
@@ -1725,7 +1730,7 @@ export default function MovieEditorForm({
         console.timeEnd("movie:publish-status");
 
         if (updatedMovie) {
-          applyPublishOutcome(updatedMovie);
+          await applyPublishOutcome(updatedMovie);
         } else {
           setActiveTab("publish");
         }

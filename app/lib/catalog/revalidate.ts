@@ -30,15 +30,15 @@ function buildRevalidatePaths(options?: {
 async function revalidateViewerNextCache(options?: {
   movieSlugs?: string[];
   seriesSlugs?: string[];
-}): Promise<void> {
+}): Promise<boolean> {
   const token = tokenStorage.getToken();
 
   if (!token) {
-    return;
+    return false;
   }
 
   try {
-    await fetch("/api/admin/revalidate-viewer", {
+    const response = await fetch("/api/admin/revalidate-viewer", {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -50,8 +50,10 @@ async function revalidateViewerNextCache(options?: {
         tags: [...VIEWER_CACHE_TAGS],
       }),
     });
+
+    return response.ok;
   } catch {
-    // Non-blocking: backend may also trigger revalidation after save.
+    return false;
   }
 }
 
@@ -120,29 +122,37 @@ function revalidatePublicCatalogClientCaches(): Promise<unknown[]> {
   ]);
 }
 
-export function revalidatePublicMoviePages(...slugs: Array<string | null | undefined>): Promise<unknown[]> {
+export function revalidatePublicMoviePages(...slugs: Array<string | null | undefined>): Promise<void> {
   const normalizedSlugs = uniqueSlugs(...slugs);
 
-  return Promise.all([
-    revalidateViewerNextCache({ movieSlugs: normalizedSlugs }),
-    revalidatePublicCatalogClientCaches(),
-    ...normalizedSlugs.map((slug) => revalidatePublicMovieDetail(slug)),
-  ]);
+  return syncViewerCacheAfterAdminSave({ movieSlugs: normalizedSlugs });
 }
 
-export function revalidatePublicSeriesPages(...slugs: Array<string | null | undefined>): Promise<unknown[]> {
+export function revalidatePublicSeriesPages(...slugs: Array<string | null | undefined>): Promise<void> {
   const normalizedSlugs = uniqueSlugs(...slugs);
 
-  return Promise.all([
-    revalidateViewerNextCache({ seriesSlugs: normalizedSlugs }),
-    revalidatePublicCatalogClientCaches(),
-    ...normalizedSlugs.map((slug) => revalidatePublicSeriesDetail(slug)),
-  ]);
+  return syncViewerCacheAfterAdminSave({ seriesSlugs: normalizedSlugs });
 }
 
 export function revalidatePublicHomePage(): Promise<unknown[]> {
   return Promise.all([
     revalidateViewerNextCache(),
     revalidatePublicCatalogClientCaches(),
+  ]);
+}
+
+/** Invalidate home hero + catalog caches after admin slider/visibility changes. */
+export async function syncViewerCacheAfterAdminSave(options?: {
+  movieSlugs?: Array<string | null | undefined>;
+  seriesSlugs?: Array<string | null | undefined>;
+}): Promise<void> {
+  const movieSlugs = uniqueSlugs(...(options?.movieSlugs ?? []));
+  const seriesSlugs = uniqueSlugs(...(options?.seriesSlugs ?? []));
+
+  await Promise.all([
+    revalidateViewerNextCache({ movieSlugs, seriesSlugs }),
+    revalidatePublicCatalogClientCaches(),
+    ...movieSlugs.map((slug) => revalidatePublicMovieDetail(slug)),
+    ...seriesSlugs.map((slug) => revalidatePublicSeriesDetail(slug)),
   ]);
 }

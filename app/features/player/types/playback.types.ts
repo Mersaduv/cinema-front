@@ -105,27 +105,3 @@ export interface PlaybackEngine {
   seekTo?(seconds: number): void;
   setPlaybackRate?(rate: number): void;
 }
-
-export type QoEEventName =
-  | "playback.session_start"
-  | "playback.startup"
-  | "playback.rebuffer"
-  | "playback.error"
-  | "playback.ended"
-  | "playback.engine_selected"
-  | "playback.abr_upgrade"
-  | "playback.abr_downgrade"
-  | "playback.abr_emergency";
-
-export type QoEEvent = {
-  name: QoEEventName;
-  timestamp: number;
-  sessionId: string;
-  engineId: EngineId;
-  platformFamily: PlatformFamily;
-  manifestFormat?: ManifestFormat;
-  mediaId?: string;
-  episodeId?: string;
-  platform?: "WEB" | "MOBILE" | "TV";
-  data?: Record<string, string | number | boolean | null>;
-};

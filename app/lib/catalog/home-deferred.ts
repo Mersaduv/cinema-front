@@ -24,7 +24,10 @@ import {
   fetchSeriesCatalogRest,
   type MoviesCarouselFetchResult,
   type MoviesCatalogFetchResult,
+  type CatalogFetchOptions,
 } from "./rest";
+
+const homeFetchOptions: CatalogFetchOptions = { skipFetchCache: true };
 
 export type DeferredHomeRailsData = {
   popularSeries: MoviesCatalogFetchResult | MoviesCarouselFetchResult | null;
@@ -61,31 +64,43 @@ export async function loadDeferredHomeRails(
       HOME_POPULAR_SERIES_FILTERS,
       1,
       HOME_RAIL_CAROUSEL_PER_PAGE,
+      undefined,
+      homeFetchOptions,
     ),
     fetchMoviesCatalogRest(
       HOME_POPULAR_HYBRID_MOVIES_FILTERS,
       1,
       HOME_RAIL_CAROUSEL_PER_PAGE,
+      undefined,
+      homeFetchOptions,
     ),
     fetchMoviesCatalogRest(
       HOME_FRESH_MOVIES_FILTERS,
       1,
       HOME_RAIL_CAROUSEL_PER_PAGE,
+      undefined,
+      homeFetchOptions,
     ),
     fetchSeriesCatalogRest(
       HOME_FRESH_SERIES_FILTERS,
       1,
       HOME_RAIL_CAROUSEL_PER_PAGE,
+      undefined,
+      homeFetchOptions,
     ),
     fetchMoviesCatalogRest(
       HOME_TOP_RATED_FILTERS,
       1,
       HOME_RAIL_CAROUSEL_PER_PAGE,
+      undefined,
+      homeFetchOptions,
     ),
     fetchSeriesCatalogRest(
       HOME_TOP_RATED_FILTERS,
       1,
       HOME_RAIL_CAROUSEL_PER_PAGE,
+      undefined,
+      homeFetchOptions,
     ),
     fetchAnimationCatalogMerged(
       animationFilters,

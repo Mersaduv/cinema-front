@@ -16,6 +16,33 @@ export const HOME_HERO_MIN_RATING = 6;
 
 const carouselDefaults = { carousel: true } as const;
 
+export const HOME_FEATURED_EDITORIAL_FILTERS: CatalogFiltersState = {
+  search: "",
+  sort: "featured",
+  genres: [],
+  countries: [],
+  languages: [],
+  year_from: null,
+  year_to: null,
+  min_rating: "",
+};
+
+/** Hero pools need full catalog DTO (backdrop, is_featured) — not carousel cards. */
+export const HOME_HERO_HYBRID_MOVIES_FILTERS: CatalogFiltersState = {
+  search: "",
+  sort: "popular_hybrid",
+  genres: [],
+  countries: [],
+  languages: [],
+  year_from: null,
+  year_to: null,
+  min_rating: "",
+};
+
+export const HOME_HERO_HYBRID_SERIES_FILTERS: CatalogFiltersState = {
+  ...HOME_HERO_HYBRID_MOVIES_FILTERS,
+};
+
 export const HOME_LATEST_MOVIES_FILTERS: CatalogFiltersState = {
   ...LATEST_CATALOG_FILTERS,
 };
@@ -142,7 +169,13 @@ function itemRating(item: CatalogListItem): number | null {
 }
 
 function hasHeroBackdrop(item: CatalogListItem): boolean {
-  return Boolean(item.backdrop_url ?? item.details.backdrop_url ?? item.backdrop_image);
+  return Boolean(
+    item.backdrop_url ??
+      item.details.backdrop_url ??
+      item.backdrop_image ??
+      item.poster_url ??
+      item.poster_image,
+  );
 }
 
 function dedupeFeaturedBySlug(items: FeaturedCatalogItem[]): FeaturedCatalogItem[] {
@@ -163,25 +196,27 @@ export function pickFeaturedHeroSlides(
   newestSeries: CatalogListItem[],
   hybridMovies: CatalogListItem[],
   hybridSeries: CatalogListItem[],
+  featuredMovies: CatalogListItem[] = [],
+  featuredSeries: CatalogListItem[] = [],
   limit = HOME_FEATURED_SLIDES,
 ): FeaturedCatalogItem[] {
   const editorialCandidates = dedupeFeaturedBySlug([
+    ...withKind(filterHomeSliderItems(featuredMovies), "movie"),
+    ...withKind(filterHomeSliderItems(featuredSeries), "series"),
     ...withKind(filterHomeSliderItems(newestMovies), "movie"),
     ...withKind(filterHomeSliderItems(newestSeries), "series"),
     ...withKind(filterHomeSliderItems(hybridMovies), "movie"),
     ...withKind(filterHomeSliderItems(hybridSeries), "series"),
   ]).filter(
-    (item) =>
-      item.is_featured &&
-      hasHeroBackdrop(item),
+    (item) => item.is_featured && hasHeroBackdrop(item),
   );
 
   const editorial = editorialCandidates.slice(0, HOME_FEATURED_EDITORIAL_MAX);
   const editorialSlugs = new Set(editorial.map((item) => item.slug));
 
   const algorithmPool = dedupeFeaturedBySlug([
-    ...withKind(hybridMovies, "movie"),
-    ...withKind(hybridSeries, "series"),
+    ...withKind(filterHomeSliderItems(hybridMovies), "movie"),
+    ...withKind(filterHomeSliderItems(hybridSeries), "series"),
   ]).filter((item) => {
     if (editorialSlugs.has(item.slug)) {
       return false;

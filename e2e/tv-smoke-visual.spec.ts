@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { TIZEN_UA, installTvCompatAndQoeTap, installTvUserAgent } from "./tv-helpers";
+import { TIZEN_UA, installTvCompat, installTvUserAgent } from "./tv-helpers";
 
 test.describe("TV visual parity — catalog @ 1920×1080", () => {
   test.beforeEach(async ({ page }) => {
     await installTvUserAgent(page, TIZEN_UA);
-    await installTvCompatAndQoeTap(page);
+    await installTvCompat(page);
   });
 
   test("/movies layout matches stored baseline", async ({ page }) => {

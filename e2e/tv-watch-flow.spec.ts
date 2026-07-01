@@ -3,17 +3,16 @@ import {
   TIZEN_UA,
   createConsoleCollector,
   filterBenignConsoleErrors,
-  installTvCompatAndQoeTap,
+  installTvCompat,
   installTvUserAgent,
   mockPlaybackManifest,
   pressTvBack,
-  readQoeEngineSelected,
 } from "./tv-helpers";
 
 test.describe("TV watch flow — Tizen UA", () => {
   test.beforeEach(async ({ page }) => {
     await installTvUserAgent(page, TIZEN_UA);
-    await installTvCompatAndQoeTap(page);
+    await installTvCompat(page);
   });
 
   test("mount → play interaction → seek → quality menu → back chain", async ({
@@ -36,9 +35,6 @@ test.describe("TV watch flow — Tizen UA", () => {
 
     await expect(page.getByText("Adaptive HLS")).toBeVisible({ timeout: 45_000 });
     await expect(page.locator("video.cinema-player-video")).toHaveCount(1);
-
-    const qoe = await readQoeEngineSelected(page);
-    expect(qoe?.engineId).toBe("hlsjs");
 
     const playerRoot = page.locator("[data-player-shell], .cinema-player-video").first();
     await playerRoot.click({ force: true });

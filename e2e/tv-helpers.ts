@@ -15,10 +15,9 @@ export async function installTvUserAgent(page: Page, userAgent: string): Promise
   }, userAgent);
 }
 
-export async function installTvCompatAndQoeTap(page: Page): Promise<void> {
+export async function installTvCompat(page: Page): Promise<void> {
   await page.addInitScript(() => {
     document.documentElement.setAttribute("data-tv-compat", "true");
-    (window as Window & { __cinemaQoeEvents?: unknown[] }).__cinemaQoeEvents = [];
   });
 }
 
@@ -66,24 +65,7 @@ export async function mockPlaybackManifest(page: Page): Promise<void> {
   });
 }
 
-export async function readQoeEngineSelected(
-  page: Page,
-): Promise<{ engineId?: string; manifestFormat?: string } | null> {
-  return page.evaluate(() => {
-    const events = (window as Window & { __cinemaQoeEvents?: Array<{ name: string; data?: Record<string, unknown> }> })
-      .__cinemaQoeEvents;
-    const hit = events?.find((event) => event.name === "playback.engine_selected");
-    if (!hit?.data) {
-      return null;
-    }
-    return {
-      engineId: String(hit.data.engineId ?? ""),
-      manifestFormat: String(hit.data.manifestFormat ?? ""),
-    };
-  });
-}
-
-export function filterBenignConsoleErrors(errors: string[]): string[] {
+export async function mockPlaybackManifest(page: Page): Promise<void> {
   return errors.filter(
     (line) =>
       !/favicon/i.test(line) &&

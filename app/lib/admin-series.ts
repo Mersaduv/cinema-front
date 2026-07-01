@@ -251,6 +251,9 @@ export interface AdminSeriesOptionsResponse {
   production_statuses: Array<{ value: string; label: string }>;
   show_types: Array<{ value: string; label: string }>;
   catalog_visibility: Array<{ value: string; label: string }>;
+  genres?: Array<{ id: number; tmdb_id: number | null; name: string; slug: string }>;
+  countries?: Array<{ iso: string; name: string; flag?: string | null }>;
+  languages?: Array<{ iso: string; name: string }>;
 }
 
 export interface AdminSeriesPayload {
@@ -315,6 +318,15 @@ export const adminSeriesService = {
     search?: string;
     publish_status?: string;
     status?: string;
+    genre_ids?: string[];
+    countries?: string[];
+    languages?: string[];
+    year_from?: number | null;
+    year_to?: number | null;
+    min_rating?: string;
+    sort?: string;
+    catalog_visibility?: string;
+    slider?: string;
     include_seasons?: boolean;
     include_episodes?: boolean;
     page?: number;
@@ -330,6 +342,15 @@ export const adminSeriesService = {
     if (params.status) {
       query.set("status", params.status);
     }
+    if (params.genre_ids?.length) query.set("genre_ids", params.genre_ids.join(","));
+    if (params.countries?.length) query.set("countries", params.countries.join(","));
+    if (params.languages?.length) query.set("languages", params.languages.join(","));
+    if (params.year_from) query.set("year_from", String(params.year_from));
+    if (params.year_to) query.set("year_to", String(params.year_to));
+    if (params.min_rating) query.set("min_rating", params.min_rating);
+    if (params.sort) query.set("sort", params.sort);
+    if (params.catalog_visibility) query.set("catalog_visibility", params.catalog_visibility);
+    if (params.slider) query.set("slider", params.slider);
     if (params.include_seasons) {
       query.set("include_seasons", "1");
     }

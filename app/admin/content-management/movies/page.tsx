@@ -4,24 +4,28 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
+  HiOutlineDocumentText,
   HiOutlinePencilAlt,
   HiOutlinePlus,
-  HiOutlineSearch,
+  HiOutlineStar,
   HiOutlineTrash,
-  HiOutlineDocumentText,
 } from "react-icons/hi";
 import {
   MdOutlineLocalMovies,
-  MdOutlineMovieFilter,
   MdOutlineOndemandVideo,
   MdOutlinePlaylistPlay,
+  MdOutlineSell,
 } from "react-icons/md";
+import AdminCatalogFilters, {
+  type AdminCatalogFilterState,
+} from "../../../components/admin/AdminCatalogFilters";
 import AdminDeleteConfirmModal from "../../../components/admin/AdminDeleteConfirmModal";
 import AdminPagination from "../../../components/admin/AdminPagination";
-import AdminSelect from "../../../components/admin/AdminSelect";
 import AdminStatCard from "../../../components/admin/AdminStatCard";
+import { ContentStatusBadge } from "../../../components/admin/ContentStatusBadge";
 import { adminApiErrorMessage, unwrapAdminListPayload } from "../../../lib/admin-api";
 import { apiClient } from "../../../lib/api";
+import { revalidateAdminMoviesList } from "../../../lib/admin-movies-revalidate";
 import {
   adminMoviesService,
   getAdminMovieOptions,
@@ -30,9 +34,8 @@ import {
   type AdminMoviesPagination,
   type AdminMoviesResponse,
   type AdminMoviesSummary,
-  type ProcessingStatus,
-  type PublishStatus,
 } from "../../../lib/admin-movies";
+import { revalidatePublicMoviePages } from "../../../lib/catalog/revalidate";
 import { formatGregorianDate } from "../../../lib/date-format";
 
 const emptySummary: AdminMoviesSummary = {
@@ -55,27 +58,11 @@ const emptyOptions: AdminMovieOptionsResponse = {
   processing_statuses: [],
   hls_profiles: [],
   media_root: "D:\\media",
+  genres: [],
+  countries: [],
+  languages: [],
+  catalog_visibility: [],
 };
-
-function getPublishPresentation(status: PublishStatus) {
-  switch (status) {
-    case "published":
-      return {
-        label: "منتشر شده",
-        className: "border-[#34d399]/25 bg-[#34d399]/10 text-[#86efac]",
-      };
-    case "scheduled":
-      return {
-        label: "زمان‌بندی شده",
-        className: "border-[#38bdf8]/25 bg-[#38bdf8]/10 text-[#7dd3fc]",
-      };
-    default:
-      return {
-        label: "پیش‌نویس",
-        className: "border-[#f5c518]/25 bg-[#f5c518]/10 text-[#f8d977]",
-      };
-  }
-}
 
 function PosterPreview({ movie }: { movie: AdminMovie }) {
   if (movie.poster_url) {
@@ -101,12 +88,38 @@ function PosterPreview({ movie }: { movie: AdminMovie }) {
   );
 }
 
+const emptyFilters: AdminCatalogFilterState = {
+  search: "",
+  sort: "",
+  genres: [],
+  countries: [],
+  languages: [],
+  year_from: null,
+  year_to: null,
+  min_rating: "",
+  publish_status: "",
+  visibility: "",
+  slider: "",
+  extra: "",
+};
+
+function visibilityLabel(value?: string) {
+  switch (value) {
+    case "catalog":
+      return "فقط کاتالوگ";
+    case "search":
+      return "فقط جستجو";
+    case "hidden":
+      return "مخفی";
+    default:
+      return "کاتالوگ و جستجو";
+  }
+}
+
 export default function AllMoviesPage() {
   const [options, setOptions] = useState<AdminMovieOptionsResponse>(emptyOptions);
-  const [searchInput, setSearchInput] = useState("");
+  const [filters, setFilters] = useState<AdminCatalogFilterState>(emptyFilters);
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [publishStatus, setPublishStatus] = useState("");
-  const [processingStatus, setProcessingStatus] = useState("");
   const [page, setPage] = useState(1);
   const [error, setError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<AdminMovie | null>(null);
@@ -116,10 +129,21 @@ export default function AllMoviesPage() {
     const query = new URLSearchParams();
     query.set("page", String(page));
     if (debouncedSearch) query.set("search", debouncedSearch);
-    if (publishStatus) query.set("publish_status", publishStatus);
-    if (processingStatus) query.set("processing_status", processingStatus);
+    if (filters.publish_status) query.set("publish_status", filters.publish_status);
+    if (filters.visibility === "slider_homepage") {
+      query.set("slider", "homepage");
+    } else if (filters.visibility) {
+      query.set("catalog_visibility", filters.visibility);
+    }
+    if (filters.sort) query.set("sort", filters.sort);
+    if (filters.min_rating) query.set("min_rating", filters.min_rating);
+    if (filters.year_from) query.set("year_from", String(filters.year_from));
+    if (filters.year_to) query.set("year_to", String(filters.year_to));
+    if (filters.genres.length) query.set("genre_ids", filters.genres.join(","));
+    if (filters.countries.length) query.set("countries", filters.countries.join(","));
+    if (filters.languages.length) query.set("languages", filters.languages.join(","));
     return `/admin/movies?${query.toString()}`;
-  }, [page, debouncedSearch, publishStatus, processingStatus]);
+  }, [page, debouncedSearch, filters]);
 
   const { data, isLoading, mutate } = useSWR(
     listKey,
@@ -149,22 +173,17 @@ export default function AllMoviesPage() {
   }, []);
 
   useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, publishStatus, processingStatus]);
-
-  useEffect(() => {
     const timer = window.setTimeout(() => {
-      setDebouncedSearch(searchInput.trim());
+      setDebouncedSearch(filters.search.trim());
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [searchInput]);
+  }, [filters.search]);
 
   const handleResetFilters = () => {
-    setSearchInput("");
+    setFilters(emptyFilters);
     setDebouncedSearch("");
-    setPublishStatus("");
-    setProcessingStatus("");
+    setPage(1);
   };
 
   const executeDeleteMovie = async () => {
@@ -173,6 +192,7 @@ export default function AllMoviesPage() {
     }
 
     const deletedId = deleteTarget.id;
+    const deletedSlug = deleteTarget.slug;
     setIsDeleting(true);
     setError("");
 
@@ -213,6 +233,11 @@ export default function AllMoviesPage() {
       if (targetPage !== page) {
         setPage(targetPage);
       }
+
+      await Promise.all([
+        revalidateAdminMoviesList(),
+        revalidatePublicMoviePages(deletedSlug),
+      ]);
     } else {
       setError(response.message || "حذف کامل فیلم انجام نشد.");
     }
@@ -230,7 +255,7 @@ export default function AllMoviesPage() {
     {
       label: "پیش‌نویس‌ها",
       value: summary.drafts,
-      icon: MdOutlineMovieFilter,
+      icon: MdOutlineSell,
       accent: "border-[#38bdf8]/18 bg-[#38bdf8]/10 text-[#7dd3fc]",
     },
     {
@@ -260,34 +285,13 @@ export default function AllMoviesPage() {
     })),
   ];
 
-  const processingStatusOptions = [
-    {
-      value: "",
-      label: "همه وضعیت‌های آمادگی",
-      description: "نمایش همه فیلم‌ها از نظر آمادگی انتشار",
-    },
-    ...options.processing_statuses.map((status) => ({
-      value: status.value,
-      label: status.label,
-      description: `فیلتر بر اساس ${status.label}`,
-    })),
-  ];
-
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(245,197,24,0.12),rgba(8,16,24,0.96)_42%,rgba(56,189,248,0.14))] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.24)] md:p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <span className="inline-flex rounded-full border border-[#f5c518]/25 bg-[#f5c518]/10 px-3 py-1 text-xs text-[#f8d977]">
-              مدیریت فیلم‌ها و انتشار
-            </span>
-            <h2 className="mt-5 text-3xl font-black tracking-tight text-white md:text-5xl">
-              ثبت منبع فیلم، تکمیل متادیتا و انتشار با HLS دستی
-            </h2>
-            <p className="mt-5 text-base leading-8 text-[#dde7ed] md:text-lg">
-              پردازش داخلی HLS از این پروژه حذف شده است. در این بخش فقط منبع فیلم،
-              متادیتای TMDB و مسیرهای دستی پخش و دانلود مدیریت می‌شوند.
-            </p>
+      <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white">فیلم‌ها</h1>
+            <p className="mt-2 text-sm text-[#8ea4b3]">مدیریت فهرست فیلم‌ها</p>
           </div>
 
           <Link
@@ -312,56 +316,28 @@ export default function AllMoviesPage() {
         ))}
       </section>
 
-      <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-6">
-        <div className="grid gap-4 xl:grid-cols-[1.4fr_0.9fr_0.9fr_auto]">
-          <label className="block">
-            <span className="mb-2 block text-sm text-[#8ea4b3]">
-              جستجو بر اساس عنوان یا slug
-            </span>
-            <div className="relative">
-              <input
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="مثلاً inception یا dune-part-two"
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 pr-11 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#f5c518]/50 focus:bg-white/[0.06]"
-              />
-              <HiOutlineSearch className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#7b909d]" />
-            </div>
-          </label>
-
-          <label className="block">
-            <span className="mb-2 block text-sm text-[#8ea4b3]">
-              وضعیت انتشار
-            </span>
-            <AdminSelect
-              value={publishStatus}
-              onChange={setPublishStatus}
-              options={publishStatusOptions}
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-2 block text-sm text-[#8ea4b3]">
-              آمادگی انتشار
-            </span>
-            <AdminSelect
-              value={processingStatus}
-              onChange={setProcessingStatus}
-              options={processingStatusOptions}
-            />
-          </label>
-
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={handleResetFilters}
-              className="inline-flex w-full items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm text-white transition hover:border-white/20 hover:bg-white/[0.08]"
-            >
-              پاکسازی فیلترها
-            </button>
-          </div>
-        </div>
-      </section>
+      <AdminCatalogFilters
+        title="فیلتر فیلم‌ها"
+        searchPlaceholder="مثلاً inception یا dune-part-two"
+        state={filters}
+        onChange={(next) => {
+          setFilters(next);
+          setPage(1);
+        }}
+        onReset={handleResetFilters}
+        genres={options.genres ?? []}
+        countries={options.countries ?? []}
+        languages={options.languages ?? []}
+        publishOptions={publishStatusOptions}
+        visibilityOptions={[
+          { value: "", label: "همه حالت‌های نمایش" },
+          ...((options.catalog_visibility ?? []).map((item) => ({
+            value: item.value,
+            label: item.label,
+          })) ?? []),
+          { value: "slider_homepage", label: "فعال در اسلایدر صفحه اصلی" },
+        ]}
+      />
 
       <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -371,7 +347,7 @@ export default function AllMoviesPage() {
               از این صفحه وارد جزئیات و فرم یکپارچه انتشار/پیش‌نویس هر فیلم می‌شوی.
             </p>
           </div>
-          <p className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-[#b6c5cf]">
+          <p className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-[#b6c5cf]">
             {pagination.total} فیلم
           </p>
         </div>
@@ -387,12 +363,12 @@ export default function AllMoviesPage() {
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
-                className="h-64 animate-pulse rounded-[28px] border border-white/10 bg-white/[0.03]"
+                className="h-64 animate-pulse rounded-[28px] border border-white/10 bg-white/5"
               />
             ))}
           </div>
         ) : movies.length === 0 ? (
-          <div className="rounded-[28px] border border-dashed border-white/12 bg-white/[0.02] px-6 py-12 text-center">
+          <div className="rounded-[28px] border border-dashed border-white/12 bg-white/2 px-6 py-12 text-center">
             <h4 className="text-xl font-bold text-white">فیلمی ثبت نشده است</h4>
             <p className="mt-3 text-sm leading-7 text-[#8ea4b3]">
               اولین فیلم را ثبت کن تا جریان مدیریت محتوا شروع شود.
@@ -409,7 +385,7 @@ export default function AllMoviesPage() {
           <>
             <div className="grid gap-4 lg:grid-cols-2">
               {movies.map((movie) => {
-                const publish = getPublishPresentation(movie.publish_status);
+                const sliderActive = movie.is_featured && !movie.exclude_from_slider;
 
                 return (
                   <article
@@ -436,16 +412,23 @@ export default function AllMoviesPage() {
                                 <HiOutlineDocumentText className="inline h-3.5 w-3.5" />
                               </span>
                             ) : null}
+                            {sliderActive ? (
+                              <span className="rounded-full border border-[#a855f7]/30 bg-[#a855f7]/10 px-3 py-1 text-xs text-[#e9d5ff]">
+                                <HiOutlineStar className="ml-1 inline h-3.5 w-3.5" />
+                                اسلایدر اصلی
+                              </span>
+                            ) : null}
+                            {movie.exclude_from_slider ? (
+                              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-[#c8d5de]">
+                                خارج از اسلایدر
+                              </span>
+                            ) : null}
                             {movie.publish_completion_pending ? (
                               <span className="rounded-full border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-1 text-xs text-[#fde68a]">
                                 انتشار ناتمام
                               </span>
                             ) : null}
-                            <span
-                              className={`rounded-full border px-3 py-1 text-xs ${publish.className}`}
-                            >
-                              {publish.label}
-                            </span>
+                            <ContentStatusBadge item={movie} />
                           </div>
                         </div>
 
@@ -454,14 +437,17 @@ export default function AllMoviesPage() {
                         </p>
 
                         <div className="mt-4 flex flex-wrap gap-2">
-                          <span className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5 text-xs text-[#d7e4eb]">
+                          <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-xs text-[#d7e4eb]">
                             ثبت: {formatGregorianDate(movie.created_at)}
                           </span>
                           {movie.release_year ? (
-                            <span className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5 text-xs text-[#d7e4eb]">
+                            <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-xs text-[#d7e4eb]">
                               {movie.release_year}
                             </span>
                           ) : null}
+                          <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-xs text-[#d7e4eb]">
+                            {visibilityLabel(movie.catalog_visibility)}
+                          </span>
                           {movie.has_subtitle ? (
                             <span className="rounded-full border border-[#f5c518]/25 bg-[#f5c518]/10 px-3 py-1.5 text-xs font-semibold text-[#f8d977]">
                               زیرنویس

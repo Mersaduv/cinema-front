@@ -6,7 +6,6 @@ import { resolvePlaybackPolicy, resolveRecoveryPlaybackPolicy } from "./PlayerPo
 import { SyncCoordinator } from "./SyncCoordinator";
 import { mediaResolver } from "./MediaResolver";
 import { detectDeviceCapabilities } from "../services/capability";
-import { getPlayerTelemetry } from "../services/telemetry";
 import { backoffDelayMs, isProgressiveAudioUrl } from "../utils/format";
 import { logEngineLifecycle } from "../../../lib/tv/engine-debug";
 import type { PlaybackEngine, EngineId, PlatformFamily } from "../types/playback.types";
@@ -55,7 +54,6 @@ export class PlayerController {
   private engine: PlaybackEngine | null = null;
   private engineId: EngineId = "hlsjs";
   private platformFamily: PlatformFamily = "desktop";
-  private telemetry = getPlayerTelemetry();
   private video: HTMLVideoElement | null = null;
   private config: PlayerConfig;
   private callbacks: PlayerControllerCallbacks;
@@ -97,11 +95,9 @@ export class PlayerController {
       performanceClass: capabilities.performanceClass,
       drm: this.currentSource?.drm ?? null,
       onLowBuffer: () => {
-        this.telemetry.markRebufferStart();
         this.transition("bufferStart");
       },
       onBufferRecovered: () => {
-        this.telemetry.markRebufferEnd();
         this.transition("bufferEnd");
       },
     };
@@ -120,7 +116,6 @@ export class PlayerController {
       capabilities,
     );
     this.engineId = engineId;
-    this.telemetry.configure(engineId, this.platformFamily);
     return this.engine;
   }
 
@@ -148,7 +143,6 @@ export class PlayerController {
 
     this.transition("load");
     this.startWatchdog();
-    this.telemetry.markSessionStart();
 
     await this.attachResolvedSource();
   }
@@ -226,7 +220,6 @@ export class PlayerController {
     logEngineLifecycle("attached", policy.engineId, {
       manifestFormat: policy.manifestFormat,
     });
-    this.telemetry.trackEngineSelected(policy.engineId, policy.manifestFormat);
     engine.attach(video, policy.manifestUrl);
 
     if (this.externalDubActive) {
@@ -583,23 +576,6 @@ export class PlayerController {
       this.emitSnapshot();
     });
 
-    this.eventBus.on("abrDecision", (payload) => {
-      const data = payload as {
-        from: number;
-        to: number;
-        reason: string;
-        estimateMbps: number;
-      };
-
-      if (data.reason === "upgrade") {
-        this.telemetry.trackAbrUpgrade(data.from, data.to, data.estimateMbps);
-      } else if (data.reason === "downgrade") {
-        this.telemetry.trackAbrDowngrade(data.from, data.to, data.estimateMbps);
-      } else if (data.reason === "emergency-downgrade") {
-        this.telemetry.trackAbrEmergency(data.from, data.estimateMbps);
-      }
-    });
-
     this.eventBus.on("error", (payload) => {
       const { fatal, type, details } = payload as {
         fatal?: boolean;
@@ -659,7 +635,6 @@ export class PlayerController {
     };
 
     const onWaiting = () => {
-      this.telemetry.markRebufferStart();
       this.transition("bufferStart");
       this.emitSnapshot();
     };
@@ -669,8 +644,6 @@ export class PlayerController {
       this.recoveryPhase = "none";
       this.recoveryAttempt = 0;
       this.errorMessage = "";
-      this.telemetry.markFirstFrame();
-      this.telemetry.markRebufferEnd();
       this.emitSnapshot();
     };
 
@@ -699,7 +672,6 @@ export class PlayerController {
     };
 
     const onEnded = () => {
-      this.telemetry.markEnded();
       this.transition("ended");
       this.emitSnapshot();
     };
@@ -707,7 +679,6 @@ export class PlayerController {
     const onVolumeChange = () => this.emitSnapshot();
 
     const onError = () => {
-      this.telemetry.trackError("decode", "video element error");
       void this.runRecovery("watchdog");
     };
 
@@ -919,7 +890,6 @@ export class PlayerController {
 
   private setError(message: string): void {
     this.errorMessage = message;
-    this.telemetry.trackError("player", message);
     this.transition("error");
     this.emitSnapshot();
   }
