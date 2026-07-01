@@ -1126,6 +1126,7 @@ export default function SeriesEditorForm({
   const [expandedEpisodeKeys, setExpandedEpisodeKeys] = useState<string[]>([]);
   const [episodeHlsSyncMessage, setEpisodeHlsSyncMessage] = useState<Record<string, string>>({});
   const [episodeHlsSyncPending, setEpisodeHlsSyncPending] = useState<Record<string, boolean>>({});
+  const [seriesHlsSyncMessage, setSeriesHlsSyncMessage] = useState("");
   const [episodeSavingKeys, setEpisodeSavingKeys] = useState<Record<string, boolean>>({});
   const [episodeSaveFeedback, setEpisodeSaveFeedback] = useState<Record<string, string>>({});
   const [episodeSavedFingerprints, setEpisodeSavedFingerprints] = useState<
@@ -3952,6 +3953,7 @@ export default function SeriesEditorForm({
                   dir="ltr"
                   className={ltrInputClass}
                 />
+                <EpisodeHlsSyncStatus message={seriesHlsSyncMessage} />
                 <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
                   با تغییر ریشه سریال، مسیر فصل‌ها و قسمت‌ها خودکار همگام می‌شود. اگر فیلدی را
                   دستی عوض کنید، دیگر بازنویسی نمی‌شود. پس از «همگام‌سازی از TMDB»، مسیر HLS فقط

@@ -64,12 +64,3 @@ export async function mockPlaybackManifest(page: Page): Promise<void> {
     });
   });
 }
-
-export async function mockPlaybackManifest(page: Page): Promise<void> {
-  return errors.filter(
-    (line) =>
-      !/favicon/i.test(line) &&
-      !/Failed to load resource.*favicon/i.test(line) &&
-      !/ResizeObserver loop/i.test(line),
-  );
-}
