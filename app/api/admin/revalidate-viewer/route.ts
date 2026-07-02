@@ -4,61 +4,106 @@ import { VIEWER_CACHE_TAGS, VIEWER_REVALIDATE_PATHS } from "../../../lib/catalog
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005/api";
 
-function isAdminUser(payload: unknown): boolean {
-  if (!payload || typeof payload !== "object") {
-    return false;
-  }
+type RevalidatePayload = {
+  paths?: unknown;
+  tags?: unknown;
+};
 
-  const user = (payload as { data?: { user?: { roles?: Array<{ slug?: string }> } } }).data?.user;
-  const roles = user?.roles ?? [];
+type MeResponse = {
+  user?: {
+    roles?: Array<{
+      slug?: string | null;
+      name?: string | null;
+    }>;
+  };
+  data?: {
+    user?: {
+      roles?: Array<{
+        slug?: string | null;
+        name?: string | null;
+      }>;
+    };
+  };
+};
 
-  return roles.some((role) => role.slug === "admin");
+function normalizeStringList(value: unknown, fallback: readonly string[] = []): string[] {
+  const source = Array.isArray(value) ? value : [...fallback];
+
+  return source
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
 }
 
-export async function POST(req: NextRequest) {
-  const authorization = req.headers.get("authorization");
+function hasAdminRole(payload: MeResponse): boolean {
+  const roles = payload.user?.roles ?? payload.data?.user?.roles ?? [];
+
+  return roles.some((role) => {
+    const slug = role.slug?.trim().toLowerCase();
+    const name = role.name?.trim().toLowerCase();
+
+    return slug === "admin" || name === "admin";
+  });
+}
+
+async function isAuthorizedAdmin(token: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/me`, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        Authorization: token,
+      },
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const payload = (await response.json()) as MeResponse;
+    return hasAdminRole(payload);
+  } catch {
+    return false;
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const authorization = request.headers.get("authorization")?.trim();
 
   if (!authorization?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const meResponse = await fetch(`${API_BASE_URL}/me`, {
-    headers: {
-      Accept: "application/json",
-      Authorization: authorization,
-    },
-    cache: "no-store",
-  });
+  const isAdmin = await isAuthorizedAdmin(authorization);
 
-  if (!meResponse.ok) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdmin) {
+    return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
   }
 
-  const mePayload = (await meResponse.json()) as unknown;
+  let payload: RevalidatePayload;
 
-  if (!isAdminUser(mePayload)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  try {
+    payload = (await request.json()) as RevalidatePayload;
+  } catch {
+    return NextResponse.json({ success: false, message: "Invalid JSON body" }, { status: 400 });
   }
 
-  const body = (await req.json()) as {
-    paths?: string[];
-    tags?: string[];
-  };
-
-  const tags = body.tags ?? [...VIEWER_CACHE_TAGS];
-  const paths = body.paths ?? [...VIEWER_REVALIDATE_PATHS];
+  const paths = normalizeStringList(payload.paths, VIEWER_REVALIDATE_PATHS);
+  const tags = normalizeStringList(payload.tags, VIEWER_CACHE_TAGS);
 
   for (const tag of tags) {
-    if (tag.trim()) {
-      revalidateTag(tag.trim(), "max");
-    }
+    revalidateTag(tag, "max");
   }
 
   for (const path of paths) {
-    if (path.trim()) {
-      revalidatePath(path.trim());
-    }
+    revalidatePath(path);
   }
 
-  return NextResponse.json({ revalidated: true, paths, tags });
+  return NextResponse.json({
+    success: true,
+    revalidated: {
+      paths,
+      tags,
+    },
+  });
 }
