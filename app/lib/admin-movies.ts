@@ -50,9 +50,8 @@ export interface AdminMovieMediaAsset {
   kind: string;
   source_path: string;
   source_is_external: boolean;
-  managed_relative_directory: string;
-  hls_output_relative_directory: string;
-  hls_output_absolute_directory: string;
+  managed_relative_directory: string | null;
+  hls_output_relative_directory: string | null;
   master_playlist_relative_path: string;
   selected_hls_profiles: string[];
   master_playlist_url: string | null;
@@ -152,8 +151,7 @@ export interface AdminMovie {
   processing_error: string | null;
   scheduled_for: string | null;
   published_at: string | null;
-  media_folder: string;
-  media_folder_absolute: string;
+  media_folder: string | null;
   metadata: AdminMovieMetadata;
   created_at: string | null;
   updated_at: string | null;
@@ -207,7 +205,6 @@ export interface AdminMovieOptionsResponse {
     resolution: string;
     bandwidth: number;
   }>;
-  media_root: string;
   upload_limits?: {
     upload_max_filesize: string | null;
     post_max_size: string | null;
@@ -233,45 +230,6 @@ export interface AdminMovieOptionsResponse {
     value: string;
     label: string;
   }>;
-}
-
-export interface MediaBrowserRoot {
-  path: string;
-  label: string;
-  is_media_root: boolean;
-}
-
-export interface MediaBrowserFileEntry {
-  name: string;
-  path: string;
-  extension: string;
-  size_bytes: number;
-  size_label: string;
-  last_modified_at: string | null;
-  is_supported: boolean;
-  public_url?: string | null;
-}
-
-export interface MediaBrowserDirectoryEntry {
-  name: string;
-  path: string;
-}
-
-export type MediaBrowserKind = "video" | "image" | "subtitle" | "dubbed";
-
-export interface MediaBrowserEntriesResponse {
-  kind: MediaBrowserKind;
-  allowed_extensions: string[];
-  current_path: string;
-  parent_path: string | null;
-  directories: MediaBrowserDirectoryEntry[];
-  files: MediaBrowserFileEntry[];
-}
-
-export interface MediaBrowserRootsResponse {
-  kind: MediaBrowserKind;
-  allowed_extensions: string[];
-  roots: MediaBrowserRoot[];
 }
 
 export interface CreateAdminMoviePayload {
@@ -522,7 +480,6 @@ export async function getAdminMovieOptions(): Promise<AdminMovieOptionsResponse>
     publish_statuses: [],
     processing_statuses: [],
     hls_profiles: [],
-    media_root: "",
   };
 }
 
@@ -789,24 +746,6 @@ export const adminMoviesService = {
         slug: string;
       };
     }>(`/admin/movies/${movieId}`);
-  },
-
-  async browserRoots(kind: MediaBrowserKind) {
-    return apiClient.get<MediaBrowserRootsResponse>(
-      `/admin/media-browser/roots?kind=${kind}`
-    );
-  },
-
-  async browseEntries(kind: MediaBrowserKind, path?: string | null) {
-    const query = new URLSearchParams({ kind });
-
-    if (path) {
-      query.set("path", path);
-    }
-
-    return apiClient.get<MediaBrowserEntriesResponse>(
-      `/admin/media-browser/entries?${query.toString()}`
-    );
   },
 };
 

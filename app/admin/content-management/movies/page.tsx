@@ -57,7 +57,6 @@ const emptyOptions: AdminMovieOptionsResponse = {
   publish_statuses: [],
   processing_statuses: [],
   hls_profiles: [],
-  media_root: "D:\\media",
   genres: [],
   countries: [],
   languages: [],

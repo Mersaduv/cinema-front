@@ -9,6 +9,7 @@ import {
   HiOutlinePlay,
   HiOutlinePlus,
   HiOutlinePhotograph,
+  HiOutlineRefresh,
   HiOutlineSearch,
   HiOutlineSparkles,
   HiOutlineVideoCamera,
@@ -20,7 +21,6 @@ import AdminSelect from "../../../../components/admin/AdminSelect";
 import EditorPublishSubmitBar from "../../../../components/admin/EditorPublishSubmitBar";
 import MovieFormStatusPanel from "../../../../components/admin/MovieFormStatusPanel";
 import TmdbTitleSearch from "../../../../components/admin/TmdbTitleSearch";
-import FormDraftBanner from "../../../../components/admin/FormDraftBanner";
 import SeoFieldsPanel from "../../../../components/admin/SeoFieldsPanel";
 import {
   ContentWarningsField,
@@ -79,13 +79,6 @@ import {
   SlugAvailabilityHint,
   useSlugAvailability,
 } from "../../../../hooks/useSlugAvailability";
-import {
-  clearDraft,
-  movieDraftKey,
-  stripMovieDraftFields,
-  useDebouncedDraftSave,
-  useFormDraftRecovery,
-} from "../../../../lib/form-draft";
 import { fingerprintMovie } from "../../../../lib/form-fingerprint";
 import {
   clearPendingMoviePublish,
@@ -437,6 +430,7 @@ export default function MovieEditorForm({
   const hlsPreviewGenerationRef = useRef(0);
   const [form, setForm] = useState<MovieEditorFormState>(createInitialFormState);
   const [hlsSyncMessage, setHlsSyncMessage] = useState("");
+  const [hlsPreviewLoading, setHlsPreviewLoading] = useState(false);
   const [publishStatus, setPublishStatus] = useState<PublishStatus>("draft");
   const [scheduledFor, setScheduledFor] = useState("");
   const [pendingPublishVisible, setPendingPublishVisible] = useState(false);
@@ -795,21 +789,27 @@ export default function MovieEditorForm({
       return;
     }
 
-    const response = await adminMoviesService.previewHlsPackage(normalized, {
-      resolveDownloads: true,
-    });
+    setHlsPreviewLoading(true);
 
-    if (!(response.success && response.data)) {
-      setError(response.message || "شناسایی لینک‌های دانلود از پکیج انجام نشد.");
-      return;
+    try {
+      const response = await adminMoviesService.previewHlsPackage(normalized, {
+        resolveDownloads: true,
+      });
+
+      if (!(response.success && response.data)) {
+        setError(response.message || "شناسایی لینک‌های دانلود از پکیج انجام نشد.");
+        return;
+      }
+
+      applyHlsPackageInsights(response.data);
+      setHlsSyncMessage(
+        response.data.download_links && Object.keys(response.data.download_links).length > 0
+          ? "لینک‌های دانلود از پکیج HLS شناسایی شدند."
+          : "پکیج HLS بررسی شد؛ لینک دانلود جداگانه‌ای پیدا نشد.",
+      );
+    } finally {
+      setHlsPreviewLoading(false);
     }
-
-    applyHlsPackageInsights(response.data);
-    setHlsSyncMessage(
-      response.data.download_links && Object.keys(response.data.download_links).length > 0
-        ? "لینک‌های دانلود از پکیج HLS شناسایی شدند."
-        : "پکیج HLS بررسی شد؛ لینک دانلود جداگانه‌ای پیدا نشد.",
-    );
   };
 
   const handleDownloadLinkPaste = (
@@ -901,24 +901,6 @@ export default function MovieEditorForm({
     excludeId: movie?.id ?? movieId,
     check: adminMoviesService.checkSlug,
   });
-
-  const movieDraftStorageKey = movieDraftKey(null);
-  const draftRecovery = useFormDraftRecovery<MovieEditorFormState>({
-    enabled: mode === "create" && !loading,
-    draftKey: movieDraftStorageKey,
-    onRestore: (draft) => {
-      setForm((current) => ({
-        ...current,
-        ...draft,
-      }));
-    },
-  });
-
-  useDebouncedDraftSave(
-    movieDraftStorageKey,
-    stripMovieDraftFields(form),
-    mode === "create" && !loading,
-  );
 
   const canSubmitForm =
     isDetailsTabComplete &&
@@ -1219,31 +1201,40 @@ export default function MovieEditorForm({
 
     if (!raw) {
       setHlsSyncMessage("");
+      setHlsPreviewLoading(false);
       return;
     }
 
     const timer = window.setTimeout(async () => {
       const generation = ++hlsPreviewGenerationRef.current;
-      const response = await adminMoviesService.previewHlsPackage(raw, {
-        resolveDownloads: false,
-      });
+      setHlsPreviewLoading(true);
 
-      if (generation !== hlsPreviewGenerationRef.current) {
-        return;
+      try {
+        const response = await adminMoviesService.previewHlsPackage(raw, {
+          resolveDownloads: false,
+        });
+
+        if (generation !== hlsPreviewGenerationRef.current) {
+          return;
+        }
+
+        if (!(response.success && response.data)) {
+          return;
+        }
+
+        const payload = response.data;
+        applyHlsPackageInsights(payload, { mergeDownloads: false });
+
+        setHlsSyncMessage(
+          payload.download_links && Object.keys(payload.download_links).length > 0
+            ? "زیرنویس، دوبله و لینک‌های دانلود از پکیج HLS همگام شد."
+            : "زیرنویس و دوبله از پکیج HLS همگام شد.",
+        );
+      } finally {
+        if (generation === hlsPreviewGenerationRef.current) {
+          setHlsPreviewLoading(false);
+        }
       }
-
-      if (!(response.success && response.data)) {
-        return;
-      }
-
-      const payload = response.data;
-      applyHlsPackageInsights(payload, { mergeDownloads: false });
-
-      setHlsSyncMessage(
-        payload.download_links && Object.keys(payload.download_links).length > 0
-          ? "زیرنویس، دوبله و لینک‌های دانلود از پکیج HLS همگام شد."
-          : "زیرنویس و دوبله از پکیج HLS همگام شد.",
-      );
     }, 650);
 
     return () => {
@@ -1707,7 +1698,6 @@ export default function MovieEditorForm({
         !openedPipeline;
 
       const applyPublishOutcome = async (updatedMovie: AdminMovie) => {
-        clearDraft(movieDraftStorageKey);
         setMovie(updatedMovie);
         setPublishStatus(updatedMovie.publish_status);
         setScheduledFor(apiDateTimeToInputValue(updatedMovie.scheduled_for));
@@ -1893,13 +1883,6 @@ export default function MovieEditorForm({
           <HiOutlineCheckCircle className="h-5 w-5" />
           {searchMessage}
         </div>
-      ) : null}
-
-      {draftRecovery.showBanner ? (
-        <FormDraftBanner
-          onRestore={draftRecovery.restoreDraft}
-          onDismiss={draftRecovery.dismissDraft}
-        />
       ) : null}
 
       {successMessage ? (
@@ -2374,7 +2357,19 @@ export default function MovieEditorForm({
                   />
                 </label>
 
-                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                <div
+                  className={`relative rounded-[28px] border bg-white/[0.03] p-5 transition ${
+                    hlsPreviewLoading
+                      ? "border-[#38bdf8]/35 bg-[#38bdf8]/5"
+                      : "border-white/10"
+                  }`}
+                >
+                  {hlsPreviewLoading ? (
+                    <div className="mb-4 flex items-center gap-2 rounded-2xl border border-[#38bdf8]/25 bg-[#38bdf8]/10 px-4 py-3 text-sm text-[#bae6fd]">
+                      <HiOutlineRefresh className="h-4 w-4 shrink-0 animate-spin" />
+                      <span>در حال پردازش و بررسی پکیج HLS…</span>
+                    </div>
+                  ) : null}
                   <div className="grid gap-5 md:grid-cols-2">
                     <label className="block md:col-span-2">
                       <span className="mb-2 block text-sm text-[#8ea4b3]">مسیر HLS</span>
@@ -2611,6 +2606,36 @@ export default function MovieEditorForm({
                   تب قبلی
                 </button>
 
+                <div className="rounded-[28px] border border-[#f5c518]/35 bg-[#f5c518]/8 p-5 shadow-[0_0_0_1px_rgba(245,197,24,0.08)]">
+                  <p className="mb-4 text-base font-bold text-[#f5c518]">وضعیت انتشار</p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-semibold text-white">
+                        انتخاب وضعیت
+                      </span>
+                      <AdminSelect
+                        value={publishStatus}
+                        onChange={(value) => {
+                          const nextStatus = value as PublishStatus;
+                          setPublishStatus(nextStatus);
+                          if (nextStatus !== "scheduled") {
+                            setScheduledFor("");
+                          }
+                        }}
+                        options={moviePublishStatusOptions}
+                      />
+                    </label>
+                    {publishStatus === "scheduled" ? (
+                      <AdminScheduleDateTimePicker
+                        label="زمان انتشار"
+                        value={scheduledFor}
+                        onChange={setScheduledFor}
+                        minDateTime={toDateTimeInputValue(new Date())}
+                      />
+                    ) : null}
+                  </div>
+                </div>
+
                 <div className="space-y-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                   <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#071019] px-4 py-3">
                     <span>
@@ -2647,31 +2672,6 @@ export default function MovieEditorForm({
                       options={movieCatalogVisibilityOptions}
                     />
                   </label>
-                </div>
-
-                <div className="grid gap-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-2 block text-sm text-[#8ea4b3]">وضعیت انتشار</span>
-                    <AdminSelect
-                      value={publishStatus}
-                      onChange={(value) => {
-                        const nextStatus = value as PublishStatus;
-                        setPublishStatus(nextStatus);
-                        if (nextStatus !== "scheduled") {
-                          setScheduledFor("");
-                        }
-                      }}
-                      options={moviePublishStatusOptions}
-                    />
-                  </label>
-                  {publishStatus === "scheduled" ? (
-                    <AdminScheduleDateTimePicker
-                      label="زمان انتشار"
-                      value={scheduledFor}
-                      onChange={setScheduledFor}
-                      minDateTime={toDateTimeInputValue(new Date())}
-                    />
-                  ) : null}
                 </div>
 
                 <MovieFormStatusPanel

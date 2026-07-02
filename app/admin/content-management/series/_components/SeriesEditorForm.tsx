@@ -30,7 +30,6 @@ import PublishOutcomeModal, {
 } from "../../../../components/admin/PublishOutcomeModal";
 import TmdbPreviewSkeleton from "../../../../components/admin/TmdbPreviewSkeleton";
 import TmdbTitleSearch from "../../../../components/admin/TmdbTitleSearch";
-import FormDraftBanner from "../../../../components/admin/FormDraftBanner";
 import SeoFieldsPanel from "../../../../components/admin/SeoFieldsPanel";
 import {
   ContentWarningsField,
@@ -173,13 +172,6 @@ import {
   SlugAvailabilityHint,
   useSlugAvailability,
 } from "../../../../hooks/useSlugAvailability";
-import {
-  clearDraft,
-  seriesDraftKey,
-  stripSeriesDraftFields,
-  useDebouncedDraftSave,
-  useFormDraftRecovery,
-} from "../../../../lib/form-draft";
 import {
   applyTmdbSeasonToForm,
   applyTmdbSeriesOverviewToForm,
@@ -2028,24 +2020,6 @@ export default function SeriesEditorForm({
     check: adminSeriesService.checkSlug,
   });
 
-  const seriesDraftStorageKey = seriesDraftKey(null);
-  const draftRecovery = useFormDraftRecovery<SeriesFormState>({
-    enabled: mode === "create" && !loading,
-    draftKey: seriesDraftStorageKey,
-    onRestore: (draft) => {
-      setForm((current) => ({
-        ...current,
-        ...draft,
-      }));
-    },
-  });
-
-  useDebouncedDraftSave(
-    seriesDraftStorageKey,
-    stripSeriesDraftFields(form),
-    mode === "create" && !loading,
-  );
-
   const canSubmitForm =
     isIdentityTabComplete &&
     isSeasonsTabComplete &&
@@ -3212,7 +3186,6 @@ export default function SeriesEditorForm({
       }));
 
       const savedPublishStatus = savedSeries.publish_status || form.publish_status;
-      clearDraft(seriesDraftStorageKey);
       setPublishOutcomeStatus(savedPublishStatus);
       setPublishOutcomeOpen(true);
       setActiveTab("publish");
@@ -3460,7 +3433,6 @@ export default function SeriesEditorForm({
       seriesFormBodyFingerprintRef.current = seriesFormBodyFingerprint(form);
       setEpisodeSavedFingerprints(seedEpisodeSavedFingerprints(form));
       setSuccessMessage("ذخیره شد — اعتبار بازیگران در پس‌زمینه انجام می‌شود.");
-      clearDraft(seriesDraftStorageKey);
       setPublishOutcomeStatus(savedSeries.publish_status || form.publish_status);
       setPublishOutcomeOpen(true);
       setActiveTab("publish");
@@ -3558,13 +3530,6 @@ export default function SeriesEditorForm({
         <div className="rounded-2xl border border-[#38bdf8]/25 bg-[#38bdf8]/10 px-4 py-3 text-sm text-[#bfeaff]">
           {searchMessage}
         </div>
-      ) : null}
-
-      {draftRecovery.showBanner ? (
-        <FormDraftBanner
-          onRestore={draftRecovery.restoreDraft}
-          onDismiss={draftRecovery.dismissDraft}
-        />
       ) : null}
 
       {successMessage ? (
@@ -4396,6 +4361,34 @@ export default function SeriesEditorForm({
                 تب قبلی
               </button>
 
+              <div className="rounded-[28px] border border-[#f5c518]/35 bg-[#f5c518]/8 p-5 shadow-[0_0_0_1px_rgba(245,197,24,0.08)]">
+                <p className="mb-4 text-base font-bold text-[#f5c518]">وضعیت انتشار</p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <AdminSelectField
+                    label="انتخاب وضعیت"
+                    value={form.publish_status}
+                    onChange={(value) => {
+                      const nextStatus = value as SeriesPublishStatus;
+                      setForm((current) => ({
+                        ...current,
+                        publish_status: nextStatus,
+                        scheduled_for:
+                          nextStatus === "scheduled" ? current.scheduled_for : "",
+                      }));
+                    }}
+                    options={publishStatusOptions}
+                  />
+                  {form.publish_status === "scheduled" ? (
+                    <AdminScheduleDateTimePicker
+                      label="زمان انتشار"
+                      value={form.scheduled_for}
+                      onChange={(value) => updateField("scheduled_for", value)}
+                      minDateTime={toDateTimeInputValue(new Date())}
+                    />
+                  ) : null}
+                </div>
+              </div>
+
               <SectionHeading
                 icon={<HiOutlineGlobeAlt className="h-5 w-5" />}
                 title="انتشار"
@@ -4437,31 +4430,6 @@ export default function SeriesEditorForm({
                     options={seriesCatalogVisibilityOptions}
                   />
                 </label>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <AdminSelectField
-                  label="وضعیت انتشار"
-                  value={form.publish_status}
-                  onChange={(value) => {
-                    const nextStatus = value as SeriesPublishStatus;
-                    setForm((current) => ({
-                      ...current,
-                      publish_status: nextStatus,
-                      scheduled_for:
-                        nextStatus === "scheduled" ? current.scheduled_for : "",
-                    }));
-                  }}
-                  options={publishStatusOptions}
-                />
-                {form.publish_status === "scheduled" ? (
-                  <AdminScheduleDateTimePicker
-                    label="زمان انتشار"
-                    value={form.scheduled_for}
-                    onChange={(value) => updateField("scheduled_for", value)}
-                    minDateTime={toDateTimeInputValue(new Date())}
-                  />
-                ) : null}
               </div>
 
               <details className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
