@@ -70,6 +70,7 @@ import {
   normalizeDownloadLinkInput,
   normalizeMediaLinkInput,
 } from "../../../../lib/media-link-input";
+import { comparableHlsPlaylistUrl } from "../../../../lib/series-hls-paths";
 import {
   productionStatusSelectOptions,
   translateProductionStatus,
@@ -383,9 +384,11 @@ function TmdbSkeletonCard({ className = "" }: { className?: string }) {
 export default function MovieEditorForm({
   mode,
   movieId,
+  createInstanceKey,
 }: {
   mode: Mode;
   movieId?: string;
+  createInstanceKey?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -428,6 +431,7 @@ export default function MovieEditorForm({
   const fingerprintMovieRef = useRef("");
   const pendingNavigationRef = useRef<string | null>(null);
   const hlsPreviewGenerationRef = useRef(0);
+  const lastHlsPreviewComparableRef = useRef("");
   const [form, setForm] = useState<MovieEditorFormState>(createInitialFormState);
   const [hlsSyncMessage, setHlsSyncMessage] = useState("");
   const [hlsPreviewLoading, setHlsPreviewLoading] = useState(false);
@@ -449,10 +453,53 @@ export default function MovieEditorForm({
     return sortCastRows(rows, (row) => row.actor);
   }, [form.actors]);
 
+  const resetCreateEditorState = () => {
+    setMovie(null);
+    setForm(createInitialFormState());
+    setActiveTab("details");
+    setPublishOutcomeOpen(false);
+    setPublishOutcomeStatus("draft");
+    setSubmitting(false);
+    setSubmitStep(null);
+    setSearchingTmdb(false);
+    setFetchingTmdb(false);
+    setIngestingTmdbImages(false);
+    setError("");
+    setSuccessMessage("");
+    setSearchMessage("");
+    setLastFetchedTmdbCode("");
+    setListDrafts({
+      directors: "",
+      writers: "",
+      genres: "",
+      tags: "",
+      languages: "",
+      countries: "",
+    });
+    setHlsSyncMessage("");
+    setHlsPreviewLoading(false);
+    setPublishStatus("draft");
+    setScheduledFor("");
+    setPendingPublishVisible(false);
+    setPreviewLoading(false);
+    latestTmdbRequestRef.current = "";
+    fingerprintMovieRef.current = "";
+    pendingNavigationRef.current = null;
+    hlsPreviewGenerationRef.current = 0;
+    lastHlsPreviewComparableRef.current = "";
+    publishIdempotencyKeyRef.current = "";
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       setError("");
+
+      if (mode === "create") {
+        resetCreateEditorState();
+        setLoading(false);
+        return;
+      }
 
       if (mode === "edit" && movieId) {
         const movieResponse = await adminMoviesService.show(movieId);
@@ -594,7 +641,7 @@ export default function MovieEditorForm({
     if (mode === "create" || movieId) {
       void loadData();
     }
-  }, [mode, movieId]);
+  }, [mode, movieId, createInstanceKey]);
 
   useEffect(() => {
     if (mode !== "create" || loading) {
@@ -801,7 +848,11 @@ export default function MovieEditorForm({
         return;
       }
 
-      applyHlsPackageInsights(response.data);
+      const payload = response.data;
+      lastHlsPreviewComparableRef.current = comparableHlsPlaylistUrl(
+        payload.canonical_hls_url || normalized,
+      );
+      applyHlsPackageInsights(payload);
       setHlsSyncMessage(
         response.data.download_links && Object.keys(response.data.download_links).length > 0
           ? "لینک‌های دانلود از پکیج HLS شناسایی شدند."
@@ -1202,6 +1253,13 @@ export default function MovieEditorForm({
     if (!raw) {
       setHlsSyncMessage("");
       setHlsPreviewLoading(false);
+      lastHlsPreviewComparableRef.current = "";
+      return;
+    }
+
+    const comparable = comparableHlsPlaylistUrl(raw);
+
+    if (comparable && comparable === lastHlsPreviewComparableRef.current) {
       return;
     }
 
@@ -1223,6 +1281,10 @@ export default function MovieEditorForm({
         }
 
         const payload = response.data;
+        const previewComparable = comparableHlsPlaylistUrl(
+          payload.canonical_hls_url || raw,
+        );
+        lastHlsPreviewComparableRef.current = previewComparable;
         applyHlsPackageInsights(payload, { mergeDownloads: false });
 
         setHlsSyncMessage(
@@ -1538,6 +1600,12 @@ export default function MovieEditorForm({
         revalidateAdminMoviesList(),
         revalidatePublicMoviePages(movie?.slug, form.slug),
       ]).finally(() => {
+        if (mode === "create") {
+          resetCreateEditorState();
+            router.replace(nextPath);
+            return;
+        }
+
         router.replace(nextPath);
         router.refresh();
       });
@@ -1687,8 +1755,13 @@ export default function MovieEditorForm({
           revalidateAdminMoviesList(),
           revalidatePublicMoviePages(savedMovie.slug, movie?.slug, form.slug),
         ]);
-        router.push("/admin/content-management/movies");
-        router.refresh();
+        if (mode === "create") {
+          resetCreateEditorState();
+          router.push("/admin/content-management/movies");
+        } else {
+          router.push("/admin/content-management/movies");
+          router.refresh();
+        }
         return;
       }
 

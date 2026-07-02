@@ -36,7 +36,9 @@ import {
   type AdminMoviesSummary,
 } from "../../../lib/admin-movies";
 import { revalidatePublicMoviePages } from "../../../lib/catalog/revalidate";
+import { adminCreateMovieHref } from "../../../lib/admin-create-links";
 import { formatGregorianDate } from "../../../lib/date-format";
+import { useRouter } from "next/navigation";
 
 const emptySummary: AdminMoviesSummary = {
   total: 0,
@@ -116,6 +118,7 @@ function visibilityLabel(value?: string) {
 }
 
 export default function AllMoviesPage() {
+  const router = useRouter();
   const [options, setOptions] = useState<AdminMovieOptionsResponse>(emptyOptions);
   const [filters, setFilters] = useState<AdminCatalogFilterState>(emptyFilters);
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -284,6 +287,11 @@ export default function AllMoviesPage() {
     })),
   ];
 
+  const handleCreateMovieClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    router.push(adminCreateMovieHref());
+  };
+
   return (
     <div className="space-y-6">
       <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-6">
@@ -295,6 +303,8 @@ export default function AllMoviesPage() {
 
           <Link
             href="/admin/content-management/movies/add"
+            prefetch={false}
+            onClick={handleCreateMovieClick}
             className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
           >
             <HiOutlinePlus className="h-4 w-4" />
@@ -374,6 +384,8 @@ export default function AllMoviesPage() {
             </p>
             <Link
               href="/admin/content-management/movies/add"
+              prefetch={false}
+              onClick={handleCreateMovieClick}
               className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
             >
               <HiOutlinePlus className="h-4 w-4" />

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
@@ -28,6 +29,7 @@ import { apiClient } from "../../../lib/api";
 import { adminApiErrorMessage, unwrapAdminListPayload } from "../../../lib/admin-api";
 import { revalidateAdminSeriesList } from "../../../lib/admin-series-revalidate";
 import { revalidatePublicSeriesPages } from "../../../lib/catalog/revalidate";
+import { adminCreateSeriesHref } from "../../../lib/admin-create-links";
 import { ContentStatusBadge } from "../../../components/admin/ContentStatusBadge";
 import { PosterImage } from "../../../components/images";
 import {
@@ -115,6 +117,7 @@ function visibilityLabel(value?: string) {
 }
 
 export default function AllSeriesPage() {
+  const router = useRouter();
   const [options, setOptions] = useState<AdminSeriesOptionsResponse>(emptyOptions);
   const [filters, setFilters] = useState<AdminCatalogFilterState>(emptyFilters);
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -321,6 +324,11 @@ export default function AllSeriesPage() {
     })),
   ];
 
+  const handleCreateSeriesClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    router.push(adminCreateSeriesHref());
+  };
+
   return (
     <div className="space-y-6">
       <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-6">
@@ -332,6 +340,8 @@ export default function AllSeriesPage() {
 
           <Link
             href="/admin/content-management/series/add"
+            prefetch={false}
+            onClick={handleCreateSeriesClick}
             className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
           >
             <HiOutlinePlus className="h-4 w-4" />
@@ -410,6 +420,8 @@ export default function AllSeriesPage() {
             </p>
             <Link
               href="/admin/content-management/series/add"
+              prefetch={false}
+              onClick={handleCreateSeriesClick}
               className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
             >
               <HiOutlinePlus className="h-4 w-4" />

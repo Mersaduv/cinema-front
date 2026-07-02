@@ -1070,9 +1070,11 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
 export default function SeriesEditorForm({
   mode,
   seriesId,
+  createInstanceKey,
 }: {
   mode: Mode;
   seriesId?: string;
+  createInstanceKey?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1119,6 +1121,12 @@ export default function SeriesEditorForm({
   const [episodeHlsSyncMessage, setEpisodeHlsSyncMessage] = useState<Record<string, string>>({});
   const [episodeHlsSyncPending, setEpisodeHlsSyncPending] = useState<Record<string, boolean>>({});
   const [seriesHlsSyncMessage, setSeriesHlsSyncMessage] = useState("");
+  const [seriesHlsCascadePending, setSeriesHlsCascadePending] = useState(false);
+  const [seasonHlsCascadePendingKeys, setSeasonHlsCascadePendingKeys] = useState<
+    Record<string, boolean>
+  >({});
+  const [episodeHlsBatchScheduled, setEpisodeHlsBatchScheduled] = useState(false);
+  const [episodeHlsPreviewActive, setEpisodeHlsPreviewActive] = useState(false);
   const [episodeSavingKeys, setEpisodeSavingKeys] = useState<Record<string, boolean>>({});
   const [episodeSaveFeedback, setEpisodeSaveFeedback] = useState<Record<string, string>>({});
   const [episodeSavedFingerprints, setEpisodeSavedFingerprints] = useState<
@@ -1149,10 +1157,67 @@ export default function SeriesEditorForm({
     [form.hls_base_url, form.seasons],
   );
 
+  const resetCreateEditorState = () => {
+    const initialForm = createInitialFormState();
+
+    setSeries(null);
+    setForm(initialForm);
+    setActiveTab("identity");
+    setPublishOutcomeOpen(false);
+    setPublishOutcomeStatus("draft");
+    setSubmitting(false);
+    setSubmitStep(null);
+    setError("");
+    setSuccessMessage("");
+    setSearchMessage("");
+    setSearchingTmdb(false);
+    setFetchingTmdb(false);
+    setIngestingTmdbImages(false);
+    setTmdbSyncState(initialTmdbSyncState);
+    setLastFetchedTmdbCode("");
+    setListDrafts({
+      creators: "",
+      directors: "",
+      writers: "",
+      genres: "",
+      tags: "",
+      languages: "",
+      countries: "",
+    });
+    setExpandedSeasonIds([initialForm.seasons[0].id]);
+    setExpandedEpisodeKeys([]);
+    setEpisodeHlsSyncMessage({});
+    setEpisodeHlsSyncPending({});
+    setSeriesHlsSyncMessage("");
+    setSeriesHlsCascadePending(false);
+    setSeasonHlsCascadePendingKeys({});
+    setEpisodeHlsBatchScheduled(false);
+    setEpisodeHlsPreviewActive(false);
+    setEpisodeSavingKeys({});
+    setEpisodeSaveFeedback({});
+    setEpisodeSavedFingerprints({});
+    setPreviewLoading(false);
+    tmdbAbortControllerRef.current = null;
+    tmdbImageIngestAbortRef.current = null;
+    episodeHlsBatchPreviousComparablesRef.current = null;
+    episodeHlsSyncGenerationRef.current = {};
+    lastCommittedSeriesHlsBaseRef.current = "";
+    seriesFormBodyFingerprintRef.current = "";
+    lastHlsFingerprintRef.current = "";
+    episodeHlsComparableMapRef.current = new Map();
+    hlsAutoSyncBootstrappedRef.current = false;
+    lastSyncedEpisodeHlsRef.current = {};
+    pendingNavigationRef.current = null;
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       setError("");
+
+      if (mode === "create") {
+        resetCreateEditorState();
+      }
 
       const [optionsResponse, seriesResponse] = await Promise.all([
         adminSeriesService.options(),
@@ -1201,7 +1266,7 @@ export default function SeriesEditorForm({
     };
 
     void loadData();
-  }, [mode, seriesId]);
+  }, [mode, seriesId, createInstanceKey]);
 
   useEffect(() => {
     if (searchParams.get("tab") === "publish") {
@@ -1417,6 +1482,8 @@ export default function SeriesEditorForm({
       episodeHlsBatchDebounceTimerRef.current = null;
     }
 
+    setEpisodeHlsBatchScheduled(false);
+
     const previousComparables = episodeHlsBatchPreviousComparablesRef.current;
     const snapshot = formRef.current;
 
@@ -1431,6 +1498,7 @@ export default function SeriesEditorForm({
     previousComparables: Map<string, string>,
   ) => {
     episodeHlsBatchPreviousComparablesRef.current = previousComparables;
+    setEpisodeHlsBatchScheduled(true);
 
     if (episodeHlsBatchDebounceTimerRef.current !== null) {
       window.clearTimeout(episodeHlsBatchDebounceTimerRef.current);
@@ -2026,6 +2094,21 @@ export default function SeriesEditorForm({
     isPublishScheduleComplete &&
     !slugAvailability.isChecking &&
     !slugAvailability.isTaken;
+  const hasSeasonHlsCascadePending = Object.keys(seasonHlsCascadePendingKeys).length > 0;
+  const hasEpisodeHlsSyncPending = Object.keys(episodeHlsSyncPending).length > 0;
+  const isSeriesHlsProcessing =
+    seriesHlsCascadePending ||
+    hasSeasonHlsCascadePending ||
+    episodeHlsBatchScheduled ||
+    episodeHlsPreviewActive ||
+    hasEpisodeHlsSyncPending;
+  const isSubmitBlockedByBackgroundProcessing =
+    ingestingTmdbImages || isSeriesHlsProcessing;
+  const submitBlockedHint = ingestingTmdbImages
+    ? "تا پایان پردازش تصاویر، ثبت فرم موقتاً غیرفعال است."
+    : isSeriesHlsProcessing
+      ? "تا پایان پردازش HLS ریشه/فصل/قسمت‌ها، ثبت فرم موقتاً غیرفعال است."
+      : null;
 
   const canProceedToNextTab =
     activeTab === "identity"
@@ -2177,6 +2260,7 @@ export default function SeriesEditorForm({
     }
 
     episodeHlsPreviewRunningRef.current = true;
+    setEpisodeHlsPreviewActive(true);
 
     try {
       while (episodeHlsPreviewQueueRef.current.length > 0) {
@@ -2185,8 +2269,10 @@ export default function SeriesEditorForm({
       }
     } finally {
       episodeHlsPreviewRunningRef.current = false;
+      const hasQueuedTasks = episodeHlsPreviewQueueRef.current.length > 0;
+      setEpisodeHlsPreviewActive(hasQueuedTasks);
 
-      if (episodeHlsPreviewQueueRef.current.length > 0) {
+      if (hasQueuedTasks) {
         void drainEpisodeHlsPreviewQueue();
       }
     }
@@ -2949,17 +3035,22 @@ export default function SeriesEditorForm({
       ...current,
       hls_base_url: raw,
     }));
+    setSeriesHlsCascadePending(raw.trim().length >= 4);
 
     if (seriesHlsCascadeTimerRef.current) {
       window.clearTimeout(seriesHlsCascadeTimerRef.current);
     }
 
     seriesHlsCascadeTimerRef.current = window.setTimeout(() => {
+      seriesHlsCascadeTimerRef.current = null;
+
       if (raw.trim().length < 4) {
+        setSeriesHlsCascadePending(false);
         return;
       }
 
       cascadeSeriesHlsDown(raw);
+      setSeriesHlsCascadePending(false);
     }, 550);
   };
 
@@ -2970,17 +3061,48 @@ export default function SeriesEditorForm({
         season.id === seasonId ? { ...season, hls_base_url: raw } : season,
       ),
     }));
+    setSeasonHlsCascadePendingKeys((current) => {
+      const next = { ...current };
+
+      if (raw.trim().length >= 4) {
+        next[seasonId] = true;
+      } else {
+        delete next[seasonId];
+      }
+
+      return next;
+    });
 
     if (seasonHlsCascadeTimersRef.current[seasonId]) {
       window.clearTimeout(seasonHlsCascadeTimersRef.current[seasonId]);
     }
 
     seasonHlsCascadeTimersRef.current[seasonId] = window.setTimeout(() => {
+      delete seasonHlsCascadeTimersRef.current[seasonId];
+
       if (raw.trim().length < 4) {
+        setSeasonHlsCascadePendingKeys((current) => {
+          if (!(seasonId in current)) {
+            return current;
+          }
+
+          const next = { ...current };
+          delete next[seasonId];
+          return next;
+        });
         return;
       }
 
       cascadeSeasonHlsDown(seasonId, raw);
+      setSeasonHlsCascadePendingKeys((current) => {
+        if (!(seasonId in current)) {
+          return current;
+        }
+
+        const next = { ...current };
+        delete next[seasonId];
+        return next;
+      });
     }, 550);
   };
 
@@ -3213,6 +3335,12 @@ export default function SeriesEditorForm({
         revalidateAdminSeriesList(),
         revalidatePublicSeriesPages(series?.slug, form.slug),
       ]).finally(() => {
+        if (mode === "create") {
+          resetCreateEditorState();
+          router.replace(nextPath);
+          return;
+        }
+
         router.replace(nextPath);
         router.refresh();
       });
@@ -3419,8 +3547,13 @@ export default function SeriesEditorForm({
           revalidateAdminSeriesList(),
           revalidatePublicSeriesPages(savedSeries.slug, series?.slug, form.slug),
         ]);
-        router.push("/admin/content-management/series");
-        router.refresh();
+        if (mode === "create") {
+          resetCreateEditorState();
+          router.push("/admin/content-management/series");
+        } else {
+          router.push("/admin/content-management/series");
+          router.refresh();
+        }
         return;
       }
 
@@ -4558,14 +4691,15 @@ export default function SeriesEditorForm({
 
               <EditorPublishSubmitBar
                 onSubmit={() => void handleSubmit()}
-                disabled={!canSubmitForm}
+                disabled={!canSubmitForm || isSubmitBlockedByBackgroundProcessing}
                 loading={submitting}
                 label={submitButtonLabel}
                 hint={
-                  mode === "edit" &&
+                  submitBlockedHint ||
+                  (mode === "edit" &&
                   seriesFormBodyFingerprint(form) === seriesFormBodyFingerprintRef.current
                     ? "فقط وضعیت انتشار و زمان‌بندی ذخیره می‌شود (سریع)."
-                    : "تمام اطلاعات سریال، فصل‌ها و وضعیت انتشار ذخیره می‌شود."
+                    : "تمام اطلاعات سریال، فصل‌ها و وضعیت انتشار ذخیره می‌شود.")
                 }
               />
             </div>
