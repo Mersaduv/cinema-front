@@ -12,7 +12,8 @@ import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 export default function CatalogPage({
   kind,
   items,
-  latestItems,
+  latestSliderSlot,
+  latestItems = [],
   latestLoading = false,
   loading,
   error,
@@ -25,7 +26,8 @@ export default function CatalogPage({
 }: {
   kind: "movie" | "series";
   items: CatalogListItem[];
-  latestItems: CatalogListItem[];
+  latestSliderSlot?: React.ReactNode;
+  latestItems?: CatalogListItem[];
   latestLoading?: boolean;
   loading: boolean;
   error: string;
@@ -40,7 +42,9 @@ export default function CatalogPage({
   const itemHref = (item: CatalogListItem) =>
     useItemKind ? getCatalogItemHref(item) : `${basePath}/${item.slug}`;
   const itemKey = (item: CatalogListItem) =>
-    useItemKind ? `${item.catalogKind ?? kind}-${item.id}` : String(item.id);
+    useItemKind
+      ? `${item.catalogKind ?? kind}-${item.slug}`
+      : `${kind}-${item.slug}`;
   const gridRef = useRef<HTMLDivElement>(null);
   const isTvCompat = useIsTvCompat();
   const gridCols = useTvGridColumns(gridRef, items.length);
@@ -48,12 +52,16 @@ export default function CatalogPage({
   return (
     <div className="min-h-screen bg-[#05070b] text-white">
       <section className="mx-auto w-full max-w-[1820px] px-4 py-6 md:px-7 md:py-8">
-        <CatalogLatestSlider
-          items={latestItems}
-          kind={kind}
-          loading={latestLoading}
-          useItemKind={useItemKind}
-        />
+        {latestSliderSlot ? (
+          <div key="catalog-latest-slider">{latestSliderSlot}</div>
+        ) : (
+          <CatalogLatestSlider
+            items={latestItems}
+            kind={kind}
+            loading={latestLoading}
+            useItemKind={useItemKind}
+          />
+        )}
 
         {topSlot}
 

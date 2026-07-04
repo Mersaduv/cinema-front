@@ -199,8 +199,8 @@ export async function fetchMoviesCatalogRest(
       ...(isServer
         ? options?.skipFetchCache
           ? { cache: "no-store" as const }
-          : { next: { tags: ["catalog", "catalog-movies"] } }
-        : { cache: "no-store" }),
+          : { next: { revalidate: 60, tags: ["catalog", "catalog-movies"] } }
+        : { cache: "default" }),
       signal,
     });
     if (!response.ok) {
@@ -301,8 +301,8 @@ export async function fetchSeriesCatalogRest(
       ...(isServer
         ? options?.skipFetchCache
           ? { cache: "no-store" as const }
-          : { next: { tags: ["catalog", "catalog-series"] } }
-        : { cache: "no-store" }),
+          : { next: { revalidate: 60, tags: ["catalog", "catalog-series"] } }
+        : { cache: "default" }),
       signal,
     });
     if (!response.ok) {

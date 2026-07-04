@@ -1,12 +1,9 @@
+import { Suspense } from "react";
 import CatalogClient from "../components/catalog/CatalogClient";
-import {
-  LATEST_CATALOG_FILTERS,
-  LATEST_FETCH_POOL,
-  pickLatestSliderItems,
-} from "../lib/catalog/latest";
+import CatalogDeferredLatestSlider from "../components/catalog/CatalogDeferredLatestSlider";
+import { CatalogLatestSliderSkeleton } from "../components/skeletons/CatalogPageSkeleton";
+import { getCachedMoviesCatalogPage } from "../lib/catalog/catalog-page-cache";
 import { parseCatalogFilters } from "../lib/catalog/search-params";
-import { fetchMoviesCatalogRest } from "../lib/catalog/rest";
-import { fetchFilterOptions } from "../lib/filter-options";
 
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -18,22 +15,20 @@ export default async function MoviesCatalogPage({
   const query = await searchParams;
   const filters = parseCatalogFilters(query);
   const page = Number(query.page) > 0 ? Number(query.page) : 1;
-
-  const [filterOptions, catalogResult, latestResult] = await Promise.all([
-    fetchFilterOptions({ cache: "force-cache" }),
-    fetchMoviesCatalogRest(filters, page, 24),
-    fetchMoviesCatalogRest(LATEST_CATALOG_FILTERS, 1, LATEST_FETCH_POOL),
-  ]);
+  const catalogResult = await getCachedMoviesCatalogPage(filters, page);
 
   return (
     <CatalogClient
       kind="movie"
       initialItems={catalogResult.items}
-      initialLatestItems={pickLatestSliderItems(latestResult.items)}
       initialMeta={catalogResult.meta}
       initialFilters={filters}
-      filterOptions={filterOptions}
       initialError={catalogResult.error}
+      latestSliderSlot={
+        <Suspense key="movies-latest-slider" fallback={<CatalogLatestSliderSkeleton />}>
+          <CatalogDeferredLatestSlider kind="movie" />
+        </Suspense>
+      }
     />
   );
 }

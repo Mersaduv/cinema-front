@@ -8,20 +8,33 @@ import {
   fetchCollectionsCatalogRest,
   type CollectionListItem,
 } from "../../lib/collections/rest";
+import type { PaginationMeta } from "../../lib/catalog/rest";
+import { CatalogPosterGridSkeleton } from "../skeletons/CatalogPageSkeleton";
+import { CATALOG_LIST_SWR_OPTIONS } from "../../lib/swr/public-cache";
 
-export default function CollectionsClient() {
+export default function CollectionsClient({
+  initialItems,
+  initialMeta,
+  initialError,
+}: {
+  initialItems: CollectionListItem[];
+  initialMeta: PaginationMeta;
+  initialError: string;
+}) {
   const { data, isLoading, isValidating, error } = useSWR(
     "collections:catalog",
     () => fetchCollectionsCatalogRest(1, 48),
     {
-      revalidateOnFocus: true,
-      revalidateOnMount: true,
-      dedupingInterval: 0,
-      keepPreviousData: false,
+      fallbackData: {
+        items: initialItems,
+        meta: initialMeta,
+        error: initialError,
+      },
+      ...CATALOG_LIST_SWR_OPTIONS,
     },
   );
 
-  const items: CollectionListItem[] = data?.items ?? [];
+  const items: CollectionListItem[] = data?.items ?? initialItems;
   const fetchError = data?.error ?? (error instanceof Error ? error.message : "");
   const loading = (isLoading || isValidating) && items.length === 0;
 
@@ -48,9 +61,7 @@ export default function CollectionsClient() {
         ) : null}
 
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-[#f5c518]" />
-          </div>
+          <CatalogPosterGridSkeleton count={48} />
         ) : items.length === 0 ? (
           <div className="rounded-[32px] border border-dashed border-white/10 bg-white/[0.03] px-6 py-16 text-center text-white/50">
             هنوز مجموعه‌ای منتشر نشده است.

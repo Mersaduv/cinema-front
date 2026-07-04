@@ -9,6 +9,7 @@ export interface ApiResponse<T> {
   data?: T;
   errors?: Record<string, string[]>;
   pipeline_status?: string;
+  episode_sync_status?: string;
 }
 
 class ApiClient {

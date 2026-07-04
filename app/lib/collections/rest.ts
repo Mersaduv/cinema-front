@@ -42,11 +42,17 @@ function toCollectionItem(row: Record<string, unknown>): CollectionListItem {
   };
 }
 
+export type CollectionsFetchOptions = {
+  /** When true, bypass Next fetch cache — parent `"use cache"` owns TTL. */
+  skipFetchCache?: boolean;
+};
+
 export async function fetchCollectionsCatalogRest(
   page = 1,
   perPage = 24,
   search = "",
   signal?: AbortSignal,
+  options?: CollectionsFetchOptions,
 ): Promise<{ items: CollectionListItem[]; meta: PaginationMeta; error: string }> {
   try {
     const params = new URLSearchParams();
@@ -54,9 +60,14 @@ export async function fetchCollectionsCatalogRest(
     params.set("per_page", String(perPage));
     if (search.trim()) params.set("search", search.trim());
 
+    const isServer = typeof window === "undefined";
     const response = await fetch(`${API_BASE_URL}/collections?${params}`, {
       headers: { Accept: "application/json", "Accept-Encoding": "gzip" },
-      cache: "no-store",
+      ...(isServer
+        ? options?.skipFetchCache
+          ? { cache: "no-store" as const }
+          : { next: { revalidate: 60, tags: ["catalog"] } }
+        : { cache: "default" }),
       signal,
     });
 
@@ -103,7 +114,9 @@ export async function fetchCollectionDetailRest(
   try {
     const response = await fetch(`${API_BASE_URL}/collections/${encodeURIComponent(slug)}`, {
       headers: { Accept: "application/json", "Accept-Encoding": "gzip" },
-      cache: "no-store",
+      ...(typeof window === "undefined"
+        ? { next: { revalidate: 60, tags: ["catalog"] } }
+        : { cache: "default" }),
       signal,
     });
 

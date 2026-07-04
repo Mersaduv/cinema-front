@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { HiOutlineArrowRight, HiOutlinePlus } from "react-icons/hi";
 import ProtectedRoute from "../components/ProtectedRoute";
 import ProfileShell from "../components/profile/ProfileShell";
+import RequestsShellSkeleton from "../components/skeletons/RequestsShellSkeleton";
 import {
   contentRequestStatusLabels,
   fetchUserContentRequests,
@@ -201,7 +202,7 @@ function RequestsPageContent() {
 
 export default function RequestsPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute fallback={<RequestsShellSkeleton variant="list" />}>
       <RequestsPageContent />
     </ProtectedRoute>
   );

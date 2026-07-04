@@ -149,7 +149,7 @@ export async function waitForContentProcessingSettled(
   return new Promise((resolve) => {
     let resolved = false;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
-    let unsubscribe = () => undefined;
+    let unsubscribe: () => void = () => {};
 
     const finish = (update: ContentProcessingUpdate | null) => {
       if (resolved) {

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { useAuth } from '../contexts/AuthContext';
+import { useEffect, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "../contexts/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  fallback?: ReactNode;
   requireAuth?: boolean;
   requireRole?: string | string[];
   requirePermission?: string | string[];
@@ -14,17 +15,18 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({
   children,
+  fallback = null,
   requireAuth = true,
   requireRole,
   requirePermission,
-  redirectTo = '/login',
+  redirectTo = "/login",
 }: ProtectedRouteProps) {
   const { loading, isAuthenticated, hasToken, authReady, hasRole, hasPermission } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   const loginRedirect =
-    redirectTo === '/login' && pathname
+    redirectTo === "/login" && pathname
       ? `/login?redirect=${encodeURIComponent(pathname)}`
       : redirectTo;
 
@@ -44,9 +46,9 @@ export default function ProtectedRoute({
     if (requireRole) {
       const roles = Array.isArray(requireRole) ? requireRole : [requireRole];
       const hasRequiredRole = roles.some((role) => hasRole(role));
-      
+
       if (!hasRequiredRole) {
-        router.push('/');
+        router.push("/");
         return;
       }
     }
@@ -56,11 +58,11 @@ export default function ProtectedRoute({
         ? requirePermission
         : [requirePermission];
       const hasRequiredPermission = permissions.some((permission) =>
-        hasPermission(permission)
+        hasPermission(permission),
       );
 
       if (!hasRequiredPermission) {
-        router.push('/');
+        router.push("/");
         return;
       }
     }
@@ -79,14 +81,7 @@ export default function ProtectedRoute({
   ]);
 
   if (!authReady && requireAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#121212]">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#f5c518]"></div>
-          <p className="mt-4 text-gray-400">در حال بارگذاری...</p>
-        </div>
-      </div>
-    );
+    return <>{fallback}</>;
   }
 
   if (!authReady) {
@@ -94,22 +89,15 @@ export default function ProtectedRoute({
   }
 
   if (loading && requireAuth && hasToken && !isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#121212]">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#f5c518]"></div>
-          <p className="mt-4 text-gray-400">در حال بارگذاری...</p>
-        </div>
-      </div>
-    );
+    return <>{fallback}</>;
   }
 
   if (requireAuth && !hasToken) {
-    return null;
+    return <>{fallback}</>;
   }
 
   if (requireAuth && !isAuthenticated) {
-    return null;
+    return <>{fallback}</>;
   }
 
   if (requireRole) {
@@ -125,7 +113,7 @@ export default function ProtectedRoute({
       ? requirePermission
       : [requirePermission];
     const hasRequiredPermission = permissions.some((permission) =>
-      hasPermission(permission)
+      hasPermission(permission),
     );
     if (!hasRequiredPermission) {
       return null;

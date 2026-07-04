@@ -1,11 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import useSWR from "swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CatalogPage from "./CatalogPage";
 import CatalogFiltersBar from "./CatalogFiltersBar";
 import ActiveFilterChips from "./ActiveFilterChips";
+import { CatalogFiltersBarSkeleton } from "../skeletons/CatalogPageSkeleton";
+import { useFilterOptions } from "../../hooks/useFilterOptions";
 import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 import { useTvDebouncedReplace } from "../../hooks/useTvDebouncedReplace";
 import type { CatalogFiltersState } from "../../lib/catalog/search-params";
@@ -23,40 +25,32 @@ import {
   type CatalogListItem,
   type PaginationMeta,
 } from "../../lib/catalog/rest";
-import {
-  LATEST_CATALOG_FILTERS,
-  LATEST_FETCH_POOL,
-  pickLatestSliderItems,
-} from "../../lib/catalog/latest";
-import type { FilterOptions } from "../../lib/filter-options";
+import { CATALOG_LIST_SWR_OPTIONS } from "../../lib/swr/public-cache";
 
 export default function CatalogClient({
   kind,
   initialItems,
-  initialLatestItems,
   initialMeta,
   initialFilters,
-  filterOptions,
   initialError,
+  latestSliderSlot,
 }: {
   kind: "movie" | "series";
   initialItems: CatalogListItem[];
-  initialLatestItems: CatalogListItem[];
   initialMeta: PaginationMeta;
   initialFilters: CatalogFiltersState;
-  filterOptions: FilterOptions;
   initialError: string;
+  latestSliderSlot?: ReactNode;
 }) {
   return (
     <Suspense fallback={null}>
       <CatalogClientInner
         kind={kind}
         initialItems={initialItems}
-        initialLatestItems={initialLatestItems}
         initialMeta={initialMeta}
         initialFilters={initialFilters}
-        filterOptions={filterOptions}
         initialError={initialError}
+        latestSliderSlot={latestSliderSlot}
       />
     </Suspense>
   );
@@ -65,25 +59,24 @@ export default function CatalogClient({
 function CatalogClientInner({
   kind,
   initialItems,
-  initialLatestItems,
   initialMeta,
   initialFilters,
-  filterOptions,
   initialError,
+  latestSliderSlot,
 }: {
   kind: "movie" | "series";
   initialItems: CatalogListItem[];
-  initialLatestItems: CatalogListItem[];
   initialMeta: PaginationMeta;
   initialFilters: CatalogFiltersState;
-  filterOptions: FilterOptions;
   initialError: string;
+  latestSliderSlot?: ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const isTvCompat = useIsTvCompat();
   const tvReplace = useTvDebouncedReplace();
+  const { filterOptions, filterOptionsLoading } = useFilterOptions();
 
   const queryString = searchParams.toString();
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
@@ -140,10 +133,7 @@ function CatalogClientInner({
             error: initialError,
           }
         : undefined,
-      keepPreviousData: true,
-      revalidateOnMount: true,
-      revalidateOnFocus: true,
-      dedupingInterval: 0,
+      ...CATALOG_LIST_SWR_OPTIONS,
     },
   );
 
@@ -190,40 +180,15 @@ function CatalogClientInner({
       ? () => onPageChange(page + 1)
       : undefined;
 
-  const { data: latestData, isLoading: latestLoading } = useSWR(
-    `${kind}:latest-slider`,
-    async () => {
-      const fetcher =
-        kind === "movie" ? fetchMoviesCatalogRest : fetchSeriesCatalogRest;
-      const result = await fetcher(LATEST_CATALOG_FILTERS, 1, LATEST_FETCH_POOL);
-      return {
-        ...result,
-        items: pickLatestSliderItems(result.items),
-      };
-    },
-    {
-      fallbackData: { items: initialLatestItems, meta: initialMeta, error: "" },
-      revalidateOnFocus: false,
-      dedupingInterval: 60_000,
-    },
-  );
-
-  const latestItems = latestData?.items ?? initialLatestItems;
-
   const clearAllFilters = useCallback(() => {
     applyFilters(EMPTY_CATALOG_FILTERS);
   }, [applyFilters]);
 
-  return (
-    <CatalogPage
-      kind={kind}
-      items={items}
-      latestItems={latestItems}
-      latestLoading={latestLoading && latestItems.length === 0}
-      loading={loading}
-      error={error}
-      meta={meta}
-      filtersSlot={
+  const filtersSlot = (
+    <div className="space-y-4">
+      {filterOptionsLoading ? (
+        <CatalogFiltersBarSkeleton />
+      ) : (
         <>
           <CatalogFiltersBar
             kind={kind}
@@ -239,7 +204,19 @@ function CatalogClientInner({
             onClearAll={clearAllFilters}
           />
         </>
-      }
+      )}
+    </div>
+  );
+
+  return (
+    <CatalogPage
+      kind={kind}
+      items={items}
+      loading={loading}
+      error={error}
+      meta={meta}
+      latestSliderSlot={latestSliderSlot}
+      filtersSlot={filtersSlot}
       onPageChange={onPageChange}
       onLoadMore={loadMore}
     />

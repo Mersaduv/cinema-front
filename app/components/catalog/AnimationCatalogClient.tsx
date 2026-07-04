@@ -1,11 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import useSWR from "swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ActiveFilterChips from "./ActiveFilterChips";
 import CatalogFiltersBar from "./CatalogFiltersBar";
 import CatalogPage from "./CatalogPage";
+import { CatalogFiltersBarSkeleton } from "../skeletons/CatalogPageSkeleton";
+import { useFilterOptions } from "../../hooks/useFilterOptions";
 import type { CatalogFiltersState } from "../../lib/catalog/search-params";
 import {
   animationCatalogSignature,
@@ -21,38 +23,34 @@ import {
   type SelectableAnimationSubtype,
 } from "../../lib/catalog/animation";
 import { EMPTY_CATALOG_FILTERS } from "../../lib/catalog/search-params";
-import { LATEST_FETCH_POOL, pickLatestSliderItems } from "../../lib/catalog/latest";
 import { parseSearchParamsRecord } from "../../lib/catalog/search-params";
 import type { PaginationMeta } from "../../lib/catalog/rest";
-import type { FilterOptions } from "../../lib/filter-options";
+import { CATALOG_LIST_SWR_OPTIONS } from "../../lib/swr/public-cache";
 
 export default function AnimationCatalogClient({
   initialSubtypes,
   initialItems,
-  initialLatestItems,
   initialMeta,
   initialFilters,
-  filterOptions,
   initialError,
+  latestSliderSlot,
 }: {
   initialSubtypes: SelectableAnimationSubtype[];
   initialItems: AnimationCatalogItem[];
-  initialLatestItems: AnimationCatalogItem[];
   initialMeta: PaginationMeta;
   initialFilters: CatalogFiltersState;
-  filterOptions: FilterOptions;
   initialError: string;
+  latestSliderSlot?: ReactNode;
 }) {
   return (
     <Suspense fallback={null}>
       <AnimationCatalogClientInner
         initialSubtypes={initialSubtypes}
         initialItems={initialItems}
-        initialLatestItems={initialLatestItems}
         initialMeta={initialMeta}
         initialFilters={initialFilters}
-        filterOptions={filterOptions}
         initialError={initialError}
+        latestSliderSlot={latestSliderSlot}
       />
     </Suspense>
   );
@@ -61,23 +59,22 @@ export default function AnimationCatalogClient({
 function AnimationCatalogClientInner({
   initialSubtypes,
   initialItems,
-  initialLatestItems,
   initialMeta,
   initialFilters,
-  filterOptions,
   initialError,
+  latestSliderSlot,
 }: {
   initialSubtypes: SelectableAnimationSubtype[];
   initialItems: AnimationCatalogItem[];
-  initialLatestItems: AnimationCatalogItem[];
   initialMeta: PaginationMeta;
   initialFilters: CatalogFiltersState;
-  filterOptions: FilterOptions;
   initialError: string;
+  latestSliderSlot?: ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { filterOptions, filterOptionsLoading } = useFilterOptions();
 
   const queryString = searchParams.toString();
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
@@ -101,24 +98,6 @@ function AnimationCatalogClientInner({
   const effectiveFilters = useMemo(
     () => withAnimationGenreFilter(filters, subtypeGenreValues),
     [filters, subtypeGenreValues],
-  );
-
-  const latestFilters = useMemo(
-    () =>
-      withAnimationGenreFilter(
-        {
-          search: "",
-          sort: "release_year_desc",
-          genres: [],
-          countries: [],
-          languages: [],
-          year_from: null,
-          year_to: null,
-          min_rating: "",
-        },
-        subtypeGenreValues,
-      ),
-    [subtypeGenreValues],
   );
 
   const fetchSignature = useMemo(
@@ -159,34 +138,7 @@ function AnimationCatalogClientInner({
             error: initialError,
           }
         : undefined,
-      keepPreviousData: true,
-      revalidateOnMount: true,
-      revalidateOnFocus: true,
-      dedupingInterval: 0,
-    },
-  );
-
-  const { data: latestData, isLoading: latestLoading } = useSWR(
-    `animation:latest-slider:${subtypes.join(",")}:${subtypeGenreValues.join(",")}`,
-    async () => {
-      const result = await fetchAnimationCatalogMerged(
-        latestFilters,
-        1,
-        LATEST_FETCH_POOL,
-      );
-      return {
-        ...result,
-        items: pickLatestSliderItems(result.items),
-      };
-    },
-    {
-      fallbackData: {
-        items: initialLatestItems,
-        meta: initialMeta,
-        error: "",
-      },
-      revalidateOnFocus: false,
-      dedupingInterval: 60_000,
+      ...CATALOG_LIST_SWR_OPTIONS,
     },
   );
 
@@ -194,7 +146,6 @@ function AnimationCatalogClientInner({
   const meta = data?.meta ?? initialMeta;
   const error = data?.error ?? initialError;
   const loading = (isLoading || isValidating) && fetchSignature !== initialSignature.current;
-  const latestItems = latestData?.items ?? initialLatestItems;
 
   const replaceQuery = useCallback(
     (
@@ -244,17 +195,11 @@ function AnimationCatalogClientInner({
     replaceQuery([...DEFAULT_ANIMATION_SUBTYPES], EMPTY_CATALOG_FILTERS, 1);
   }, [replaceQuery]);
 
-  return (
-    <CatalogPage
-      kind="movie"
-      items={items}
-      latestItems={latestItems}
-      latestLoading={latestLoading && latestItems.length === 0}
-      loading={loading}
-      error={error}
-      meta={meta}
-      useItemKind
-      filtersSlot={
+  const filtersSlot = (
+    <div className="space-y-4">
+      {filterOptionsLoading ? (
+        <CatalogFiltersBarSkeleton />
+      ) : (
         <>
           <CatalogFiltersBar
             kind="movie"
@@ -276,7 +221,20 @@ function AnimationCatalogClientInner({
             onClearAll={clearAllFilters}
           />
         </>
-      }
+      )}
+    </div>
+  );
+
+  return (
+    <CatalogPage
+      kind="movie"
+      items={items}
+      loading={loading}
+      error={error}
+      meta={meta}
+      useItemKind
+      latestSliderSlot={latestSliderSlot}
+      filtersSlot={filtersSlot}
       onPageChange={onPageChange}
       onLoadMore={loadMore}
     />

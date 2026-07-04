@@ -43,7 +43,7 @@ export default function CatalogLatestSlider({
   }, [slides.length]);
 
   const slideIds = slides
-    .map((item) => `${item.catalogKind ?? kind}-${item.id}`)
+    .map((item) => `${item.catalogKind ?? kind}-${item.slug}`)
     .join(",");
   useEffect(() => {
     setActiveIndex(0);
@@ -82,7 +82,7 @@ export default function CatalogLatestSlider({
           <div className="flex items-center gap-1.5">
             {slides.map((item, index) => (
               <button
-                key={`${item.catalogKind ?? kind}-${item.id}`}
+                key={`${item.catalogKind ?? kind}-${item.slug}`}
                 type="button"
                 aria-label={`اسلاید ${index + 1}`}
                 aria-current={index === activeIndex ? "true" : undefined}
@@ -112,10 +112,11 @@ export default function CatalogLatestSlider({
               const isActive = index === activeIndex;
               const genres = item.details.genres;
               const productLine = formatProductLine(item);
+              const slideKey = `${item.catalogKind ?? kind}-${item.slug}`;
 
               return (
                 <Link
-                  key={`${item.catalogKind ?? kind}-${item.id}`}
+                  key={slideKey}
                   href={itemHref(item)}
                   onMouseEnter={() => setActiveIndex(index)}
                   onFocus={() => setActiveIndex(index)}
@@ -165,9 +166,9 @@ export default function CatalogLatestSlider({
                     ) : null}
                     {genres.length > 0 ? (
                       <div className="mt-2 flex flex-wrap justify-end gap-1.5">
-                        {genres.map((genre) => (
+                        {genres.map((genre, genreIndex) => (
                           <span
-                            key={genre}
+                            key={`${slideKey}-genre-${genreIndex}-${genre}`}
                             className="rounded-lg border border-white/15 bg-black/45 px-2 py-1 text-[10px] text-white/90 backdrop-blur-sm md:text-[11px]"
                           >
                             {genre}

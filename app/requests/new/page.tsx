@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { HiOutlineArrowRight } from "react-icons/hi";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import ProfileShell from "../../components/profile/ProfileShell";
+import RequestsShellSkeleton from "../../components/skeletons/RequestsShellSkeleton";
 import {
   submitContentRequest,
   validateContentRequestForm,
@@ -219,7 +220,7 @@ function NewRequestPageContent() {
 
 export default function NewRequestPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute fallback={<RequestsShellSkeleton variant="form" />}>
       <NewRequestPageContent />
     </ProtectedRoute>
   );
