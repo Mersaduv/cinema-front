@@ -158,7 +158,7 @@ function episodeDownloadMapFromRows(rows: EpisodeDownloadLinkRow[]): Record<stri
   }, {});
 }
 import { revalidateAdminSeriesList } from "../../../../lib/admin-series-revalidate";
-import { revalidatePublicSeriesPages, syncViewerCacheAfterAdminSave } from "../../../../lib/catalog/revalidate";
+import { revalidatePublicSeriesPages } from "../../../../lib/catalog/revalidate";
 import {
   adminSeriesService,
   type AdminSeries,
@@ -3513,10 +3513,6 @@ export default function SeriesEditorForm({
       const savedSeries = response.data.series;
       setSeries(savedSeries);
 
-      await syncViewerCacheAfterAdminSave({
-        seriesSlugs: [savedSeries.slug, series?.slug, form.slug],
-      });
-
       const processedPoster =
         savedSeries.poster_image?.original?.startsWith("/images/")
           ? savedSeries.poster_image.original
@@ -3565,7 +3561,14 @@ export default function SeriesEditorForm({
       setSubmitStep("۳/۳ — نهایی‌سازی (اعتبارسنجی در پس‌زمینه)...");
       seriesFormBodyFingerprintRef.current = seriesFormBodyFingerprint(form);
       setEpisodeSavedFingerprints(seedEpisodeSavedFingerprints(form));
-      setSuccessMessage("ذخیره شد — اعتبار بازیگران در پس‌زمینه انجام می‌شود.");
+      const episodesDeferred =
+        response.episode_sync_status === "queued" ||
+        savedSeries.episode_sync_status === "queued";
+      setSuccessMessage(
+        episodesDeferred
+          ? "سریال ثبت شد — قسمت‌ها در پس‌زمینه ذخیره می‌شوند."
+          : "ذخیره شد — اعتبار بازیگران در پس‌زمینه انجام می‌شود.",
+      );
       setPublishOutcomeStatus(savedSeries.publish_status || form.publish_status);
       setPublishOutcomeOpen(true);
       setActiveTab("publish");

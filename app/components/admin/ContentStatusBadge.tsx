@@ -1,6 +1,6 @@
 "use client";
 
-import type { PublishStatus } from "../../lib/admin-movies";
+import type { PublishStatus, ProcessingStatus } from "../../lib/admin-movies";
 import type { SeriesPublishStatus } from "../../lib/admin-series";
 
 export type PipelineStatus =
@@ -13,6 +13,8 @@ export type PipelineStatus =
 export interface ContentStatusItem {
   publish_status: PublishStatus | SeriesPublishStatus;
   pipeline_status?: PipelineStatus;
+  processing_status?: ProcessingStatus | string;
+  image_status?: string | null;
 }
 
 interface ContentStatusBadgeProps {
@@ -20,13 +22,37 @@ interface ContentStatusBadgeProps {
   className?: string;
 }
 
+function isProcessing(item: ContentStatusItem): boolean {
+  const pipelineStatus = item.pipeline_status ?? "idle";
+
+  if (pipelineStatus === "pending" || pipelineStatus === "running") {
+    return true;
+  }
+
+  if (item.image_status === "processing") {
+    return true;
+  }
+
+  const processingStatus = item.processing_status;
+
+  if (
+    processingStatus &&
+    !["ready", "failed"].includes(processingStatus)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function ContentStatusBadge({ item, className = "" }: ContentStatusBadgeProps) {
   const { publish_status, pipeline_status = "idle" } = item;
 
-  if (pipeline_status === "pending" || pipeline_status === "running") {
+  if (isProcessing(item)) {
     return (
       <span
         className={`inline-flex items-center gap-1.5 rounded-full border border-[#f5c518]/25 bg-[#f5c518]/10 px-3 py-1 text-xs font-medium text-[#f8d977] ${className}`}
+        title="پردازش HLS، تصاویر یا pipeline در پس‌زمینه"
       >
         <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#f5c518] border-t-transparent" />
         در حال پردازش
@@ -34,7 +60,7 @@ export function ContentStatusBadge({ item, className = "" }: ContentStatusBadgeP
     );
   }
 
-  if (pipeline_status === "failed") {
+  if (pipeline_status === "failed" || item.processing_status === "failed" || item.image_status === "failed") {
     return (
       <span
         className={`inline-flex items-center gap-1.5 rounded-full border border-[#fb7185]/25 bg-[#fb7185]/10 px-3 py-1 text-xs font-medium text-[#fda4af] ${className}`}

@@ -1,40 +1,63 @@
-import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { VIEWER_CACHE_TAGS } from "../../lib/catalog/cache-tags";
-type RevalidateBody = {
+import { invalidatePublicViewerCache } from "../../lib/catalog/invalidate-public-cache";
+
+type RevalidateRequestBody = {
   secret?: string;
-  path?: string;
-  tag?: string;
   tags?: string[];
+  paths?: string[];
+  mode?: "immediate" | "stale-while-revalidate";
 };
 
-export async function POST(req: NextRequest) {
-  const body = (await req.json()) as RevalidateBody;
+function resolveRevalidationSecret(): string | null {
+  const secret =
+    process.env.NEXT_REVALIDATION_SECRET?.trim() ||
+    process.env.REVALIDATION_SECRET?.trim() ||
+    "";
 
-  if (body.secret !== process.env.NEXT_REVALIDATION_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return secret !== "" ? secret : null;
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const configuredSecret = resolveRevalidationSecret();
+
+  if (!configuredSecret) {
+    return NextResponse.json(
+      {
+        revalidated: false,
+        message: "Revalidation secret is not configured on the frontend.",
+      },
+      { status: 503 },
+    );
   }
 
-  const tags = [
-    ...(body.tags ?? []),
-    ...(body.tag ? [body.tag] : []),
-  ].filter((tag) => tag.trim().length > 0);
+  let body: RevalidateRequestBody = {};
 
-  const uniqueTags = [...new Set(tags)];
-
-  for (const tag of uniqueTags) {
-    revalidateTag(tag, "max");
+  try {
+    body = (await request.json()) as RevalidateRequestBody;
+  } catch {
+    return NextResponse.json(
+      { revalidated: false, message: "Invalid JSON body." },
+      { status: 400 },
+    );
   }
 
-  if (uniqueTags.length === 0) {
-    for (const tag of VIEWER_CACHE_TAGS) {
-      revalidateTag(tag, "max");
-    }
+  if (body.secret !== configuredSecret) {
+    return NextResponse.json(
+      { revalidated: false, message: "Invalid revalidation secret." },
+      { status: 401 },
+    );
   }
 
-  if (body.path) {
-    revalidatePath(body.path);
-  }
+  const result = invalidatePublicViewerCache({
+    tags: body.tags,
+    paths: body.paths,
+    mode: body.mode ?? "immediate",
+  });
 
-  return NextResponse.json({ revalidated: true, tags: uniqueTags });
+  return NextResponse.json({
+    revalidated: true,
+    tags: result.tags,
+    paths: result.paths,
+    now: Date.now(),
+  });
 }

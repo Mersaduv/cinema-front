@@ -1,12 +1,17 @@
-import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { VIEWER_CACHE_TAGS, VIEWER_REVALIDATE_PATHS } from "../../../lib/catalog/cache-tags";
+import { invalidatePublicViewerCache } from "../../../lib/catalog/invalidate-public-cache";
+import {
+  PUBLIC_HOME_INVALIDATION_PATHS,
+  PUBLIC_HOME_INVALIDATION_TAGS,
+} from "../../../lib/catalog/cache-tags";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005/api";
 
 type RevalidatePayload = {
   paths?: unknown;
   tags?: unknown;
+  movieSlugs?: unknown;
+  seriesSlugs?: unknown;
 };
 
 type MeResponse = {
@@ -32,6 +37,13 @@ function normalizeStringList(value: unknown, fallback: readonly string[] = []): 
   return source
     .map((item) => (typeof item === "string" ? item.trim() : ""))
     .filter((item) => item.length > 0);
+}
+
+function detailPathsFromSlugs(movieSlugs: string[], seriesSlugs: string[]): string[] {
+  return [
+    ...movieSlugs.map((slug) => `/movies/${slug}`),
+    ...seriesSlugs.map((slug) => `/series/${slug}`),
+  ];
 }
 
 function hasAdminRole(payload: MeResponse): boolean {
@@ -80,30 +92,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
   }
 
-  let payload: RevalidatePayload;
+  let payload: RevalidatePayload = {};
 
   try {
     payload = (await request.json()) as RevalidatePayload;
   } catch {
-    return NextResponse.json({ success: false, message: "Invalid JSON body" }, { status: 400 });
+    payload = {};
   }
 
-  const paths = normalizeStringList(payload.paths, VIEWER_REVALIDATE_PATHS);
-  const tags = normalizeStringList(payload.tags, VIEWER_CACHE_TAGS);
+  const movieSlugs = normalizeStringList(payload.movieSlugs);
+  const seriesSlugs = normalizeStringList(payload.seriesSlugs);
+  const paths = normalizeStringList(payload.paths, PUBLIC_HOME_INVALIDATION_PATHS);
+  const tags = normalizeStringList(payload.tags, PUBLIC_HOME_INVALIDATION_TAGS);
 
-  for (const tag of tags) {
-    revalidateTag(tag, "max");
-  }
-
-  for (const path of paths) {
-    revalidatePath(path);
-  }
+  const result = invalidatePublicViewerCache({
+    tags,
+    paths: [...paths, ...detailPathsFromSlugs(movieSlugs, seriesSlugs)],
+    mode: "immediate",
+  });
 
   return NextResponse.json({
     success: true,
     revalidated: {
-      paths,
-      tags,
+      paths: result.paths,
+      tags: result.tags,
     },
   });
 }

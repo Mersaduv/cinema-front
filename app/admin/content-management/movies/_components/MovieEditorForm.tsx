@@ -40,9 +40,10 @@ import {
   sanitizeLatinPersonName,
 } from "../../../../lib/person-name";
 import { revalidateAdminMoviesList } from "../../../../lib/admin-movies-revalidate";
-import { revalidatePublicMoviePages, syncViewerCacheAfterAdminSave } from "../../../../lib/catalog/revalidate";
+import { revalidatePublicMoviePages } from "../../../../lib/catalog/revalidate";
 import {
   adminMoviesService,
+  mergeMovieFromSaveResponse,
   type AdminMovie,
   type PublishStatus,
   type TmdbActor,
@@ -1573,7 +1574,7 @@ export default function MovieEditorForm({
     const updatedMovie = await completePublishStatusUpdate(movie.id);
 
     if (updatedMovie) {
-      setMovie(updatedMovie);
+      setMovie((current) => mergeMovieFromSaveResponse(current, updatedMovie));
       setPublishStatus(updatedMovie.publish_status);
       setScheduledFor(apiDateTimeToInputValue(updatedMovie.scheduled_for));
       const outcomeStatus: PublishOutcomeStatus = updatedMovie.publish_status;
@@ -1694,7 +1695,7 @@ export default function MovieEditorForm({
         }
 
         targetMovieId = createResponse.data.movie.id;
-        setMovie(createResponse.data.movie);
+        setMovie((current) => mergeMovieFromSaveResponse(current, createResponse.data!.movie));
       }
 
       if (!targetMovieId) {
@@ -1719,11 +1720,7 @@ export default function MovieEditorForm({
       }
 
       let savedMovie = saveResponse.data.movie;
-      setMovie(savedMovie);
-
-      await syncViewerCacheAfterAdminSave({
-        movieSlugs: [savedMovie.slug, movie?.slug, form.slug],
-      });
+      setMovie((current) => mergeMovieFromSaveResponse(current, savedMovie));
 
       const processedPoster =
         savedMovie.poster_image?.original?.startsWith("/images/")
@@ -1765,82 +1762,18 @@ export default function MovieEditorForm({
         return;
       }
 
-      const needsBackgroundHlsVerify =
-        savedMovie.processing_status === "queued" &&
-        publishStatus === "published" &&
-        !openedPipeline;
-
-      const applyPublishOutcome = async (updatedMovie: AdminMovie) => {
-        setMovie(updatedMovie);
-        setPublishStatus(updatedMovie.publish_status);
-        setScheduledFor(apiDateTimeToInputValue(updatedMovie.scheduled_for));
-        fingerprintMovieRef.current = fingerprintMovie(form);
-        setSuccessMessage("");
-        setPublishOutcomeStatus(updatedMovie.publish_status);
-        setPublishOutcomeOpen(true);
-        setActiveTab("publish");
-        pendingNavigationRef.current = "/admin/content-management/movies";
-        await Promise.all([
-          revalidateAdminMoviesList(),
-          revalidatePublicMoviePages(updatedMovie.slug, movie?.slug, form.slug),
-        ]);
-      };
-
-      const runPublishStatusUpdate = async (movieId: number) => {
-        console.time("movie:publish-status");
-        createPublishIdempotencyKey();
-        const updatedMovie = await completePublishStatusUpdate(movieId);
-        console.timeEnd("movie:publish-status");
-
-        if (updatedMovie) {
-          await applyPublishOutcome(updatedMovie);
-        } else {
-          setActiveTab("publish");
-        }
-      };
-
-      if (!needsBackgroundHlsVerify) {
-        setSubmitStep("به‌روزرسانی وضعیت انتشار...");
-        await runPublishStatusUpdate(savedMovie.id);
-        return;
-      }
-
+      setPublishStatus(savedMovie.publish_status);
+      setScheduledFor(apiDateTimeToInputValue(savedMovie.scheduled_for));
+      fingerprintMovieRef.current = fingerprintMovie(form);
+      setSuccessMessage("");
+      setPublishOutcomeStatus(savedMovie.publish_status);
+      setPublishOutcomeOpen(true);
+      setActiveTab("publish");
       pendingNavigationRef.current = "/admin/content-management/movies";
-
-      setSubmitting(false);
-      setSubmitStep(null);
-      setHlsSyncMessage("در حال اعتبارسنجی stream HLS…");
-
-      void (async () => {
-        console.time("movie:hls-poll");
-        const settledMovie = await adminMoviesService.pollUntilProcessingSettles(savedMovie.id, {
-          intervalMs: 800,
-          maxWait: 15_000,
-        });
-        console.timeEnd("movie:hls-poll");
-
-        setHlsSyncMessage("");
-
-        if (!settledMovie) {
-          setError("اعتبارسنجی HLS بیش از حد طول کشید. بعداً دوباره تلاش کن.");
-          return;
-        }
-
-        setMovie(settledMovie);
-
-        if (settledMovie.processing_status === "failed") {
-          setError(
-            settledMovie.processing_error ||
-              "اعتبارسنجی HLS ناموفق بود. مسیر master.m3u8 را بررسی کن.",
-          );
-          setActiveTab("media");
-          return;
-        }
-
-        if (settledMovie.processing_status === "ready") {
-          await runPublishStatusUpdate(settledMovie.id);
-        }
-      })();
+      await Promise.all([
+        revalidateAdminMoviesList(),
+        revalidatePublicMoviePages(savedMovie.slug, movie?.slug, form.slug),
+      ]);
     } finally {
       setSubmitting(false);
       setSubmitStep(null);

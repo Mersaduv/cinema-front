@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "../api";
+import { useContentProcessingUpdates } from "./useContentProcessingUpdates";
 
 export type PipelineEntityType = "movie" | "series";
 
@@ -50,7 +51,11 @@ export function usePipelinePolling(
   onFailed?: (error: string) => void,
 ) {
   const [pipeline, setPipeline] = useState<PipelineState | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  const onFailedRef = useRef(onFailed);
+
+  onCompleteRef.current = onComplete;
+  onFailedRef.current = onFailed;
 
   const fetchPipeline = useCallback(async () => {
     if (!entityId) {
@@ -66,26 +71,29 @@ export function usePipelinePolling(
         return;
       }
 
-      const data = response.data;
-      setPipeline(data);
+      setPipeline(response.data);
 
-      if (data.pipeline_status === "completed") {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-        onComplete?.();
-      } else if (data.pipeline_status === "failed") {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-        onFailed?.(data.error_summary ?? "خطا در پردازش");
+      if (response.data.pipeline_status === "failed") {
+        onFailedRef.current?.(response.data.error_summary ?? "خطا در پردازش");
       }
     } catch (error) {
-      console.error("Pipeline poll failed", error);
+      console.error("Pipeline refresh failed", error);
     }
-  }, [entityId, entityType, onComplete, onFailed]);
+  }, [entityId, entityType]);
+
+  const { transport } = useContentProcessingUpdates(
+    entityType,
+    entityId,
+    initialPipelineStatus,
+    () => {
+      void fetchPipeline();
+    },
+    () => {
+      void fetchPipeline().finally(() => {
+        onCompleteRef.current?.();
+      });
+    },
+  );
 
   useEffect(() => {
     if (!entityId || !isActivePipelineStatus(initialPipelineStatus)) {
@@ -93,22 +101,13 @@ export function usePipelinePolling(
     }
 
     void fetchPipeline();
-    intervalRef.current = setInterval(() => {
-      void fetchPipeline();
-    }, 2000);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [entityId, fetchPipeline, initialPipelineStatus]);
+  }, [entityId, fetchPipeline, initialPipelineStatus, transport]);
 
   const currentStatus = pipeline?.pipeline_status ?? initialPipelineStatus;
 
   return {
     pipeline,
     isPolling: isActivePipelineStatus(currentStatus),
+    transport,
   };
 }

@@ -2,6 +2,25 @@ import { apiClient, type ApiResponse } from "./api";
 import type { ResponsiveImageAsset } from "./cinema-image";
 
 export type PublishStatus = "draft" | "scheduled" | "published";
+
+export function mergeMovieFromSaveResponse(
+  current: AdminMovie | null,
+  saved: Partial<AdminMovie>,
+): AdminMovie {
+  if (!current) {
+    return saved as AdminMovie;
+  }
+
+  return {
+    ...current,
+    ...saved,
+    metadata: current.metadata,
+    cast: current.cast,
+    crew: current.crew,
+    media_asset: current.media_asset,
+  };
+}
+
 export type PipelineStatus =
   | "idle"
   | "pending"
@@ -148,6 +167,7 @@ export interface AdminMovie {
   publish_status: PublishStatus;
   pipeline_status?: PipelineStatus;
   processing_status: ProcessingStatus;
+  image_status?: string | null;
   processing_error: string | null;
   scheduled_for: string | null;
   published_at: string | null;
@@ -576,26 +596,20 @@ export const adminMoviesService = {
     movieId: string | number,
     options?: { intervalMs?: number; maxWait?: number; timeoutMs?: number },
   ): Promise<AdminMovie | null> {
-    const intervalMs = options?.intervalMs ?? 800;
-    const maxWait = options?.maxWait ?? options?.timeoutMs ?? 15_000;
-    const startedAt = Date.now();
-    let lastMovie: AdminMovie | null = null;
+    const { waitForContentProcessingSettled } = await import("./hooks/useContentProcessingUpdates");
 
-    while (Date.now() - startedAt < maxWait) {
+    const update = await waitForContentProcessingSettled("movie", Number(movieId), {
+      intervalMs: options?.intervalMs,
+      maxWait: options?.maxWait ?? options?.timeoutMs,
+    });
+
+    if (!update) {
       const response = await this.show(movieId);
-
-      if (response.success && response.data?.movie) {
-        lastMovie = response.data.movie;
-
-        if (lastMovie.processing_status === "ready" || lastMovie.processing_status === "failed") {
-          return lastMovie;
-        }
-      }
-
-      await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+      return response.success && response.data?.movie ? response.data.movie : null;
     }
 
-    return lastMovie;
+    const response = await this.show(movieId);
+    return response.success && response.data?.movie ? response.data.movie : null;
   },
 
   async previewHlsPackage(

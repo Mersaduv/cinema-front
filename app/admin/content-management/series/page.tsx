@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
   HiOutlineStar,
@@ -29,6 +29,8 @@ import { apiClient } from "../../../lib/api";
 import { adminApiErrorMessage, unwrapAdminListPayload } from "../../../lib/admin-api";
 import { revalidateAdminSeriesList } from "../../../lib/admin-series-revalidate";
 import { revalidatePublicSeriesPages } from "../../../lib/catalog/revalidate";
+import { useAdminListProcessingFeed } from "../../../lib/hooks/useAdminListProcessingFeed";
+import type { ContentProcessingUpdate } from "../../../lib/broadcast/content-processing";
 import { adminCreateSeriesHref } from "../../../lib/admin-create-links";
 import { ContentStatusBadge } from "../../../components/admin/ContentStatusBadge";
 import { PosterImage } from "../../../components/images";
@@ -169,6 +171,42 @@ export default function AllSeriesPage() {
   const summary = data?.summary ?? emptySummary;
   const pagination = data?.pagination ?? emptyPagination;
   const loading = isLoading && !data;
+  const seriesIds = useMemo(() => seriesItems.map((series) => series.id), [seriesItems]);
+
+  const handleProcessingUpdate = useCallback(
+    (update: ContentProcessingUpdate) => {
+      void mutate(
+        (current) => {
+          if (!current) {
+            return current;
+          }
+
+          const index = current.series.findIndex((series) => series.id === update.entity_id);
+
+          if (index === -1) {
+            return current;
+          }
+
+          const nextSeries = [...current.series];
+          nextSeries[index] = {
+            ...nextSeries[index],
+            pipeline_status: (update.pipeline_status as AdminSeries["pipeline_status"]) ??
+              nextSeries[index].pipeline_status,
+            image_status: update.image_status ?? nextSeries[index].image_status,
+          };
+
+          return {
+            ...current,
+            series: nextSeries,
+          };
+        },
+        { revalidate: false },
+      );
+    },
+    [mutate],
+  );
+
+  useAdminListProcessingFeed("series", seriesIds, handleProcessingUpdate);
 
   useEffect(() => {
     void adminSeriesService.options().then((response) => {

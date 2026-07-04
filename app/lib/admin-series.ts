@@ -10,6 +10,8 @@ export type SeriesPipelineStatus =
   | "completed"
   | "failed";
 
+export type SeriesEpisodeSyncStatus = "ready" | "queued" | "failed";
+
 export interface AdminSeriesActor {
   name: string | null;
   character: string | null;
@@ -118,6 +120,9 @@ export interface AdminSeries {
   exclude_from_slider?: boolean;
   publish_status: SeriesPublishStatus;
   pipeline_status?: SeriesPipelineStatus;
+  episode_sync_status?: SeriesEpisodeSyncStatus;
+  episodes_expected?: number;
+  image_status?: string | null;
   scheduled_for: string | null;
   published_at: string | null;
   metadata: {

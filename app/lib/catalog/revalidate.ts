@@ -1,60 +1,12 @@
 "use client";
 
 import { mutate } from "swr";
-import { tokenStorage } from "../auth";
-import { VIEWER_CACHE_TAGS, VIEWER_REVALIDATE_PATHS } from "./cache-tags";
+import { tokenStorage } from "../token-storage";
 
 function uniqueSlugs(...slugs: Array<string | null | undefined>): string[] {
   return Array.from(
     new Set(slugs.map((slug) => slug?.trim()).filter((slug): slug is string => Boolean(slug))),
   );
-}
-
-function buildRevalidatePaths(options?: {
-  movieSlugs?: string[];
-  seriesSlugs?: string[];
-}): string[] {
-  const paths: string[] = [...VIEWER_REVALIDATE_PATHS];
-
-  for (const slug of options?.movieSlugs ?? []) {
-    paths.push(`/movies/${slug}`);
-  }
-
-  for (const slug of options?.seriesSlugs ?? []) {
-    paths.push(`/series/${slug}`);
-  }
-
-  return Array.from(new Set(paths));
-}
-
-async function revalidateViewerNextCache(options?: {
-  movieSlugs?: string[];
-  seriesSlugs?: string[];
-}): Promise<boolean> {
-  const token = tokenStorage.getToken();
-
-  if (!token) {
-    return false;
-  }
-
-  try {
-    const response = await fetch("/api/admin/revalidate-viewer", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        paths: buildRevalidatePaths(options),
-        tags: [...VIEWER_CACHE_TAGS],
-      }),
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
 }
 
 export function revalidatePublicMoviesCatalog(): Promise<unknown[]> {
@@ -122,37 +74,88 @@ function revalidatePublicCatalogClientCaches(): Promise<unknown[]> {
   ]);
 }
 
+async function refreshPublicViewerServerCache(options?: {
+  paths?: string[];
+  movieSlugs?: string[];
+  seriesSlugs?: string[];
+}): Promise<void> {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const token = tokenStorage.getToken();
+
+  if (!token) {
+    return;
+  }
+
+  try {
+    await fetch("/api/admin/revalidate-viewer", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        paths: options?.paths,
+        movieSlugs: options?.movieSlugs,
+        seriesSlugs: options?.seriesSlugs,
+      }),
+      cache: "no-store",
+    });
+  } catch {
+    // Backend queue may still revalidate; keep admin UX non-blocking.
+  }
+}
+
 export function revalidatePublicMoviePages(...slugs: Array<string | null | undefined>): Promise<void> {
   const normalizedSlugs = uniqueSlugs(...slugs);
 
-  return syncViewerCacheAfterAdminSave({ movieSlugs: normalizedSlugs });
+  return Promise.all([
+    revalidatePublicCatalogClientCaches(),
+    ...normalizedSlugs.map((slug) => revalidatePublicMovieDetail(slug)),
+    refreshPublicViewerServerCache({ movieSlugs: normalizedSlugs }),
+  ]).then(() => undefined);
 }
 
 export function revalidatePublicSeriesPages(...slugs: Array<string | null | undefined>): Promise<void> {
   const normalizedSlugs = uniqueSlugs(...slugs);
 
-  return syncViewerCacheAfterAdminSave({ seriesSlugs: normalizedSlugs });
-}
-
-export function revalidatePublicHomePage(): Promise<unknown[]> {
   return Promise.all([
-    revalidateViewerNextCache(),
     revalidatePublicCatalogClientCaches(),
-  ]);
+    ...normalizedSlugs.map((slug) => revalidatePublicSeriesDetail(slug)),
+    refreshPublicViewerServerCache({ seriesSlugs: normalizedSlugs }),
+  ]).then(() => undefined);
 }
 
-/** Invalidate home hero + catalog caches after admin slider/visibility changes. */
+export function revalidatePublicHomePage(): Promise<void> {
+  return Promise.all([
+    revalidatePublicCatalogClientCaches(),
+    refreshPublicViewerServerCache(),
+  ]).then(() => undefined);
+}
+
+/**
+ * Lightweight client-side SWR refresh after admin saves.
+ * Also invalidates Next.js home/slider server cache via /api/admin/revalidate-viewer.
+ */
 export async function syncViewerCacheAfterAdminSave(options?: {
   movieSlugs?: Array<string | null | undefined>;
   seriesSlugs?: Array<string | null | undefined>;
+  affectsHomeSlider?: boolean;
 }): Promise<void> {
   const movieSlugs = uniqueSlugs(...(options?.movieSlugs ?? []));
   const seriesSlugs = uniqueSlugs(...(options?.seriesSlugs ?? []));
 
   await Promise.all([
-    revalidateViewerNextCache({ movieSlugs, seriesSlugs }),
     revalidatePublicCatalogClientCaches(),
     ...movieSlugs.map((slug) => revalidatePublicMovieDetail(slug)),
     ...seriesSlugs.map((slug) => revalidatePublicSeriesDetail(slug)),
+    refreshPublicViewerServerCache({
+      movieSlugs,
+      seriesSlugs,
+      paths: options?.affectsHomeSlider ? ["/"] : undefined,
+    }),
   ]);
 }

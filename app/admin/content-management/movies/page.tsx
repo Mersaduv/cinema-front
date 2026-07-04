@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
   HiOutlineDocumentText,
@@ -36,6 +36,8 @@ import {
   type AdminMoviesSummary,
 } from "../../../lib/admin-movies";
 import { revalidatePublicMoviePages } from "../../../lib/catalog/revalidate";
+import { useAdminListProcessingFeed } from "../../../lib/hooks/useAdminListProcessingFeed";
+import type { ContentProcessingUpdate } from "../../../lib/broadcast/content-processing";
 import { adminCreateMovieHref } from "../../../lib/admin-create-links";
 import { formatGregorianDate } from "../../../lib/date-format";
 import { useRouter } from "next/navigation";
@@ -169,6 +171,45 @@ export default function AllMoviesPage() {
   const summary = data?.summary ?? emptySummary;
   const pagination = data?.pagination ?? emptyPagination;
   const loading = isLoading && !data;
+  const movieIds = useMemo(() => movies.map((movie) => movie.id), [movies]);
+
+  const handleProcessingUpdate = useCallback(
+    (update: ContentProcessingUpdate) => {
+      void mutate(
+        (current) => {
+          if (!current) {
+            return current;
+          }
+
+          const index = current.movies.findIndex((movie) => movie.id === update.entity_id);
+
+          if (index === -1) {
+            return current;
+          }
+
+          const nextMovies = [...current.movies];
+          nextMovies[index] = {
+            ...nextMovies[index],
+            processing_status: (update.processing_status as AdminMovie["processing_status"]) ??
+              nextMovies[index].processing_status,
+            pipeline_status: (update.pipeline_status as AdminMovie["pipeline_status"]) ??
+              nextMovies[index].pipeline_status,
+            image_status: update.image_status ?? nextMovies[index].image_status,
+            processing_error: update.processing_error ?? nextMovies[index].processing_error,
+          };
+
+          return {
+            ...current,
+            movies: nextMovies,
+          };
+        },
+        { revalidate: false },
+      );
+    },
+    [mutate],
+  );
+
+  useAdminListProcessingFeed("movie", movieIds, handleProcessingUpdate);
 
   useEffect(() => {
     void getAdminMovieOptions().then(setOptions);
