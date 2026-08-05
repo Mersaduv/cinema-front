@@ -7,7 +7,7 @@ import { NextRequest } from "next/server";
 const IMAGE_ROOT =
   process.env.CINEMA_IMAGE_STORAGE_ROOT ||
   process.env.NEXT_PUBLIC_CINEMA_IMAGE_STORAGE_ROOT ||
-  "D:\\content";
+  "E:\\content";
 
 const IMAGE_PREFIX = (
   process.env.NEXT_PUBLIC_CINEMA_IMAGE_PUBLIC_PREFIX || "/images"
