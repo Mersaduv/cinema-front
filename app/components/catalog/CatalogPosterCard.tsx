@@ -4,6 +4,7 @@ import Link from "next/link";
 import { HiMiniPlay } from "react-icons/hi2";
 import { PosterImage } from "../images";
 import type { CatalogListItem } from "../../lib/catalog/rest";
+import type { ResponsiveImageAsset } from "../../lib/cinema-image";
 import { TV_CARD_FOCUS_CLASS, TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
 
 function formatRating(value: number | null | undefined): string | null {
@@ -12,6 +13,23 @@ function formatRating(value: number | null | undefined): string | null {
   }
   const rounded = Math.round(value * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function resolvePosterImage(item: CatalogListItem): ResponsiveImageAsset | null | undefined {
+  if (item.poster_image) {
+    return item.poster_image;
+  }
+
+  if (!item.poster_url && !item.poster_blur_url && !item.poster_srcset) {
+    return null;
+  }
+
+  return {
+    original: item.poster_url ?? null,
+    src: item.poster_url ?? null,
+    blur: item.poster_blur_url ?? null,
+    srcset_string: item.poster_srcset ?? null,
+  };
 }
 
 const catalogBadgeFeature =
@@ -38,6 +56,7 @@ export default function CatalogPosterCard({
   const hasSubtitle = Boolean(item.has_subtitle);
   const resolvedLoading = imageLoading ?? "lazy";
   const resolvedFetchPriority = imageFetchPriority ?? "auto";
+  const posterImage = resolvePosterImage(item);
 
   return (
     <Link
@@ -55,7 +74,7 @@ export default function CatalogPosterCard({
       >
         <PosterImage
           title={item.title}
-          image={item.poster_image}
+          image={posterImage}
           src={item.poster_url}
           fallbackUrl={item.backdrop_url ?? item.details.backdrop_url}
           usage="poster-grid"

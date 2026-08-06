@@ -76,6 +76,7 @@ function revalidatePublicCatalogClientCaches(): Promise<unknown[]> {
 
 async function refreshPublicViewerServerCache(options?: {
   paths?: string[];
+  tags?: string[];
   movieSlugs?: string[];
   seriesSlugs?: string[];
 }): Promise<void> {
@@ -98,7 +99,9 @@ async function refreshPublicViewerServerCache(options?: {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
+        // Always bust home/slider + catalog tags so featured toggles appear immediately.
         paths: options?.paths,
+        tags: options?.tags,
         movieSlugs: options?.movieSlugs,
         seriesSlugs: options?.seriesSlugs,
       }),
@@ -115,7 +118,11 @@ export function revalidatePublicMoviePages(...slugs: Array<string | null | undef
   return Promise.all([
     revalidatePublicCatalogClientCaches(),
     ...normalizedSlugs.map((slug) => revalidatePublicMovieDetail(slug)),
-    refreshPublicViewerServerCache({ movieSlugs: normalizedSlugs }),
+    refreshPublicViewerServerCache({
+      movieSlugs: normalizedSlugs,
+      paths: ["/", "/movies", "/series", "/animation"],
+      tags: ["home-critical", "home-rails", "catalog", "catalog-movies", "catalog-series"],
+    }),
   ]).then(() => undefined);
 }
 
@@ -125,7 +132,11 @@ export function revalidatePublicSeriesPages(...slugs: Array<string | null | unde
   return Promise.all([
     revalidatePublicCatalogClientCaches(),
     ...normalizedSlugs.map((slug) => revalidatePublicSeriesDetail(slug)),
-    refreshPublicViewerServerCache({ seriesSlugs: normalizedSlugs }),
+    refreshPublicViewerServerCache({
+      seriesSlugs: normalizedSlugs,
+      paths: ["/", "/movies", "/series", "/animation"],
+      tags: ["home-critical", "home-rails", "catalog", "catalog-movies", "catalog-series"],
+    }),
   ]).then(() => undefined);
 }
 

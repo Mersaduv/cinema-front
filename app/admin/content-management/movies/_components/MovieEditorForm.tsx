@@ -51,7 +51,6 @@ import {
   type TmdbMoviePayload,
 } from "../../../../lib/admin-movies";
 import { apiDateTimeToInputValue, toDateTimeInputValue } from "../../../../lib/date-format";
-import { localizeGenreLabels } from "../../../../lib/genre-labels";
 import {
   mergeSeasonEpisodeSynopsisFromTmdb,
   normalizeSeasonEpisodeSynopsis,
@@ -59,12 +58,16 @@ import {
 } from "../../../../lib/series-synopsis-helper";
 import { normalizeListItemLabel, normalizeStringList } from "../../../../lib/list-item-label";
 import {
+  applyIngestedPrimaryImages,
   buildMovieTmdbImageIngestPayload,
   finalizeTmdbImageIngestMessage,
   mergeIngestedActorProfiles,
   withTmdbImageProcessingMessage,
 } from "../../../../lib/admin-tmdb-image-ingest";
-import { pickAdminPreviewImageSrc } from "../../../../lib/cinema-image";
+import {
+  pickAdminPreviewImageSrc,
+  toManagedImagePublicPath,
+} from "../../../../lib/cinema-image";
 import {
   inferDownloadQualityFromPath,
   looksLikeHlsPackagePath,
@@ -89,6 +92,21 @@ import {
 } from "../../../../lib/pending-publish";
 import PendingPublishBanner from "../../../../components/admin/PendingPublishBanner";
 import ContentChangeHistoryPanel from "../../../../components/admin/ContentChangeHistoryPanel";
+import AdminTaxonomyMultiSelect from "../../../../components/admin/AdminTaxonomyMultiSelect";
+import {
+  type AdminTaxonomyCountry,
+  type AdminTaxonomyGenre,
+  type AdminTaxonomyLanguage,
+  countryLabelsForSave,
+  languageValuesForSave,
+  normalizeCountryValuesToIso,
+  normalizeGenreValuesToCatalog,
+  normalizeLanguageValuesToIso,
+  normalizeOriginalLanguageToIso,
+  toCountrySelectOptions,
+  toGenreSelectOptions,
+  toLanguageSelectOptions,
+} from "../../../../lib/admin-taxonomy-options";
 
 type Mode = "create" | "edit";
 type EditorTab = "details" | "media" | "seo" | "publish";
@@ -236,13 +254,15 @@ type MovieEditorArrayField = Extract<
   "genres" | "tags" | "languages" | "countries" | "directors" | "writers"
 >;
 
-const arrayFieldLabels: Record<MovieEditorArrayField, string> = {
+type MovieEditorFreeArrayField = Extract<
+  MovieEditorArrayField,
+  "tags" | "directors" | "writers"
+>;
+
+const freeArrayFieldLabels: Record<MovieEditorFreeArrayField, string> = {
   directors: "کارگردان‌ها",
   writers: "نویسنده‌ها",
-  genres: "ژانرها",
   tags: "برچسب‌ها",
-  languages: "زبان‌ها",
-  countries: "کشورها",
 };
 
 const tabOrder: EditorTab[] = ["details", "media", "seo", "publish"];
@@ -418,14 +438,15 @@ export default function MovieEditorForm({
   const [successMessage, setSuccessMessage] = useState("");
   const [searchMessage, setSearchMessage] = useState("");
   const [lastFetchedTmdbCode, setLastFetchedTmdbCode] = useState("");
-  const [listDrafts, setListDrafts] = useState<Record<MovieEditorArrayField, string>>({
+  const [listDrafts, setListDrafts] = useState<Record<MovieEditorFreeArrayField, string>>({
     directors: "",
     writers: "",
-    genres: "",
     tags: "",
-    languages: "",
-    countries: "",
   });
+  const [taxonomyGenres, setTaxonomyGenres] = useState<AdminTaxonomyGenre[]>([]);
+  const [taxonomyCountries, setTaxonomyCountries] = useState<AdminTaxonomyCountry[]>([]);
+  const [taxonomyLanguages, setTaxonomyLanguages] = useState<AdminTaxonomyLanguage[]>([]);
+  const [taxonomyLoading, setTaxonomyLoading] = useState(true);
   const latestTmdbRequestRef = useRef("");
   const tmdbImageIngestAbortRef = useRef<AbortController | null>(null);
   const formTopRef = useRef<HTMLDivElement | null>(null);
@@ -472,10 +493,7 @@ export default function MovieEditorForm({
     setListDrafts({
       directors: "",
       writers: "",
-      genres: "",
       tags: "",
-      languages: "",
-      countries: "",
     });
     setHlsSyncMessage("");
     setHlsPreviewLoading(false);
@@ -494,16 +512,43 @@ export default function MovieEditorForm({
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
+      setTaxonomyLoading(true);
       setError("");
+
+      const optionsPromise = adminMoviesService.options();
 
       if (mode === "create") {
         resetCreateEditorState();
+        const optionsResponse = await optionsPromise;
+        if (optionsResponse.success && optionsResponse.data) {
+          setTaxonomyGenres(optionsResponse.data.genres ?? []);
+          setTaxonomyCountries(optionsResponse.data.countries ?? []);
+          setTaxonomyLanguages(optionsResponse.data.languages ?? []);
+        }
+        setTaxonomyLoading(false);
         setLoading(false);
         return;
       }
 
       if (mode === "edit" && movieId) {
-        const movieResponse = await adminMoviesService.show(movieId);
+        const [optionsResponse, movieResponse] = await Promise.all([
+          optionsPromise,
+          adminMoviesService.show(movieId),
+        ]);
+
+        const nextGenres = optionsResponse.success
+          ? (optionsResponse.data?.genres ?? [])
+          : [];
+        const nextCountries = optionsResponse.success
+          ? (optionsResponse.data?.countries ?? [])
+          : [];
+        const nextLanguages = optionsResponse.success
+          ? (optionsResponse.data?.languages ?? [])
+          : [];
+        setTaxonomyGenres(nextGenres);
+        setTaxonomyCountries(nextCountries);
+        setTaxonomyLanguages(nextLanguages);
+        setTaxonomyLoading(false);
 
         if (!(movieResponse.success && movieResponse.data)) {
           setError(movieResponse.message || "دریافت اطلاعات فیلم انجام نشد.");
@@ -569,13 +614,16 @@ export default function MovieEditorForm({
               ? String(nextMovie.metadata.tmdb.vote_count)
               : "",
           poster_url:
-            nextMovie.poster_image?.original?.startsWith("/images/")
-              ? nextMovie.poster_image.original.split("?")[0]
-              : nextMovie.metadata?.tmdb?.poster_url || nextMovie.poster_url || "",
+            toManagedImagePublicPath(nextMovie.poster_image?.original) ||
+            toManagedImagePublicPath(nextMovie.poster_url) ||
+            nextMovie.metadata?.tmdb?.poster_url ||
+            nextMovie.poster_url ||
+            "",
           backdrop_url:
-            nextMovie.backdrop_image?.original?.startsWith("/images/")
-              ? nextMovie.backdrop_image.original.split("?")[0]
-              : nextMovie.metadata?.tmdb?.backdrop_url || "",
+            toManagedImagePublicPath(nextMovie.backdrop_image?.original) ||
+            toManagedImagePublicPath(nextMovie.backdrop_url) ||
+            nextMovie.metadata?.tmdb?.backdrop_url ||
+            "",
           trailer_url:
             nextMovie.metadata?.tmdb?.trailer_url || nextMovie.trailer_url || "",
           hls_url:
@@ -592,7 +640,10 @@ export default function MovieEditorForm({
                 createDownloadLinkRow(quality, url, `download-${quality}`),
               )
             : [createDownloadLinkRow()],
-          original_language: nextMovie.metadata?.tmdb?.original_language || "",
+          original_language: normalizeOriginalLanguageToIso(
+            nextMovie.metadata?.tmdb?.original_language || "",
+            nextLanguages,
+          ),
           runtime_minutes: nextMovie.metadata?.tmdb?.runtime_minutes
             ? String(nextMovie.metadata.tmdb.runtime_minutes)
             : "",
@@ -608,10 +659,19 @@ export default function MovieEditorForm({
               : "",
           directors: normalizeStringList(nextMovie.metadata?.tmdb?.directors || []),
           writers: normalizeStringList(nextMovie.metadata?.tmdb?.writers || []),
-          genres: localizeGenreLabels(nextMovie.metadata?.tmdb?.genres || []),
+          genres: normalizeGenreValuesToCatalog(
+            nextMovie.metadata?.tmdb?.genres || [],
+            toGenreSelectOptions(nextGenres),
+          ),
           tags: normalizeStringList(nextMovie.metadata?.tmdb?.tags || []),
-          languages: normalizeStringList(nextMovie.metadata?.tmdb?.languages || []),
-          countries: normalizeStringList(nextMovie.metadata?.tmdb?.countries || []),
+          languages: normalizeLanguageValuesToIso(
+            nextMovie.metadata?.tmdb?.languages || [],
+            nextLanguages,
+          ),
+          countries: normalizeCountryValuesToIso(
+            nextMovie.metadata?.tmdb?.countries || [],
+            nextCountries,
+          ),
           actors: initialActors,
           crew: initialCrew,
           belongs_to_collection:
@@ -671,14 +731,36 @@ export default function MovieEditorForm({
     }));
   };
 
-  const addArrayItems = (field: MovieEditorArrayField, rawValue: string) => {
+  const genreSelectOptions = useMemo(
+    () => toGenreSelectOptions(taxonomyGenres),
+    [taxonomyGenres],
+  );
+  const countrySelectOptions = useMemo(
+    () => toCountrySelectOptions(taxonomyCountries),
+    [taxonomyCountries],
+  );
+  const languageSelectOptions = useMemo(
+    () => toLanguageSelectOptions(taxonomyLanguages),
+    [taxonomyLanguages],
+  );
+  const originalLanguageSelectOptions = useMemo(
+    () => [
+      { value: "", label: "انتخاب زبان اصلی", description: "مطابق فیلتر کنترل" },
+      ...languageSelectOptions.map((option) => ({
+        value: option.value,
+        label: option.label,
+        description: option.value.toUpperCase(),
+      })),
+    ],
+    [languageSelectOptions],
+  );
+
+  const addArrayItems = (field: MovieEditorFreeArrayField, rawValue: string) => {
     const parsed = parseTagInput(rawValue);
-    const personFields: MovieEditorArrayField[] = ["directors", "writers"];
+    const personFields: MovieEditorFreeArrayField[] = ["directors", "writers"];
     const nextItems = personFields.includes(field)
       ? filterLatinPersonNameList(parsed)
-      : field === "genres"
-        ? localizeGenreLabels(parsed)
-        : normalizeStringList(parsed);
+      : normalizeStringList(parsed);
 
     if (!nextItems.length) {
       return;
@@ -690,7 +772,7 @@ export default function MovieEditorForm({
     }));
   };
 
-  const removeArrayItem = (field: MovieEditorArrayField, value: string) => {
+  const removeArrayItem = (field: MovieEditorFreeArrayField, value: string) => {
     setForm((current) => ({
       ...current,
       [field]: current[field].filter(
@@ -699,7 +781,7 @@ export default function MovieEditorForm({
     }));
   };
 
-  const handleArrayInputSubmit = (field: MovieEditorArrayField) => {
+  const handleArrayInputSubmit = (field: MovieEditorFreeArrayField) => {
     const currentDraft = listDrafts[field].trim();
 
     if (!currentDraft) {
@@ -1095,7 +1177,10 @@ export default function MovieEditorForm({
       backdrop_url: payload.backdrop_url || current.backdrop_url,
       trailer_url: payload.trailer_url || current.trailer_url,
       age_rating: payload.age_rating || current.age_rating,
-      original_language: payload.original_language || current.original_language,
+      original_language: normalizeOriginalLanguageToIso(
+        payload.original_language || current.original_language,
+        taxonomyLanguages,
+      ),
       runtime_minutes:
         typeof payload.runtime_minutes === "number"
           ? String(payload.runtime_minutes)
@@ -1117,14 +1202,14 @@ export default function MovieEditorForm({
         ? filterLatinPersonNameList(payload.writers)
         : current.writers,
       genres: payload.genres?.length
-        ? localizeGenreLabels(payload.genres)
+        ? normalizeGenreValuesToCatalog(payload.genres, genreSelectOptions)
         : current.genres,
       tags: payload.tags?.length ? normalizeStringList(payload.tags) : current.tags,
       languages: payload.languages?.length
-        ? normalizeStringList(payload.languages)
+        ? normalizeLanguageValuesToIso(payload.languages, taxonomyLanguages)
         : current.languages,
       countries: payload.countries?.length
-        ? normalizeStringList(payload.countries)
+        ? normalizeCountryValuesToIso(payload.countries, taxonomyCountries)
         : current.countries,
       actors: nextActors,
       crew: nextCrew.length ? nextCrew : current.crew,
@@ -1158,11 +1243,10 @@ export default function MovieEditorForm({
       const data = response.data;
 
       setForm((current) => ({
-        ...current,
-        poster_url:
-          data.poster_url?.startsWith("/images/") ? data.poster_url : current.poster_url,
-        backdrop_url:
-          data.backdrop_url?.startsWith("/images/") ? data.backdrop_url : current.backdrop_url,
+        ...applyIngestedPrimaryImages(current, data, {
+          poster_url: payload.poster_url,
+          backdrop_url: payload.backdrop_url,
+        }),
         actors: data.actors?.length
           ? mergeIngestedActorProfiles(current.actors, data.actors)
           : current.actors,
@@ -1426,8 +1510,12 @@ export default function MovieEditorForm({
     form.writers.forEach((value) => formData.append("writers[]", value));
     form.genres.forEach((value) => formData.append("genres[]", value));
     form.tags.forEach((value) => formData.append("tags[]", value));
-    form.languages.forEach((value) => formData.append("languages[]", value));
-    form.countries.forEach((value) => formData.append("countries[]", value));
+    languageValuesForSave(form.languages).forEach((value) =>
+      formData.append("languages[]", value),
+    );
+    countryLabelsForSave(form.countries, taxonomyCountries).forEach((value) =>
+      formData.append("countries[]", value),
+    );
 
     normalizedActors.forEach((actor, index) => {
       if (actor.name) {
@@ -1703,7 +1791,7 @@ export default function MovieEditorForm({
         return;
       }
 
-      setSubmitStep("ذخیره فرم انتشار...");
+      setSubmitStep("ذخیره فرم...");
       console.time("movie:publication-form");
       const saveResponse = await adminMoviesService.updatePublicationFormWithFiles(
         targetMovieId,
@@ -1719,61 +1807,21 @@ export default function MovieEditorForm({
         return;
       }
 
-      let savedMovie = saveResponse.data.movie;
+      const savedMovie = saveResponse.data.movie;
       setMovie((current) => mergeMovieFromSaveResponse(current, savedMovie));
 
-      const processedPoster =
-        savedMovie.poster_image?.original?.startsWith("/images/")
-          ? savedMovie.poster_image.original
-          : savedMovie.poster_url?.startsWith("/images/")
-            ? savedMovie.poster_url
-            : null;
-      const processedBackdrop =
-        savedMovie.backdrop_image?.original?.startsWith("/images/")
-          ? savedMovie.backdrop_image.original
-          : savedMovie.backdrop_url?.startsWith("/images/")
-            ? savedMovie.backdrop_url.split("?")[0]
-            : null;
-
-      if (processedPoster || processedBackdrop) {
-        setForm((current) => ({
-          ...current,
-          ...(processedPoster ? { poster_url: processedPoster } : {}),
-          ...(processedBackdrop ? { backdrop_url: processedBackdrop } : {}),
-        }));
-      }
-
-      const openedPipeline =
-        saveResponse.pipeline_status === "pending" ||
-        saveResponse.pipeline_status === "running";
-
-      if (openedPipeline) {
-        await Promise.all([
-          revalidateAdminMoviesList(),
-          revalidatePublicMoviePages(savedMovie.slug, movie?.slug, form.slug),
-        ]);
-        if (mode === "create") {
-          resetCreateEditorState();
-          router.push("/admin/content-management/movies");
-        } else {
-          router.push("/admin/content-management/movies");
-          router.refresh();
-        }
-        return;
-      }
-
-      setPublishStatus(savedMovie.publish_status);
-      setScheduledFor(apiDateTimeToInputValue(savedMovie.scheduled_for));
-      fingerprintMovieRef.current = fingerprintMovie(form);
-      setSuccessMessage("");
-      setPublishOutcomeStatus(savedMovie.publish_status);
-      setPublishOutcomeOpen(true);
-      setActiveTab("publish");
-      pendingNavigationRef.current = "/admin/content-management/movies";
-      await Promise.all([
+      // Revalidate in background — never block navigation on cache refresh.
+      void Promise.all([
         revalidateAdminMoviesList(),
         revalidatePublicMoviePages(savedMovie.slug, movie?.slug, form.slug),
       ]);
+
+      // Pipeline always runs in queue after save — return to list with «در حال پردازش».
+      if (mode === "create") {
+        resetCreateEditorState();
+      }
+      router.push("/admin/content-management/movies");
+      router.refresh();
     } finally {
       setSubmitting(false);
       setSubmitStep(null);
@@ -2043,10 +2091,10 @@ export default function MovieEditorForm({
                 <div className="grid gap-5 md:grid-cols-2">
                   <label className="block">
                     <span className="mb-2 block text-sm text-[#8ea4b3]">زبان اصلی</span>
-                    <input
+                    <AdminSelect
                       value={form.original_language}
-                      onChange={(event) => handleChange("original_language", event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45"
+                      onChange={(value) => handleChange("original_language", value)}
+                      options={originalLanguageSelectOptions}
                     />
                   </label>
 
@@ -2137,12 +2185,53 @@ export default function MovieEditorForm({
                 </label>
 
                 <div className="grid gap-4 lg:grid-cols-2">
-                  {(Object.keys(arrayFieldLabels) as MovieEditorArrayField[]).map((field) => (
+                  <AdminTaxonomyMultiSelect
+                    label="ژانرها"
+                    options={genreSelectOptions}
+                    value={form.genres}
+                    onChange={(values) =>
+                      setForm((current) => ({ ...current, genres: values }))
+                    }
+                    placeholder="انتخاب ژانر"
+                    loading={taxonomyLoading}
+                  />
+                  <AdminTaxonomyMultiSelect
+                    label="کشورها"
+                    options={countrySelectOptions}
+                    value={form.countries}
+                    onChange={(values) =>
+                      setForm((current) => ({ ...current, countries: values }))
+                    }
+                    placeholder="انتخاب کشور"
+                    loading={taxonomyLoading}
+                    columns={2}
+                  />
+                  <AdminTaxonomyMultiSelect
+                    label="زبان‌ها"
+                    options={languageSelectOptions}
+                    value={form.languages}
+                    onChange={(values) =>
+                      setForm((current) => {
+                        const nextOriginal =
+                          current.original_language || values[0] || "";
+                        return {
+                          ...current,
+                          languages: values,
+                          original_language: nextOriginal,
+                        };
+                      })
+                    }
+                    placeholder="انتخاب زبان"
+                    loading={taxonomyLoading}
+                    columns={2}
+                  />
+                  {(Object.keys(freeArrayFieldLabels) as MovieEditorFreeArrayField[]).map(
+                    (field) => (
                     <div
                       key={field}
                       className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
                     >
-                      <p className="text-xs text-[#8ea4b3]">{arrayFieldLabels[field]}</p>
+                      <p className="text-xs text-[#8ea4b3]">{freeArrayFieldLabels[field]}</p>
 
                       <div className="mt-3 flex min-h-8 flex-wrap gap-2">
                         {form[field].length ? (
@@ -2185,11 +2274,7 @@ export default function MovieEditorForm({
                               handleArrayInputSubmit(field);
                             }
                           }}
-                          placeholder={
-                            field === "genres"
-                              ? "فارسی، مثلاً: درام، ماجراجویی"
-                              : "آیتم جدید"
-                          }
+                          placeholder="آیتم جدید"
                           className="w-full rounded-2xl border border-white/10 bg-[#071019] px-3 py-2 text-xs text-white outline-none transition focus:border-[#f5c518]/45"
                         />
                         <button
@@ -2201,7 +2286,8 @@ export default function MovieEditorForm({
                         </button>
                       </div>
                     </div>
-                  ))}
+                  ),
+                  )}
                 </div>
 
                 <div className="space-y-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">

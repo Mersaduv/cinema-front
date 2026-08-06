@@ -212,6 +212,26 @@ export default function AllMoviesPage() {
   useAdminListProcessingFeed("movie", movieIds, handleProcessingUpdate);
 
   useEffect(() => {
+    const hasProcessingItems = movies.some(
+      (item) =>
+        item.pipeline_status === "pending" ||
+        item.pipeline_status === "running" ||
+        (item.processing_status &&
+          !["ready", "failed"].includes(item.processing_status)),
+    );
+
+    if (!hasProcessingItems) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void mutate();
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [movies, mutate]);
+
+  useEffect(() => {
     void getAdminMovieOptions().then(setOptions);
   }, []);
 
@@ -296,22 +316,22 @@ export default function AllMoviesPage() {
       accent: "border-[#f5c518]/18 bg-[#f5c518]/10 text-[#f8d977]",
     },
     {
+      label: "در حال پردازش",
+      value: summary.processing,
+      icon: MdOutlinePlaylistPlay,
+      accent: "border-[#f5c518]/18 bg-[#f5c518]/10 text-[#f8d977]",
+    },
+    {
       label: "پیش‌نویس‌ها",
       value: summary.drafts,
       icon: MdOutlineSell,
       accent: "border-[#38bdf8]/18 bg-[#38bdf8]/10 text-[#7dd3fc]",
     },
     {
-      label: "آماده انتشار",
-      value: summary.ready,
-      icon: MdOutlinePlaylistPlay,
-      accent: "border-[#34d399]/18 bg-[#34d399]/10 text-[#86efac]",
-    },
-    {
       label: "منتشر شده",
       value: summary.published,
       icon: MdOutlineOndemandVideo,
-      accent: "border-[#fb7185]/18 bg-[#fb7185]/10 text-[#fda4af]",
+      accent: "border-[#34d399]/18 bg-[#34d399]/10 text-[#86efac]",
     },
   ];
 

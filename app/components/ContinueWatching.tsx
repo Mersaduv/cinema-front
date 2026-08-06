@@ -11,7 +11,7 @@ import {
 } from "../features/player/services/ProgressTracker";
 import type { WatchProgressRecord } from "../features/player/services/progress.types";
 import ContentListSlider from "./catalog/ContentListSlider";
-import { BackdropImage, PosterImage } from "./images";
+import { BackdropImage, EpisodeStillImage, PosterImage } from "./images";
 import { VIEWER_ACCENT } from "../lib/viewer-theme";
 import { TV_CARD_FOCUS_CLASS, TV_FOCUS_RING_CLASS } from "../lib/tv/focus";
 import { useIsTvCompat } from "../hooks/useTvCapabilities";
@@ -193,13 +193,23 @@ function ContinueWatchingCard({
           }`}
         >
           {isLandscape ? (
-            <BackdropImage
-              title={cardTitle}
-              src={resolveCardImage(record)}
-              usage="detail-backdrop"
-              loading={imageLoading}
-              wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
-            />
+            record.mediaType === "series" ? (
+              <EpisodeStillImage
+                seriesTitle={cardTitle}
+                src={resolveCardImage(record)}
+                usage="episode-card"
+                loading={imageLoading}
+                wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
+              />
+            ) : (
+              <BackdropImage
+                title={cardTitle}
+                src={resolveCardImage(record)}
+                usage="detail-backdrop"
+                loading={imageLoading}
+                wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
+              />
+            )
           ) : (
             <PosterImage
               title={cardTitle}

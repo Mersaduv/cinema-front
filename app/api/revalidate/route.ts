@@ -30,10 +30,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  let body: RevalidateRequestBody = {};
+  let body: RevalidateRequestBody & { tag?: string; path?: string } = {};
 
   try {
-    body = (await request.json()) as RevalidateRequestBody;
+    body = (await request.json()) as RevalidateRequestBody & { tag?: string; path?: string };
   } catch {
     return NextResponse.json(
       { revalidated: false, message: "Invalid JSON body." },
@@ -48,9 +48,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const legacyTags = typeof body.tag === "string" && body.tag.trim() ? [body.tag.trim()] : [];
+  const legacyPaths = typeof body.path === "string" && body.path.trim() ? [body.path.trim()] : [];
+  const tags = [
+    ...(Array.isArray(body.tags) ? body.tags : []),
+    ...legacyTags,
+  ];
+  const paths = [
+    ...(Array.isArray(body.paths) ? body.paths : []),
+    ...legacyPaths,
+  ];
+
   const result = invalidatePublicViewerCache({
-    tags: body.tags,
-    paths: body.paths,
+    tags,
+    paths,
     mode: body.mode ?? "immediate",
   });
 

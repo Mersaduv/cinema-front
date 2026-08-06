@@ -37,6 +37,21 @@ import {
 } from "../../../../components/admin/ContentMetadataFormFields";
 import { BackdropImage, PersonProfileImage, PosterImage } from "../../../../components/images";
 import SeriesFormStatusPanel from "../../../../components/admin/SeriesFormStatusPanel";
+import AdminTaxonomyMultiSelect from "../../../../components/admin/AdminTaxonomyMultiSelect";
+import {
+  type AdminTaxonomyCountry,
+  type AdminTaxonomyGenre,
+  type AdminTaxonomyLanguage,
+  countryLabelsForSave,
+  languageValuesForSave,
+  normalizeCountryValuesToIso,
+  normalizeGenreValuesToCatalog,
+  normalizeLanguageValuesToIso,
+  normalizeOriginalLanguageToIso,
+  toCountrySelectOptions,
+  toGenreSelectOptions,
+  toLanguageSelectOptions,
+} from "../../../../lib/admin-taxonomy-options";
 import {
   adminMoviesService,
   unwrapCheckHlsExistsItems,
@@ -70,7 +85,7 @@ import {
   withTmdbImageProcessingMessage,
   type IngestTmdbImagesResult,
 } from "../../../../lib/admin-tmdb-image-ingest";
-import { pickAdminPreviewImageSrc } from "../../../../lib/cinema-image";
+import { pickAdminPreviewImageSrc, toManagedImagePublicPath } from "../../../../lib/cinema-image";
 import { sortCastByOrder, sortCastRows } from "../../../../lib/cast-utils";
 import {
   formatEpisodeHeading,
@@ -82,7 +97,6 @@ import {
   formatGregorianDateTime,
   toDateTimeInputValue,
 } from "../../../../lib/date-format";
-import { localizeGenreLabels } from "../../../../lib/genre-labels";
 import {
   filterLatinPersonNameList,
   isAgeRatingSelected,
@@ -399,15 +413,38 @@ const defaultStatusOptions = [
 const ltrInputClass = "text-left";
 const tabOrder: SeriesEditorTab[] = ["identity", "catalog", "seo", "seasons", "publish"];
 
-const arrayFieldLabels: Record<SeriesArrayField, string> = {
+type SeriesFreeArrayField = Extract<
+  SeriesArrayField,
+  "creators" | "directors" | "writers" | "tags"
+>;
+
+const freeArrayFieldLabels: Record<SeriesFreeArrayField, string> = {
   creators: "سازندگان",
   directors: "کارگردان ها",
   writers: "نویسنده ها",
-  genres: "ژانرها",
   tags: "برچسب ها",
-  languages: "زبان ها",
-  countries: "کشورها",
 };
+
+function alignSeriesFormTaxonomy(
+  form: SeriesFormState,
+  genres: AdminTaxonomyGenre[],
+  countries: AdminTaxonomyCountry[],
+  languages: AdminTaxonomyLanguage[],
+): SeriesFormState {
+  return {
+    ...form,
+    genres: normalizeGenreValuesToCatalog(
+      form.genres,
+      toGenreSelectOptions(genres),
+    ),
+    countries: normalizeCountryValuesToIso(form.countries, countries),
+    languages: normalizeLanguageValuesToIso(form.languages, languages),
+    original_language: normalizeOriginalLanguageToIso(
+      form.original_language,
+      languages,
+    ),
+  };
+}
 
 function uniqueId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -663,7 +700,9 @@ function createInitialFormState(): SeriesFormState {
     network: "",
     provider_name: "",
     poster_url: "",
+    poster_source_url: "",
     backdrop_url: "",
+    backdrop_source_url: "",
     trailer_url: "",
     homepage_url: "",
     age_rating: "",
@@ -787,13 +826,29 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
     network: series.network || "",
     provider_name: series.provider_name || "",
     poster_url:
-      series.poster_image?.original?.startsWith("/images/")
-        ? series.poster_image.original.split("?")[0]
-        : series.poster_url || series.metadata?.tmdb?.poster_url || "",
+      toManagedImagePublicPath(series.poster_image?.original) ||
+      toManagedImagePublicPath(series.poster_url) ||
+      series.poster_url ||
+      series.metadata?.tmdb?.poster_url ||
+      "",
+    poster_source_url:
+      series.metadata?.tmdb?.poster_source_url ||
+      (series.metadata?.tmdb?.poster_url?.startsWith("http")
+        ? series.metadata.tmdb.poster_url
+        : "") ||
+      "",
     backdrop_url:
-      series.backdrop_image?.original?.startsWith("/images/")
-        ? series.backdrop_image.original.split("?")[0]
-        : series.backdrop_url || series.metadata?.tmdb?.backdrop_url || "",
+      toManagedImagePublicPath(series.backdrop_image?.original) ||
+      toManagedImagePublicPath(series.backdrop_url) ||
+      series.backdrop_url ||
+      series.metadata?.tmdb?.backdrop_url ||
+      "",
+    backdrop_source_url:
+      series.metadata?.tmdb?.backdrop_source_url ||
+      (series.metadata?.tmdb?.backdrop_url?.startsWith("http")
+        ? series.metadata.tmdb.backdrop_url
+        : "") ||
+      "",
     trailer_url: series.trailer_url || "",
     homepage_url: series.homepage_url || "",
     age_rating: series.age_rating || "",
@@ -825,7 +880,7 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
     creators: series.metadata?.tmdb?.creators || [],
     directors: series.metadata?.tmdb?.directors || [],
     writers: series.metadata?.tmdb?.writers || [],
-    genres: localizeGenreLabels(series.metadata?.tmdb?.genres || []),
+    genres: series.metadata?.tmdb?.genres || [],
     tags: series.metadata?.tmdb?.tags || [],
     languages: series.metadata?.tmdb?.languages || [],
     countries: series.metadata?.tmdb?.countries || [],
@@ -924,7 +979,10 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
   };
 }
 
-function formToPayload(form: SeriesFormState): AdminSeriesPayload {
+function formToPayload(
+  form: SeriesFormState,
+  taxonomyCountries: AdminTaxonomyCountry[] = [],
+): AdminSeriesPayload {
   const seriesHlsBase = normalizeHlsBaseUrl(form.hls_base_url);
 
   const seasons: AdminSeriesSeason[] = form.seasons
@@ -1008,6 +1066,8 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
     provider_name: nullableString(form.provider_name),
     poster_url: nullableString(form.poster_url),
     backdrop_url: nullableString(form.backdrop_url),
+    poster_source_url: nullableString(form.poster_source_url),
+    backdrop_source_url: nullableString(form.backdrop_source_url),
     trailer_url: nullableString(form.trailer_url),
     homepage_url: nullableString(form.homepage_url),
     hls_base_url: nullableString(seriesHlsBase),
@@ -1036,8 +1096,8 @@ function formToPayload(form: SeriesFormState): AdminSeriesPayload {
     writers: form.writers,
     genres: form.genres,
     tags: form.tags,
-    languages: form.languages,
-    countries: form.countries,
+    languages: languageValuesForSave(form.languages),
+    countries: countryLabelsForSave(form.countries, taxonomyCountries),
     actors: normalizeActors(form.actors),
     cast: normalizeActors(form.actors).map((a, idx) => ({
       tmdb_person_id: a.tmdb_person_id ?? null,
@@ -1107,14 +1167,15 @@ export default function SeriesEditorForm({
   const [tmdbSyncState, setTmdbSyncState] = useState<TmdbSyncState>(initialTmdbSyncState);
   const [lastFetchedTmdbCode, setLastFetchedTmdbCode] = useState("");
   const [statusOptions, setStatusOptions] = useState(defaultStatusOptions);
-  const [listDrafts, setListDrafts] = useState<Record<SeriesArrayField, string>>({
+  const [taxonomyGenres, setTaxonomyGenres] = useState<AdminTaxonomyGenre[]>([]);
+  const [taxonomyCountries, setTaxonomyCountries] = useState<AdminTaxonomyCountry[]>([]);
+  const [taxonomyLanguages, setTaxonomyLanguages] = useState<AdminTaxonomyLanguage[]>([]);
+  const [taxonomyLoading, setTaxonomyLoading] = useState(true);
+  const [listDrafts, setListDrafts] = useState<Record<SeriesFreeArrayField, string>>({
     creators: "",
     directors: "",
     writers: "",
-    genres: "",
     tags: "",
-    languages: "",
-    countries: "",
   });
   const [expandedSeasonIds, setExpandedSeasonIds] = useState<string[]>([form.seasons[0].id]);
   const [expandedEpisodeKeys, setExpandedEpisodeKeys] = useState<string[]>([]);
@@ -1179,10 +1240,7 @@ export default function SeriesEditorForm({
       creators: "",
       directors: "",
       writers: "",
-      genres: "",
       tags: "",
-      languages: "",
-      countries: "",
     });
     setExpandedSeasonIds([initialForm.seasons[0].id]);
     setExpandedEpisodeKeys([]);
@@ -1213,6 +1271,7 @@ export default function SeriesEditorForm({
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
+      setTaxonomyLoading(true);
       setError("");
 
       if (mode === "create") {
@@ -1226,12 +1285,26 @@ export default function SeriesEditorForm({
           : Promise.resolve(null),
       ]);
 
+      const nextGenres = optionsResponse.success
+        ? (optionsResponse.data?.genres ?? [])
+        : [];
+      const nextCountries = optionsResponse.success
+        ? (optionsResponse.data?.countries ?? [])
+        : [];
+      const nextLanguages = optionsResponse.success
+        ? (optionsResponse.data?.languages ?? [])
+        : [];
+
       if (optionsResponse.success && optionsResponse.data) {
         setStatusOptions([
           { value: "", label: "وضعیت نامشخص" },
           ...optionsResponse.data.production_statuses,
         ]);
+        setTaxonomyGenres(nextGenres);
+        setTaxonomyCountries(nextCountries);
+        setTaxonomyLanguages(nextLanguages);
       }
+      setTaxonomyLoading(false);
 
       if (mode === "edit" && seriesId) {
         const response = seriesResponse;
@@ -1242,7 +1315,12 @@ export default function SeriesEditorForm({
           return;
         }
 
-        const nextForm = mapSeriesToForm(response.data.series);
+        const nextForm = alignSeriesFormTaxonomy(
+          mapSeriesToForm(response.data.series),
+          nextGenres,
+          nextCountries,
+          nextLanguages,
+        );
         const seededHlsState = seedVerifiedEpisodeHlsSyncState(nextForm);
         setSeries(response.data.series);
         setForm(nextForm);
@@ -1321,6 +1399,7 @@ export default function SeriesEditorForm({
     pickAdminPreviewImageSrc(
       previewPosterImage,
       form.poster_url.trim(),
+      form.poster_source_url.trim(),
       series?.poster_url,
       series?.metadata?.tmdb?.poster_url,
       series?.metadata?.tmdb?.poster_source_url,
@@ -1329,6 +1408,7 @@ export default function SeriesEditorForm({
     pickAdminPreviewImageSrc(
       previewBackdropImage,
       form.backdrop_url.trim(),
+      form.backdrop_source_url.trim(),
       series?.backdrop_url,
       series?.metadata?.tmdb?.backdrop_url,
       series?.metadata?.tmdb?.backdrop_source_url,
@@ -1365,6 +1445,30 @@ export default function SeriesEditorForm({
     ) ||
     "series-slug";
 
+  const genreSelectOptions = useMemo(
+    () => toGenreSelectOptions(taxonomyGenres),
+    [taxonomyGenres],
+  );
+  const countrySelectOptions = useMemo(
+    () => toCountrySelectOptions(taxonomyCountries),
+    [taxonomyCountries],
+  );
+  const languageSelectOptions = useMemo(
+    () => toLanguageSelectOptions(taxonomyLanguages),
+    [taxonomyLanguages],
+  );
+  const originalLanguageSelectOptions = useMemo(
+    () => [
+      { value: "", label: "انتخاب زبان اصلی", description: "مطابق فیلتر کنترل" },
+      ...languageSelectOptions.map((option) => ({
+        value: option.value,
+        label: option.label,
+        description: option.value.toUpperCase(),
+      })),
+    ],
+    [languageSelectOptions],
+  );
+
   const updateField = (field: keyof SeriesFormState, value: string | boolean) => {
     setForm((current) => ({
       ...current,
@@ -1372,9 +1476,9 @@ export default function SeriesEditorForm({
     }));
   };
 
-  const addArrayItems = (field: SeriesArrayField, rawValue: string) => {
+  const addArrayItems = (field: SeriesFreeArrayField, rawValue: string) => {
     const parsed = parseTagInput(rawValue);
-    const personFields: SeriesArrayField[] = ["directors", "writers", "creators"];
+    const personFields: SeriesFreeArrayField[] = ["directors", "writers", "creators"];
     const nextItems = personFields.includes(field)
       ? filterLatinPersonNameList(parsed)
       : parsed;
@@ -1389,14 +1493,14 @@ export default function SeriesEditorForm({
     }));
   };
 
-  const removeArrayItem = (field: SeriesArrayField, value: string) => {
+  const removeArrayItem = (field: SeriesFreeArrayField, value: string) => {
     setForm((current) => ({
       ...current,
       [field]: current[field].filter((item) => item !== value),
     }));
   };
 
-  const handleArrayInputSubmit = (field: SeriesArrayField) => {
+  const handleArrayInputSubmit = (field: SeriesFreeArrayField) => {
     const currentDraft = listDrafts[field].trim();
 
     if (!currentDraft) {
@@ -1549,7 +1653,10 @@ export default function SeriesEditorForm({
     }
 
     setForm((current) => {
-      const withPrimary = applyIngestedPrimaryImages(current, data);
+      const withPrimary = applyIngestedPrimaryImages(current, data, {
+        poster_url: current.poster_source_url || current.poster_url,
+        backdrop_url: current.backdrop_source_url || current.backdrop_url,
+      });
 
       return {
         ...withPrimary,
@@ -1681,10 +1788,15 @@ export default function SeriesEditorForm({
         (baseForm ?? formRef.current).tmdb_excluded_season_numbers,
       );
 
-      const overviewForm = applyTmdbSeriesOverviewToForm(
-        baseForm ?? formRef.current,
-        overview,
-        String(tmdbId),
+      const overviewForm = alignSeriesFormTaxonomy(
+        applyTmdbSeriesOverviewToForm(
+          baseForm ?? formRef.current,
+          overview,
+          String(tmdbId),
+        ),
+        taxonomyGenres,
+        taxonomyCountries,
+        taxonomyLanguages,
       );
       setForm(overviewForm);
 
@@ -3498,7 +3610,7 @@ export default function SeriesEditorForm({
     try {
       setSubmitStep("۱/۳ — ذخیره متادیتا و فصل‌ها...");
       console.time("series:submit");
-      const payload = formToPayload(form);
+      const payload = formToPayload(form, taxonomyCountries);
       const response =
         mode === "edit" && seriesId
           ? await adminSeriesService.update(seriesId, payload)
@@ -3514,17 +3626,11 @@ export default function SeriesEditorForm({
       setSeries(savedSeries);
 
       const processedPoster =
-        savedSeries.poster_image?.original?.startsWith("/images/")
-          ? savedSeries.poster_image.original
-          : savedSeries.poster_url?.startsWith("/images/")
-            ? savedSeries.poster_url.split("?")[0]
-            : null;
+        toManagedImagePublicPath(savedSeries.poster_image?.original) ||
+        toManagedImagePublicPath(savedSeries.poster_url);
       const processedBackdrop =
-        savedSeries.backdrop_image?.original?.startsWith("/images/")
-          ? savedSeries.backdrop_image.original
-          : savedSeries.backdrop_url?.startsWith("/images/")
-            ? savedSeries.backdrop_url.split("?")[0]
-            : null;
+        toManagedImagePublicPath(savedSeries.backdrop_image?.original) ||
+        toManagedImagePublicPath(savedSeries.backdrop_url);
 
       if (processedPoster || processedBackdrop) {
         setForm((current) => ({
@@ -3538,11 +3644,13 @@ export default function SeriesEditorForm({
         response.pipeline_status === "pending" ||
         response.pipeline_status === "running";
 
+      // Revalidate in background — keep the form unlock immediate after API save.
+      void Promise.all([
+        revalidateAdminSeriesList(),
+        revalidatePublicSeriesPages(savedSeries.slug, series?.slug, form.slug),
+      ]);
+
       if (openedPipeline) {
-        await Promise.all([
-          revalidateAdminSeriesList(),
-          revalidatePublicSeriesPages(savedSeries.slug, series?.slug, form.slug),
-        ]);
         if (mode === "create") {
           resetCreateEditorState();
           router.push("/admin/content-management/series");
@@ -3553,12 +3661,7 @@ export default function SeriesEditorForm({
         return;
       }
 
-      await Promise.all([
-        revalidateAdminSeriesList(),
-        revalidatePublicSeriesPages(savedSeries.slug, series?.slug, form.slug),
-      ]);
-
-      setSubmitStep("۳/۳ — نهایی‌سازی (اعتبارسنجی در پس‌زمینه)...");
+      setSubmitStep(null);
       seriesFormBodyFingerprintRef.current = seriesFormBodyFingerprint(form);
       setEpisodeSavedFingerprints(seedEpisodeSavedFingerprints(form));
       const episodesDeferred =
@@ -3566,8 +3669,8 @@ export default function SeriesEditorForm({
         savedSeries.episode_sync_status === "queued";
       setSuccessMessage(
         episodesDeferred
-          ? "سریال ثبت شد — قسمت‌ها در پس‌زمینه ذخیره می‌شوند."
-          : "ذخیره شد — اعتبار بازیگران در پس‌زمینه انجام می‌شود.",
+          ? "سریال ثبت شد — قسمت‌ها و تصاویر در پس‌زمینه پردازش می‌شوند."
+          : "ذخیره شد — تصاویر و اعتبار بازیگران در صف پردازش می‌شوند.",
       );
       setPublishOutcomeStatus(savedSeries.publish_status || form.publish_status);
       setPublishOutcomeOpen(true);
@@ -3814,13 +3917,51 @@ export default function SeriesEditorForm({
                 title="طبقه بندی، عوامل و بازیگران"
               />
               <div className="grid gap-4 lg:grid-cols-2">
-                {(Object.keys(arrayFieldLabels) as SeriesArrayField[]).map((field) => (
+                <AdminTaxonomyMultiSelect
+                  label="ژانرها"
+                  options={genreSelectOptions}
+                  value={form.genres}
+                  onChange={(values) =>
+                    setForm((current) => ({ ...current, genres: values }))
+                  }
+                  placeholder="انتخاب ژانر"
+                  loading={taxonomyLoading}
+                />
+                <AdminTaxonomyMultiSelect
+                  label="کشورها"
+                  options={countrySelectOptions}
+                  value={form.countries}
+                  onChange={(values) =>
+                    setForm((current) => ({ ...current, countries: values }))
+                  }
+                  placeholder="انتخاب کشور"
+                  loading={taxonomyLoading}
+                  columns={2}
+                />
+                <AdminTaxonomyMultiSelect
+                  label="زبان ها"
+                  options={languageSelectOptions}
+                  value={form.languages}
+                  onChange={(values) =>
+                    setForm((current) => {
+                      const nextOriginal =
+                        current.original_language || values[0] || "";
+                      return {
+                        ...current,
+                        languages: values,
+                        original_language: nextOriginal,
+                      };
+                    })
+                  }
+                  placeholder="انتخاب زبان"
+                  loading={taxonomyLoading}
+                  columns={2}
+                />
+                {(Object.keys(freeArrayFieldLabels) as SeriesFreeArrayField[]).map((field) => (
                   <ArrayItemsFieldCard
                     key={field}
-                    label={arrayFieldLabels[field]}
-                    placeholder={
-                      field === "genres" ? "فارسی، مثلاً: درام، ماجراجویی" : "آیتم جدید"
-                    }
+                    label={freeArrayFieldLabels[field]}
+                    placeholder="آیتم جدید"
                     items={form[field]}
                     draftValue={listDrafts[field]}
                     onDraftChange={(value) =>
@@ -3835,13 +3976,14 @@ export default function SeriesEditorForm({
                 ))}
               </div>
 
-              <TextField
-                label="زبان اصلی"
-                value={form.original_language}
-                onChange={(value) => updateField("original_language", value)}
-                dir="ltr"
-                placeholder="en"
-              />
+              <label className="block">
+                <span className="mb-2 block text-sm text-[#8ea4b3]">زبان اصلی</span>
+                <AdminSelect
+                  value={form.original_language}
+                  onChange={(value) => updateField("original_language", value)}
+                  options={originalLanguageSelectOptions}
+                />
+              </label>
 
               <div className="space-y-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                 <div className="flex items-center justify-between gap-3">
@@ -4723,6 +4865,14 @@ export default function SeriesEditorForm({
                         title={form.title || "Series"}
                         image={previewBackdropImage}
                         src={previewBackdropUrl}
+                        fallbackUrl={
+                          form.backdrop_source_url.trim() ||
+                          (form.backdrop_url.startsWith("http")
+                            ? form.backdrop_url
+                            : series?.metadata?.tmdb?.backdrop_source_url ||
+                              series?.metadata?.tmdb?.backdrop_url ||
+                              null)
+                        }
                         usage="detail-backdrop"
                       />
                     </div>
@@ -4736,6 +4886,14 @@ export default function SeriesEditorForm({
                             title={form.title || "Series"}
                             image={previewPosterImage}
                             src={previewPosterUrl}
+                            fallbackUrl={
+                              form.poster_source_url.trim() ||
+                              (form.poster_url.startsWith("http")
+                                ? form.poster_url
+                                : series?.metadata?.tmdb?.poster_source_url ||
+                                  series?.metadata?.tmdb?.poster_url ||
+                                  null)
+                            }
                             usage="detail-poster"
                           />
                         ) : (

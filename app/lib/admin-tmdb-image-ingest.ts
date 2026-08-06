@@ -1,4 +1,5 @@
 import type { TmdbActor, TmdbMoviePayload } from "./admin-movies";
+import { toManagedImagePublicPath } from "./cinema-image";
 
 export type IngestTmdbImagesPayload = {
   entity_id?: number | string | null;
@@ -94,7 +95,7 @@ function actorMatchKey(actor: ActorWithProfile): string | null {
   }
 
   const sourceUrl = actor.profile_source_url?.trim() || actor.profile_url?.trim();
-  if (sourceUrl && !sourceUrl.startsWith("/images/")) {
+  if (sourceUrl && !toManagedImagePublicPath(sourceUrl)) {
     return `url:${sourceUrl}`;
   }
 
@@ -138,9 +139,9 @@ export function mergeIngestedActorProfiles<T extends ActorWithProfile>(
       (key ? lookup.get(key) : undefined) ??
       lookup.get(`index:${index}`) ??
       processed[index];
-    const profileUrl = match?.profile_url?.trim();
+    const profileUrl = toManagedImagePublicPath(match?.profile_url);
 
-    if (!profileUrl?.startsWith("/images/")) {
+    if (!profileUrl) {
       return actor;
     }
 
@@ -151,7 +152,7 @@ export function mergeIngestedActorProfiles<T extends ActorWithProfile>(
       profile_source_url:
         match.profile_source_url ??
         actor.profile_source_url ??
-        (actor.profile_url?.startsWith("/images/") ? null : actor.profile_url),
+        (toManagedImagePublicPath(actor.profile_url) ? null : actor.profile_url),
     };
   });
 }
@@ -191,14 +192,29 @@ export function buildSeriesTmdbImageIngestPayload(input: {
 
 export function applyIngestedPrimaryImages<
   T extends { poster_url: string; backdrop_url: string },
->(form: T, data: IngestTmdbImagesResult): T {
+>(
+  form: T,
+  data: IngestTmdbImagesResult,
+  sources?: { poster_url?: string | null; backdrop_url?: string | null },
+): T & { poster_source_url?: string; backdrop_source_url?: string } {
   const posterUrl = data.poster_url?.trim();
   const backdropUrl = data.backdrop_url?.trim();
+  const posterSource =
+    sources?.poster_url?.trim() ||
+    (form.poster_url.startsWith("http") ? form.poster_url : "");
+  const backdropSource =
+    sources?.backdrop_url?.trim() ||
+    (form.backdrop_url.startsWith("http") ? form.backdrop_url : "");
+
+  const managedPoster = toManagedImagePublicPath(posterUrl);
+  const managedBackdrop = toManagedImagePublicPath(backdropUrl);
 
   return {
     ...form,
-    poster_url: posterUrl?.startsWith("/images/") ? posterUrl : form.poster_url,
-    backdrop_url: backdropUrl?.startsWith("/images/") ? backdropUrl : form.backdrop_url,
+    poster_url: managedPoster ?? form.poster_url,
+    backdrop_url: managedBackdrop ?? form.backdrop_url,
+    ...(posterSource ? { poster_source_url: posterSource } : {}),
+    ...(backdropSource ? { backdrop_source_url: backdropSource } : {}),
   };
 }
 
@@ -229,22 +245,22 @@ export function applyIngestedSeasonImages<
       return season;
     }
 
-    const posterUrl = match.poster_url?.trim();
+    const posterUrl = toManagedImagePublicPath(match.poster_url);
 
     return {
       ...season,
-      poster_url: posterUrl?.startsWith("/images/") ? posterUrl : season.poster_url,
+      poster_url: posterUrl ?? season.poster_url,
       episodes: season.episodes.map((episode, episodeIndex) => {
         const episodeMatch =
           match.episodes?.find(
             (row) =>
               String(row?.episode_number ?? "").trim() === episode.episode_number.trim(),
           ) ?? match.episodes?.[episodeIndex];
-        const stillUrl = episodeMatch?.still_url?.trim();
+        const stillUrl = toManagedImagePublicPath(episodeMatch?.still_url);
 
         return {
           ...episode,
-          still_url: stillUrl?.startsWith("/images/") ? stillUrl : episode.still_url,
+          still_url: stillUrl ?? episode.still_url,
         };
       }),
     };
@@ -255,10 +271,23 @@ export function buildSeriesPrimaryIngestSource(input: {
   poster_url: string;
   backdrop_url: string;
   actors: ActorWithProfile[];
+  poster_source_url?: string;
+  backdrop_source_url?: string;
 }) {
+  const posterCandidate =
+    input.poster_source_url?.trim() ||
+    (input.poster_url.startsWith("http") || input.poster_url.startsWith("//")
+      ? input.poster_url
+      : "");
+  const backdropCandidate =
+    input.backdrop_source_url?.trim() ||
+    (input.backdrop_url.startsWith("http") || input.backdrop_url.startsWith("//")
+      ? input.backdrop_url
+      : "");
+
   return {
-    poster_url: input.poster_url || null,
-    backdrop_url: input.backdrop_url || null,
+    poster_url: posterCandidate || null,
+    backdrop_url: backdropCandidate || null,
     actors: input.actors,
   };
 }

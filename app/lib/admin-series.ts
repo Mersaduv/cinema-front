@@ -279,6 +279,8 @@ export interface AdminSeriesPayload {
   provider_name?: string;
   poster_url?: string;
   backdrop_url?: string;
+  poster_source_url?: string;
+  backdrop_source_url?: string;
   trailer_url?: string;
   homepage_url?: string;
   hls_base_url?: string;

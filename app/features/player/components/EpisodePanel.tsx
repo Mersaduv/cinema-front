@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HiOutlineMenuAlt2 } from "react-icons/hi";
+import { EpisodeStillImage } from "../../../components/images";
 import { useIsTvCompat } from "../../../hooks/useTvCapabilities";
 import { useSeriesEpisodes } from "../../../lib/useSeriesEpisodes";
 import {
@@ -42,6 +42,7 @@ function mapRestSeasons(seasons: PublicSeriesSeason[]): SeasonSummary[] {
         dubbedAudioUrl: ep.dubbed_audio_url,
         durationSeconds: ep.duration_minutes ? ep.duration_minutes * 60 : null,
         stillUrl: ep.still_url,
+        stillImage: ep.still_image ?? null,
         synopsis: ep.synopsis,
       }),
     ),
@@ -303,14 +304,16 @@ function EpisodePanelComponent({
                         </div>
 
                         <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-md bg-white/10">
-                          {ep.stillUrl ? (
-                            <Image
+                          {ep.stillUrl || ep.stillImage ? (
+                            <EpisodeStillImage
+                              seriesTitle={nav.seriesTitle}
+                              seasonNumber={ep.seasonNumber}
+                              episodeNumber={ep.episodeNumber}
+                              image={ep.stillImage}
                               src={ep.stillUrl}
-                              alt=""
-                              fill
+                              usage="episode-card"
                               sizes="112px"
-                              className="object-cover"
-                              unoptimized
+                              loading="lazy"
                             />
                           ) : null}
                         </div>

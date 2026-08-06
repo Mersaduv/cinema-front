@@ -34,6 +34,7 @@ import { selectIsLoading, usePlayerStore } from "../store/playerStore";
 import type { PlayerShellProps } from "../types/player.types";
 import { buildPlaybackSubtitleUrl, formatSeconds } from "../utils/format";
 import { isSameOriginMediaRequest } from "../../../lib/playback-networking";
+import { optimizeManagedImageUrl } from "../../../lib/cinema-image";
 
 /**
  * Production-grade player shell — composes controller, controls, and overlays.
@@ -327,9 +328,19 @@ function PlayerShellComponent({
 
   useTvFocusNavigation(containerRef, controlsRef, controlsEnabled);
 
+  const optimizedPoster = useMemo(
+    () =>
+      optimizeManagedImageUrl(media.poster, {
+        width: immersive ? 1920 : 1280,
+        quality: 70,
+        sharpen: 60,
+      }),
+    [immersive, media.poster],
+  );
+
   useMediaSession({
     title: media.title,
-    poster: media.poster,
+    poster: optimizedPoster,
     isPlaying,
     togglePlay: () => void togglePlay(),
     seekBy: handleSeekByWithFeedback,
@@ -397,7 +408,7 @@ function PlayerShellComponent({
 
   const showFullBleedPoster =
     immersive &&
-    Boolean(media.poster) &&
+    Boolean(optimizedPoster) &&
     (isLoading || readyState < HTMLMediaElement.HAVE_CURRENT_DATA);
 
   return (
@@ -429,7 +440,7 @@ function PlayerShellComponent({
           {showFullBleedPoster ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={media.poster!}
+              src={optimizedPoster!}
               alt=""
               aria-hidden
               className="absolute inset-0 z-[1] h-full w-full object-cover object-center"
@@ -441,7 +452,7 @@ function PlayerShellComponent({
             playsInline
             crossOrigin={videoCrossOrigin}
             controls={false}
-            poster={immersive ? undefined : media.poster || undefined}
+            poster={immersive ? undefined : optimizedPoster || undefined}
             className={`cinema-player-video relative z-[2] h-full w-full bg-black ${
               showFullBleedPoster
                 ? "opacity-0"

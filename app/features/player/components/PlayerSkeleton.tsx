@@ -1,5 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
+import { optimizeManagedImageUrl } from "../../../lib/cinema-image";
+
 type PlayerSkeletonProps = {
   poster?: string | null;
   title?: string | null;
@@ -7,12 +10,17 @@ type PlayerSkeletonProps = {
 
 /** Instant full-screen placeholder while HLS URL resolves — no layout shift. */
 export function PlayerSkeleton({ poster, title }: PlayerSkeletonProps) {
+  const optimizedPoster = useMemo(
+    () => optimizeManagedImageUrl(poster, { width: 1920, quality: 70, sharpen: 60 }),
+    [poster],
+  );
+
   return (
     <div className="fixed inset-0 z-50 h-dvh w-screen overflow-hidden bg-black">
-      {poster ? (
+      {optimizedPoster ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={poster}
+          src={optimizedPoster}
           alt={title ?? ""}
           fetchPriority="high"
           className="absolute inset-0 h-full w-full min-h-full min-w-full object-cover object-center"

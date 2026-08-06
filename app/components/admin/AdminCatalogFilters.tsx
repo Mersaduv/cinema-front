@@ -143,7 +143,7 @@ export default function AdminCatalogFilters({
         <div className="flex flex-wrap gap-2">
           <GenreFilterDropdown
             options={genres.map((genre) => ({
-              value: genre.slug,
+              value: String(genre.id),
               label: genre.name,
               tmdb_id: genre.tmdb_id,
             }))}

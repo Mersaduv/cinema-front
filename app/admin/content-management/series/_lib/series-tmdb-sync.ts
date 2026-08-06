@@ -79,7 +79,10 @@ export type SeriesFormState = {
   network: string;
   provider_name: string;
   poster_url: string;
+  /** Original remote/TMDB URL kept after ingest for admin preview fallback. */
+  poster_source_url: string;
   backdrop_url: string;
+  backdrop_source_url: string;
   trailer_url: string;
   homepage_url: string;
   age_rating: string;
@@ -432,7 +435,9 @@ function applyTmdbSeriesLevelFields(
     network: payload.network || current.network,
     provider_name: payload.network || current.provider_name,
     poster_url: payload.poster_url || current.poster_url,
+    poster_source_url: payload.poster_url || current.poster_source_url || "",
     backdrop_url: payload.backdrop_url || current.backdrop_url,
+    backdrop_source_url: payload.backdrop_url || current.backdrop_source_url || "",
     trailer_url: payload.trailer_url || current.trailer_url,
     homepage_url: payload.homepage_url || current.homepage_url,
     age_rating: payload.age_rating || current.age_rating,

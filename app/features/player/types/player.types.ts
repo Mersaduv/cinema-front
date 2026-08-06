@@ -1,4 +1,6 @@
 /** Player finite-state machine states. */
+import type { ResponsiveImageAsset } from "../../../lib/cinema-image";
+
 export type PlayerFsmState =
   | "idle"
   | "loading"
@@ -72,6 +74,7 @@ export type EpisodeSummary = {
   dubbedAudioUrl?: string | null;
   durationSeconds?: number | null;
   stillUrl?: string | null;
+  stillImage?: ResponsiveImageAsset | null;
   synopsis?: string | null;
 };
 

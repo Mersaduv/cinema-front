@@ -41,7 +41,11 @@ export type NormalizedImageInput = {
 
 const TMDB_HOST_PATTERN = /image\.tmdb\.org/i;
 
-const IMAGE_BASE_URL = (process.env.NEXT_PUBLIC_CINEMA_IMAGE_BASE_URL || "")
+const IMAGE_BASE_URL = (
+  process.env.NEXT_PUBLIC_CINEMA_IMAGE_BASE_URL ||
+  process.env.NEXT_PUBLIC_CDN_ORIGIN ||
+  ""
+)
   .trim()
   .replace(/\/$/, "");
 
@@ -107,7 +111,7 @@ export function buildSrcSetString(
   }
 
   if (image.srcset_string?.trim()) {
-    return image.srcset_string.trim();
+    return rewriteSrcSetString(image.srcset_string.trim());
   }
 
   if (!image.srcset?.length) {
@@ -120,6 +124,27 @@ export function buildSrcSetString(
       const descriptor = item.descriptor || `${item.width}w`;
 
       return url ? `${url} ${descriptor}` : null;
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function rewriteSrcSetString(srcset: string): string {
+  return srcset
+    .split(",")
+    .map((part) => {
+      const trimmed = part.trim();
+
+      if (!trimmed) {
+        return null;
+      }
+
+      const separatorIndex = trimmed.search(/\s/);
+      const rawUrl = separatorIndex === -1 ? trimmed : trimmed.slice(0, separatorIndex);
+      const descriptor = separatorIndex === -1 ? "" : trimmed.slice(separatorIndex);
+      const url = normalizeImageUrl(rawUrl);
+
+      return url ? `${url}${descriptor}` : null;
     })
     .filter(Boolean)
     .join(", ");
@@ -411,9 +436,61 @@ export function isManagedImageUrl(url: string | null | undefined): boolean {
     return true;
   }
 
-  return Boolean(
-    IMAGE_BASE_URL && normalized.startsWith(`${IMAGE_BASE_URL}/images/`),
-  );
+  if (IMAGE_BASE_URL && normalized.startsWith(`${IMAGE_BASE_URL}/images/`)) {
+    return true;
+  }
+
+  // Absolute CDN/host URLs whose path is under /images/ (e.g. http://cinema.af/images/...)
+  try {
+    if (/^https?:\/\//i.test(normalized)) {
+      const pathname = new URL(normalized).pathname;
+      return pathname.startsWith("/images/");
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+/**
+ * Normalize managed image URLs to the relative public path used in admin form fields.
+ * Examples:
+ *   /images/2026/a.jpg
+ *   http://cinema.af/images/2026/a.jpg?width=384 → /images/2026/a.jpg
+ * Returns null for TMDB/remote or non-managed URLs.
+ */
+export function toManagedImagePublicPath(
+  url: string | null | undefined,
+): string | null {
+  const raw = typeof url === "string" ? url.trim() : "";
+  if (!raw) {
+    return null;
+  }
+
+  const bare = stripImageQueryParams(raw);
+  if (!bare || !isManagedImageUrl(bare)) {
+    return null;
+  }
+
+  if (bare.startsWith("/images/")) {
+    return bare;
+  }
+
+  if (IMAGE_BASE_URL && bare.startsWith(`${IMAGE_BASE_URL}/images/`)) {
+    return bare.slice(IMAGE_BASE_URL.length);
+  }
+
+  try {
+    if (/^https?:\/\//i.test(bare)) {
+      const pathname = new URL(bare).pathname;
+      return pathname.startsWith("/images/") ? pathname : null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 export function appendImageVariantParams(
@@ -424,6 +501,180 @@ export function appendImageVariantParams(
   const separator = base.includes("?") ? "&" : "?";
 
   return `${base}${separator}width=${options.width}&quality=${options.quality}&sharpen=${options.sharpen}`;
+}
+
+/** Default responsive presets when API only returns a bare /images/ URL. */
+export const USAGE_VARIANT_PRESETS: Record<
+  ImageUsage,
+  { widths: number[]; quality: number; sharpen: number; defaultWidth: number }
+> = {
+  "poster-grid": {
+    widths: [256, 384, 640, 750],
+    quality: 65,
+    sharpen: 60,
+    defaultWidth: 384,
+  },
+  "poster-card": {
+    widths: [256, 384, 640],
+    quality: 65,
+    sharpen: 60,
+    defaultWidth: 384,
+  },
+  "detail-poster": {
+    widths: [384, 640, 750, 1080],
+    quality: 70,
+    sharpen: 60,
+    defaultWidth: 640,
+  },
+  "detail-backdrop": {
+    widths: [640, 1080, 1920, 2048],
+    quality: 75,
+    sharpen: 60,
+    defaultWidth: 1280,
+  },
+  "hero-backdrop": {
+    widths: [...HERO_BACKDROP_WIDTHS],
+    quality: HERO_BACKDROP_QUALITY,
+    sharpen: HERO_BACKDROP_SHARPEN,
+    defaultWidth: 1920,
+  },
+  "person-card": {
+    widths: [160, 256, 384],
+    quality: 65,
+    sharpen: 60,
+    defaultWidth: 256,
+  },
+  "episode-card": {
+    widths: [320, 640, 750],
+    quality: 65,
+    sharpen: 60,
+    defaultWidth: 640,
+  },
+  "episode-detail": {
+    widths: [640, 1080, 1280],
+    quality: 70,
+    sharpen: 60,
+    defaultWidth: 1080,
+  },
+  "collection-card": {
+    widths: [256, 384, 640],
+    quality: 65,
+    sharpen: 60,
+    defaultWidth: 384,
+  },
+  "genre-icon": {
+    widths: [64, 128, 256],
+    quality: 80,
+    sharpen: 40,
+    defaultWidth: 128,
+  },
+  logo: {
+    widths: [120, 200, 320],
+    quality: 80,
+    sharpen: 40,
+    defaultWidth: 200,
+  },
+};
+
+function hasWidthQuery(url: string | null | undefined): boolean {
+  if (!url) {
+    return false;
+  }
+
+  return /[?&]width=\d+/i.test(url);
+}
+
+/**
+ * Ensure managed /images/ URLs always carry movieland-style width/quality/sharpen
+ * variants — even when API only returned a bare original URL.
+ */
+export function ensureOptimizedImageAsset(
+  image?: ResponsiveImageAsset | null,
+  src?: string | null,
+  usage: ImageUsage = "poster-card",
+): ResponsiveImageAsset | null {
+  const existingSrcset = buildSrcSetString(image);
+
+  if (existingSrcset && image) {
+    return image;
+  }
+
+  const baseCandidate =
+    pickHeroBackdropBaseUrl(image, src) ??
+    (isManagedImageUrl(src)
+      ? stripImageQueryParams(normalizeImageUrl(src) ?? "")
+      : null);
+
+  if (!baseCandidate || !isManagedImageUrl(baseCandidate)) {
+    if (image) {
+      return image;
+    }
+
+    if (src?.trim()) {
+      return { original: src, src };
+    }
+
+    return null;
+  }
+
+  const base = stripImageQueryParams(baseCandidate);
+  const preset = USAGE_VARIANT_PRESETS[usage];
+  const srcset_string = preset.widths
+    .map(
+      (width) =>
+        `${appendImageVariantParams(base, {
+          width,
+          quality: preset.quality,
+          sharpen: preset.sharpen,
+        })} ${width}w`,
+    )
+    .join(", ");
+
+  const optimizedSrc = hasWidthQuery(image?.src)
+    ? (normalizeImageUrl(image?.src) ?? image?.src ?? null)
+    : appendImageVariantParams(base, {
+        width: preset.defaultWidth,
+        quality: preset.quality,
+        sharpen: preset.sharpen,
+      });
+
+  const blur =
+    pickBlurSrc(image) ??
+    appendImageVariantParams(base, {
+      width: 20,
+      quality: 10,
+      sharpen: 0,
+    });
+
+  return {
+    ...image,
+    original: image?.original ?? base,
+    src: optimizedSrc,
+    blur,
+    srcset_string,
+  };
+}
+
+/** Optimize a single managed URL for <video poster> / raw <img> (no srcset). */
+export function optimizeManagedImageUrl(
+  url: string | null | undefined,
+  options?: { width?: number; quality?: number; sharpen?: number },
+): string | null {
+  const normalized = normalizeImageUrl(url);
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (!isManagedImageUrl(normalized)) {
+    return normalized;
+  }
+
+  return appendImageVariantParams(stripImageQueryParams(normalized), {
+    width: options?.width ?? 1280,
+    quality: options?.quality ?? 70,
+    sharpen: options?.sharpen ?? 60,
+  });
 }
 
 export function pickHeroBackdropBaseUrl(

@@ -110,6 +110,7 @@ export default function HomeCatalogRail({
           const href = useItemKind ? getCatalogItemHref(item) : `${basePath}/${item.slug}`;
           const isSentinelCard = progressive && hasMore && index === sentinelIndex;
           const eagerImage = isAboveFold && index < eagerImageCount;
+          const highPriority = isAboveFold && index < 2;
 
           return (
             <div
@@ -124,7 +125,7 @@ export default function HomeCatalogRail({
                 index={index}
                 carouselItem
                 imageLoading={eagerImage ? "eager" : "lazy"}
-                imageFetchPriority={eagerImage ? "high" : "auto"}
+                imageFetchPriority={highPriority ? "high" : "auto"}
               />
             </div>
           );

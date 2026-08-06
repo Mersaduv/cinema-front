@@ -3,6 +3,10 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { NextRequest } from "next/server";
+import {
+  shouldTransform,
+  transformCinemaImage,
+} from "../../lib/cinema-image-transform";
 
 const IMAGE_ROOT =
   process.env.CINEMA_IMAGE_STORAGE_ROOT ||
@@ -22,6 +26,8 @@ const CONTENT_TYPES: Record<string, string> = {
   ".svg": "image/svg+xml",
 };
 
+const PASSTHROUGH_EXTENSIONS = new Set([".svg", ".gif"]);
+
 function resolveImagePath(segments: string[]): string | null {
   const decodedSegments = segments.map((segment) => decodeURIComponent(segment));
   const relativePath = [IMAGE_PREFIX.replace(/^\//, ""), ...decodedSegments].join(
@@ -34,6 +40,11 @@ function resolveImagePath(segments: string[]): string | null {
     absolutePath !== normalizedRoot &&
     !absolutePath.startsWith(normalizedRoot + path.sep)
   ) {
+    return null;
+  }
+
+  // Never serve the on-disk variant cache as a public original path.
+  if (absolutePath.includes(`${path.sep}_cache${path.sep}`)) {
     return null;
   }
 
@@ -56,7 +67,7 @@ function parseQueryResize(request: NextRequest): {
   };
 }
 
-async function createFileResponse(absolutePath: string, request: NextRequest) {
+async function createOriginalResponse(absolutePath: string) {
   const fileStat = await stat(absolutePath);
 
   if (!fileStat.isFile()) {
@@ -65,24 +76,55 @@ async function createFileResponse(absolutePath: string, request: NextRequest) {
 
   const extension = path.extname(absolutePath).toLowerCase();
   const contentType = CONTENT_TYPES[extension] || "application/octet-stream";
-  const resize = parseQueryResize(request);
-
-  const headers: Record<string, string> = {
-    "Content-Type": contentType,
-    "Content-Length": String(fileStat.size),
-    "Accept-Ranges": "bytes",
-    "Cache-Control": "public, max-age=31536000, immutable",
-  };
-
-  if (resize.width) {
-    headers["X-Cinema-Image-Resize"] = JSON.stringify(resize);
-  }
-
   const stream = createReadStream(absolutePath);
 
   return new Response(Readable.toWeb(stream) as ReadableStream, {
     status: 200,
-    headers,
+    headers: {
+      "Content-Type": contentType,
+      "Content-Length": String(fileStat.size),
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "X-Cinema-Image-Optimized": "0",
+    },
+  });
+}
+
+async function createOptimizedResponse(
+  absolutePath: string,
+  request: NextRequest,
+) {
+  const fileStat = await stat(absolutePath);
+
+  if (!fileStat.isFile()) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  const extension = path.extname(absolutePath).toLowerCase();
+  const resize = parseQueryResize(request);
+
+  if (PASSTHROUGH_EXTENSIONS.has(extension) || !shouldTransform(resize)) {
+    return createOriginalResponse(absolutePath);
+  }
+
+  const transformed = await transformCinemaImage(
+    absolutePath,
+    IMAGE_ROOT,
+    resize,
+    { mtimeMs: fileStat.mtimeMs, size: fileStat.size },
+  );
+
+  return new Response(new Uint8Array(transformed.buffer), {
+    status: 200,
+    headers: {
+      "Content-Type": transformed.contentType,
+      "Content-Length": String(transformed.buffer.byteLength),
+      "Cache-Control": "public, max-age=31536000, immutable",
+      Vary: "Accept",
+      "X-Cinema-Image-Optimized": "1",
+      "X-Cinema-Image-Cache": transformed.cacheHit ? "HIT" : "MISS",
+      "X-Cinema-Image-Resize": JSON.stringify(resize),
+    },
   });
 }
 
@@ -98,9 +140,14 @@ export async function GET(
   }
 
   try {
-    return await createFileResponse(absolutePath, request);
-  } catch {
-    return new Response("Not found", { status: 404 });
+    return await createOptimizedResponse(absolutePath, request);
+  } catch (error) {
+    console.error("[cinema-image] transform failed, falling back to original", error);
+    try {
+      return await createOriginalResponse(absolutePath);
+    } catch {
+      return new Response("Not found", { status: 404 });
+    }
   }
 }
 
@@ -108,26 +155,9 @@ export async function HEAD(
   request: NextRequest,
   context: { params: Promise<{ segments: string[] }> },
 ) {
-  const { segments } = await context.params;
-  const absolutePath = resolveImagePath(segments);
-
-  if (!absolutePath) {
-    return new Response(null, { status: 404 });
-  }
-
-  try {
-    const fileStat = await stat(absolutePath);
-    const extension = path.extname(absolutePath).toLowerCase();
-
-    return new Response(null, {
-      status: 200,
-      headers: {
-        "Content-Type": CONTENT_TYPES[extension] || "application/octet-stream",
-        "Content-Length": String(fileStat.size),
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    });
-  } catch {
-    return new Response(null, { status: 404 });
-  }
+  const response = await GET(request, context);
+  return new Response(null, {
+    status: response.status,
+    headers: response.headers,
+  });
 }

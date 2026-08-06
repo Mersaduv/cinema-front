@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import useSWR from "swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ActiveFilterChips from "./ActiveFilterChips";
@@ -26,6 +26,27 @@ import { EMPTY_CATALOG_FILTERS } from "../../lib/catalog/search-params";
 import { parseSearchParamsRecord } from "../../lib/catalog/search-params";
 import type { PaginationMeta } from "../../lib/catalog/rest";
 import { CATALOG_LIST_SWR_OPTIONS } from "../../lib/swr/public-cache";
+
+const PAGE_SIZE = 24;
+
+function mergeAnimationItems(
+  existing: AnimationCatalogItem[],
+  incoming: AnimationCatalogItem[],
+): AnimationCatalogItem[] {
+  const seen = new Set(existing.map((item) => `${item.catalogKind}:${item.id}`));
+  const merged = [...existing];
+
+  for (const item of incoming) {
+    const key = `${item.catalogKind}:${item.id}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    merged.push(item);
+  }
+
+  return merged;
+}
 
 export default function AnimationCatalogClient({
   initialSubtypes,
@@ -77,12 +98,11 @@ function AnimationCatalogClientInner({
   const { filterOptions, filterOptionsLoading } = useFilterOptions();
 
   const queryString = searchParams.toString();
-  const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const subtypes = parseAnimationSubtypes(parseSearchParamsRecord(searchParams));
 
   const filters = useMemo(
     () => parseAnimationCatalogFilters(parseSearchParamsRecord(searchParams)),
-    [queryString],
+    [queryString, searchParams],
   );
 
   const subtypeGenreValues = useMemo(
@@ -100,20 +120,25 @@ function AnimationCatalogClientInner({
     [filters, subtypeGenreValues],
   );
 
+  // Infinite scroll: signature ignores page (always accumulate from page 1).
   const fetchSignature = useMemo(
-    () => animationCatalogSignature(subtypes, filters, page),
-    [filters, page, subtypes],
+    () => animationCatalogSignature(subtypes, filters, 1),
+    [filters, subtypes],
   );
 
   const initialSignature = useRef(
-    animationCatalogSignature(
-      initialSubtypes,
-      initialFilters,
-      initialMeta.current_page || 1,
-    ),
+    animationCatalogSignature(initialSubtypes, initialFilters, 1),
   );
   const isInitialQuery = fetchSignature === initialSignature.current;
   const abortRef = useRef<AbortController | null>(null);
+
+  const [extraItems, setExtraItems] = useState<AnimationCatalogItem[]>([]);
+  const [nextPage, setNextPage] = useState(2);
+  const [hasMore, setHasMore] = useState(
+    () => (initialMeta.current_page || 1) < (initialMeta.last_page || 1),
+  );
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState("");
 
   useEffect(() => {
     return () => {
@@ -121,14 +146,21 @@ function AnimationCatalogClientInner({
     };
   }, []);
 
+  useEffect(() => {
+    setExtraItems([]);
+    setNextPage(2);
+    setLoadMoreError("");
+    setIsLoadingMore(false);
+  }, [fetchSignature]);
+
   const { data, isLoading, isValidating } = useSWR(
-    `animation:${fetchSignature}`,
+    `animation:infinite:${fetchSignature}`,
     async () => {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
 
-      return fetchAnimationCatalogMerged(effectiveFilters, page, 24, controller.signal);
+      return fetchAnimationCatalogMerged(effectiveFilters, 1, PAGE_SIZE, controller.signal);
     },
     {
       fallbackData: isInitialQuery
@@ -139,21 +171,77 @@ function AnimationCatalogClientInner({
           }
         : undefined,
       ...CATALOG_LIST_SWR_OPTIONS,
+      onSuccess: (result) => {
+        setHasMore(result.meta.current_page < result.meta.last_page);
+        setNextPage(2);
+        setExtraItems([]);
+      },
     },
   );
 
-  const items = data?.items ?? initialItems;
+  const baseItems = (data?.items ?? (isInitialQuery ? initialItems : [])) as AnimationCatalogItem[];
   const meta = data?.meta ?? initialMeta;
-  const error = data?.error ?? initialError;
-  const loading = (isLoading || isValidating) && fetchSignature !== initialSignature.current;
+  const items = useMemo(
+    () => mergeAnimationItems(baseItems, extraItems),
+    [baseItems, extraItems],
+  );
+  const error = loadMoreError || data?.error || (isInitialQuery ? initialError : "");
+  const loading =
+    (isLoading || isValidating) &&
+    fetchSignature !== initialSignature.current &&
+    extraItems.length === 0;
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || isLoadingMore || isValidating) {
+      return;
+    }
+
+    const pageToLoad = nextPage;
+    if (pageToLoad > meta.last_page) {
+      setHasMore(false);
+      return;
+    }
+
+    setIsLoadingMore(true);
+    setLoadMoreError("");
+
+    void fetchAnimationCatalogMerged(effectiveFilters, pageToLoad, PAGE_SIZE)
+      .then((result) => {
+        if (result.error) {
+          setLoadMoreError(result.error);
+          return;
+        }
+
+        setExtraItems((current) =>
+          mergeAnimationItems(current, result.items as AnimationCatalogItem[]),
+        );
+        const following = pageToLoad + 1;
+        setNextPage(following);
+        setHasMore(following <= result.meta.last_page);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        setLoadMoreError(
+          err instanceof Error ? err.message : "بارگذاری ادامه فهرست انجام نشد.",
+        );
+      })
+      .finally(() => {
+        setIsLoadingMore(false);
+      });
+  }, [
+    effectiveFilters,
+    hasMore,
+    isLoadingMore,
+    isValidating,
+    meta.last_page,
+    nextPage,
+  ]);
 
   const replaceQuery = useCallback(
-    (
-      nextSubtypes: SelectableAnimationSubtype[],
-      nextFilters: CatalogFiltersState,
-      nextPage = 1,
-    ) => {
-      const query = buildAnimationCatalogQueryString(nextSubtypes, nextFilters, nextPage);
+    (nextSubtypes: SelectableAnimationSubtype[], nextFilters: CatalogFiltersState) => {
+      const query = buildAnimationCatalogQueryString(nextSubtypes, nextFilters);
       const target = query ? `${pathname}?${query}` : pathname;
       const current = `${pathname}${queryString ? `?${queryString}` : ""}`;
       if (target === current) {
@@ -174,25 +262,15 @@ function AnimationCatalogClientInner({
     [replaceQuery, subtypes],
   );
 
-  const onPageChange = useCallback(
-    (nextPage: number) => {
-      replaceQuery(subtypes, filters, nextPage);
-    },
-    [filters, replaceQuery, subtypes],
-  );
-
   const onSubtypesChange = useCallback(
     (nextSubtypes: SelectableAnimationSubtype[]) => {
-      replaceQuery(nextSubtypes, filters, 1);
+      replaceQuery(nextSubtypes, filters);
     },
     [filters, replaceQuery],
   );
 
-  const loadMore =
-    page < meta.last_page ? () => onPageChange(page + 1) : undefined;
-
   const clearAllFilters = useCallback(() => {
-    replaceQuery([...DEFAULT_ANIMATION_SUBTYPES], EMPTY_CATALOG_FILTERS, 1);
+    replaceQuery([...DEFAULT_ANIMATION_SUBTYPES], EMPTY_CATALOG_FILTERS);
   }, [replaceQuery]);
 
   const filtersSlot = (
@@ -231,11 +309,18 @@ function AnimationCatalogClientInner({
       items={items}
       loading={loading}
       error={error}
-      meta={meta}
+      meta={{
+        total: meta.total,
+        per_page: meta.per_page,
+        has_more: hasMore,
+        current_page: meta.current_page,
+        last_page: meta.last_page,
+      }}
       useItemKind
       latestSliderSlot={latestSliderSlot}
       filtersSlot={filtersSlot}
-      onPageChange={onPageChange}
+      hasMore={hasMore}
+      isLoadingMore={isLoadingMore}
       onLoadMore={loadMore}
     />
   );

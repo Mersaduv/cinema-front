@@ -3,11 +3,20 @@
 import { useRef } from "react";
 import CatalogPosterCard from "./CatalogPosterCard";
 import CatalogLatestSlider from "./CatalogLatestSlider";
+import CatalogPosterCardSkeleton from "./CatalogPosterCardSkeleton";
 import { getCatalogItemHref } from "../../lib/catalog/animation";
-import type { CatalogListItem, PaginationMeta } from "../../lib/catalog/rest";
+import type { CatalogListItem } from "../../lib/catalog/rest";
+import type { CarouselMeta } from "../../types/carousel";
 import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
 import { useTvGridColumns } from "../../hooks/useTvGridColumns";
 import { useIsTvCompat } from "../../hooks/useTvCapabilities";
+import { useInfiniteScrollSentinel } from "../../hooks/useInfiniteScrollSentinel";
+
+export type CatalogInfiniteMeta = Pick<CarouselMeta, "total" | "has_more" | "per_page"> & {
+  current_page?: number;
+  last_page?: number;
+  next_cursor?: string | null;
+};
 
 export default function CatalogPage({
   kind,
@@ -21,7 +30,8 @@ export default function CatalogPage({
   filtersSlot,
   topSlot,
   useItemKind = false,
-  onPageChange,
+  hasMore = false,
+  isLoadingMore = false,
   onLoadMore,
 }: {
   kind: "movie" | "series";
@@ -31,11 +41,12 @@ export default function CatalogPage({
   latestLoading?: boolean;
   loading: boolean;
   error: string;
-  meta: PaginationMeta;
+  meta: CatalogInfiniteMeta;
   filtersSlot?: React.ReactNode;
   topSlot?: React.ReactNode;
   useItemKind?: boolean;
-  onPageChange?: (page: number) => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
   onLoadMore?: () => void;
 }) {
   const basePath = kind === "movie" ? "/movies" : "/series";
@@ -48,6 +59,15 @@ export default function CatalogPage({
   const gridRef = useRef<HTMLDivElement>(null);
   const isTvCompat = useIsTvCompat();
   const gridCols = useTvGridColumns(gridRef, items.length);
+
+  const sentinelRef = useInfiniteScrollSentinel(
+    () => {
+      onLoadMore?.();
+    },
+    Boolean(hasMore && onLoadMore && !loading && !isLoadingMore),
+  );
+
+  const showStatus = meta.total > 0;
 
   return (
     <div className="min-h-screen bg-[#05070b] text-white">
@@ -79,6 +99,15 @@ export default function CatalogPage({
           </div>
         ) : null}
 
+        {showStatus ? (
+          <div className="mb-4 flex items-center justify-between gap-3 text-sm text-white/55">
+            <span>
+              نمایش {items.length.toLocaleString("fa-IR")} از{" "}
+              {meta.total.toLocaleString("fa-IR")} مورد
+            </span>
+          </div>
+        ) : null}
+
         <div className="relative z-0">
           {loading ? (
             <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center pt-24">
@@ -98,67 +127,52 @@ export default function CatalogPage({
                 data-tv-grid="poster"
                 data-tv-cols={isTvCompat ? String(gridCols) : undefined}
               >
-                {items.map((item, index) => (
+                {items.map((item, index) => {
+                  const eagerCount = isTvCompat ? 8 : 14;
+                  const imageLoading = index < eagerCount ? "eager" : "lazy";
+                  const imageFetchPriority =
+                    index < 2 ? "high" : index < eagerCount ? "auto" : "low";
+
+                  return (
                   <CatalogPosterCard
                     key={itemKey(item)}
                     item={item}
                     href={itemHref(item)}
                     index={index}
+                    imageLoading={imageLoading}
+                    imageFetchPriority={imageFetchPriority}
                   />
-                ))}
+                  );
+                })}
+                {isLoadingMore
+                  ? Array.from({ length: Math.min(7, gridCols || 7) }).map((_, index) => (
+                      <CatalogPosterCardSkeleton key={`catalog-more-skel-${index}`} />
+                    ))
+                  : null}
               </div>
             )}
           </div>
         </div>
 
-        {meta.last_page > 1 ? (
+        {hasMore ? (
           <div
-            className="mt-8 flex flex-wrap items-center justify-center gap-2"
+            className="mt-8 flex flex-col items-center gap-4"
             data-tv-focus-group="pagination"
-            role="navigation"
-            aria-label="صفحه‌بندی کاتالوگ"
           >
-            <button
-              type="button"
-              data-tv-focusable
-              data-tv-pagination="prev"
-              disabled={meta.current_page <= 1 || loading}
-              onClick={() => onPageChange?.(meta.current_page - 1)}
-              className={`rounded-lg border border-white/10 px-4 py-2 text-sm disabled:opacity-40 ${TV_FOCUS_RING_CLASS}`}
-            >
-              قبلی
-            </button>
-            <span
-              className="px-2 text-sm text-white/60"
-              data-tv-pagination="label"
-              aria-live="polite"
-            >
-              صفحه {meta.current_page} از {meta.last_page} ({meta.total} مورد)
-            </span>
+            <div ref={sentinelRef} className="h-1 w-full" aria-hidden />
             <button
               type="button"
               data-tv-focusable
               data-tv-pagination="next"
-              disabled={meta.current_page >= meta.last_page || loading}
-              onClick={() => onPageChange?.(meta.current_page + 1)}
-              className={`rounded-lg border border-white/10 px-4 py-2 text-sm disabled:opacity-40 ${TV_FOCUS_RING_CLASS}`}
+              disabled={loading || isLoadingMore}
+              onClick={() => onLoadMore?.()}
+              className={`rounded-xl border border-white/10 bg-white/[0.04] px-6 py-3 text-sm font-medium text-white/80 transition hover:bg-white/[0.08] disabled:opacity-50 ${TV_FOCUS_RING_CLASS}`}
             >
-              بعدی
+              {isLoadingMore ? "در حال بارگذاری..." : "بارگذاری بیشتر"}
             </button>
           </div>
-        ) : null}
-
-        {onLoadMore ? (
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={onLoadMore}
-              disabled={loading}
-              className="rounded-xl bg-[#2563eb] px-6 py-3 text-sm font-bold text-white disabled:opacity-50"
-            >
-              بارگذاری بیشتر
-            </button>
-          </div>
+        ) : items.length > 0 && !loading ? (
+          <p className="mt-8 text-center text-sm text-white/40">همه موارد بارگذاری شد.</p>
         ) : null}
       </section>
     </div>

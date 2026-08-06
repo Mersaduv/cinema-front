@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyIngestedPrimaryImages,
   applyIngestedSeasonImages,
   finalizeTmdbImageIngestMessage,
   mergeIngestedActorProfiles,
-} from "../app/lib/admin-tmdb-image-ingest";
+} from "../admin-tmdb-image-ingest";
 
 describe("admin-tmdb-image-ingest", () => {
   it("merges actor profiles by tmdb person id", () => {
@@ -41,6 +42,21 @@ describe("admin-tmdb-image-ingest", () => {
     expect(merged[1].profile_url).toBe("/images/2026/b.jpg");
   });
 
+  it("applies absolute CDN managed URLs as relative /images paths", () => {
+    const form = {
+      poster_url: "https://image.tmdb.org/t/p/w780/poster.jpg",
+      backdrop_url: "https://image.tmdb.org/t/p/original/backdrop.jpg",
+    };
+
+    const next = applyIngestedPrimaryImages(form, {
+      poster_url: "http://cinema.af/images/2026/poster.jpg",
+      backdrop_url: "http://cinema.af/images/2026/backdrop.jpg",
+    });
+
+    expect(next.poster_url).toBe("/images/2026/poster.jpg");
+    expect(next.backdrop_url).toBe("/images/2026/backdrop.jpg");
+  });
+
   it("applies season and episode images by season number", () => {
     const seasons = [
       {
@@ -58,7 +74,7 @@ describe("admin-tmdb-image-ingest", () => {
     const processed = [
       {
         season_number: 1,
-        poster_url: "/images/2026/season1.jpg",
+        poster_url: "http://cinema.af/images/2026/season1.jpg",
         episodes: [
           {
             episode_number: 1,

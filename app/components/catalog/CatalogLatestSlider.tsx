@@ -134,6 +134,8 @@ export default function CatalogLatestSlider({
                       image={item.backdrop_image}
                       src={item.backdrop_url ?? item.details.backdrop_url}
                       fallbackUrl={item.poster_url}
+                      loading={index === 0 || isActive ? "eager" : "lazy"}
+                      fetchPriority={index === 0 ? "high" : "auto"}
                       wrapperClassName="h-full w-full"
                       className={`transition-transform duration-700 ${
                         isActive ? "scale-105" : "scale-100 group-hover:scale-[1.03]"

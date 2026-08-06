@@ -4,6 +4,7 @@ import {
   fetchMoviesCatalogRest,
   fetchSeriesCatalogRest,
   type MoviesCatalogFetchResult,
+  type MoviesCarouselFetchResult,
 } from "./rest";
 import {
   CATALOG_CACHE_TAG,
@@ -26,23 +27,38 @@ const catalogFetchOptions = { skipFetchCache: true } as const;
 export async function getCachedMoviesCatalogPage(
   filters: CatalogFiltersState,
   page: number,
-): Promise<MoviesCatalogFetchResult> {
+): Promise<MoviesCatalogFetchResult | MoviesCarouselFetchResult> {
   "use cache";
   cacheLife("catalog");
   cacheTag(CATALOG_CACHE_TAG, CATALOG_MOVIES_CACHE_TAG);
 
-  return fetchMoviesCatalogRest(filters, page, 24, undefined, catalogFetchOptions);
+  // Infinite catalog: always seed from cursor page 1 (ignore legacy ?page=).
+  void page;
+  return fetchMoviesCatalogRest(
+    { ...filters, carousel: true },
+    1,
+    24,
+    undefined,
+    catalogFetchOptions,
+  );
 }
 
 export async function getCachedSeriesCatalogPage(
   filters: CatalogFiltersState,
   page: number,
-): Promise<MoviesCatalogFetchResult> {
+): Promise<MoviesCatalogFetchResult | MoviesCarouselFetchResult> {
   "use cache";
   cacheLife("catalog");
   cacheTag(CATALOG_CACHE_TAG, CATALOG_SERIES_CACHE_TAG);
 
-  return fetchSeriesCatalogRest(filters, page, 24, undefined, catalogFetchOptions);
+  void page;
+  return fetchSeriesCatalogRest(
+    { ...filters, carousel: true },
+    1,
+    24,
+    undefined,
+    catalogFetchOptions,
+  );
 }
 
 export async function getCachedAnimationCatalogPage(
