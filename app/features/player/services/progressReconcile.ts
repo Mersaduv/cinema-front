@@ -36,7 +36,8 @@ export function reconcileResumeTime(
     local?.percentWatched ??
     (local?.duration ? (resumeTime / local.duration) * 100 : 0);
 
-  const showPrompt =
+  // Auto-resume only — never gate playback behind a prompt UI.
+  const shouldResume =
     resumeTime >= PROGRESS_CONSTANTS.RESUME_MIN_SECONDS &&
     percent < PROGRESS_CONSTANTS.COMPLETION_THRESHOLD_PERCENT;
 
@@ -47,7 +48,11 @@ export function reconcileResumeTime(
         ? "local"
         : "server";
 
-  return { resumeTime, showPrompt, source };
+  return {
+    resumeTime: shouldResume ? resumeTime : 0,
+    showPrompt: false,
+    source,
+  };
 }
 
 export function computePercentWatched(currentTime: number, duration: number): number {

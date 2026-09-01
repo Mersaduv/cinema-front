@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useRef } from "react";
 import { Provider } from "urql";
@@ -13,16 +12,9 @@ import type {
 import type { DrmConfig } from "../../features/player/types/playback.types";
 import { PlayerSkeleton } from "../../features/player/components/PlayerSkeleton";
 import { WatchAuthGate } from "../../components/WatchAuthGate";
+import HlsVideoPlayer from "../../components/player/HlsVideoPlayer";
 import TvPolyfills from "./TvPolyfills";
 import { useWatchData } from "./hooks/useWatchData";
-
-const HlsVideoPlayer = dynamic(
-  () => import("../../components/player/HlsVideoPlayer"),
-  {
-    ssr: false,
-    loading: () => null,
-  },
-);
 
 function buildDrmConfig(
   drm?: { scheme?: string | null; licenseUrl?: string | null } | null,
@@ -85,7 +77,11 @@ function buildMovieWatchMedia(movie: PublicMovie): WatchMediaInfo {
     mediaType: "movie",
     duration: movie.duration_seconds ?? undefined,
     title: movie.title,
-    posterUrl: movie.poster_url,
+    posterUrl:
+      movie.poster_url ||
+      movie.poster_image?.src ||
+      movie.poster_image?.original ||
+      null,
     slug: movie.slug,
   };
 }
@@ -135,6 +131,8 @@ const WatchPageInner = memo(function WatchPageInner() {
     seasonNumber,
     episodeNumber,
     hlsUrl,
+    progressiveUrl,
+    hasPlayableSource,
     showSkeleton,
     restError,
     watchAuthError,
@@ -143,21 +141,28 @@ const WatchPageInner = memo(function WatchPageInner() {
     movie,
     series,
     seriesContext,
-    knownPoster,
     knownTitle,
+    knownPoster,
   } = useWatchData(slug, seasonParam, episodeParam);
 
   const lastHlsUrlRef = useRef<string | null>(null);
+  const lastProgressiveUrlRef = useRef<string | null>(null);
   const playerEverMountedRef = useRef(false);
 
   if (hlsUrl) {
     lastHlsUrlRef.current = hlsUrl;
     playerEverMountedRef.current = true;
   }
+  if (progressiveUrl) {
+    lastProgressiveUrlRef.current = progressiveUrl;
+    playerEverMountedRef.current = true;
+  }
 
   const activeHlsUrl = hlsUrl ?? lastHlsUrlRef.current;
+  const activeProgressiveUrl = progressiveUrl ?? lastProgressiveUrlRef.current;
+  const activeHasSource = Boolean(activeHlsUrl || activeProgressiveUrl);
   const isEpisodeTransition =
-    isSeriesPlayback && !hlsUrl && playerEverMountedRef.current;
+    isSeriesPlayback && !hasPlayableSource && playerEverMountedRef.current;
   const showInitialSkeleton = showSkeleton && !playerEverMountedRef.current;
 
   useEffect(() => {
@@ -207,10 +212,10 @@ const WatchPageInner = memo(function WatchPageInner() {
   }
 
   if (showInitialSkeleton) {
-    return <PlayerSkeleton poster={knownPoster} title={knownTitle} />;
+    return <PlayerSkeleton />;
   }
 
-  if (isSeriesPlayback && activeHlsUrl) {
+  if (isSeriesPlayback && activeHasSource) {
     const watch = watchEpisodeData?.watchEpisode;
     const seriesSlug = watch?.series.slug ?? series?.slug ?? slug;
     const seriesTitle = watch?.series.title ?? series?.title ?? knownTitle;
@@ -220,18 +225,16 @@ const WatchPageInner = memo(function WatchPageInner() {
     const dubbedAudioUrl = watch?.dubbed_audio_url ?? undefined;
     const manifestAudioTracks = buildManifestAudioTracks(
       watch?.audio_tracks,
-      Boolean(dubbedAudioUrl || series?.has_dubbed),
+      Boolean(dubbedAudioUrl),
     );
-    const posterUrl =
-      watch?.series.poster_url ?? series?.poster_url ?? undefined;
 
     return (
       <HlsVideoPlayer
-        src={activeHlsUrl}
+        src={activeHlsUrl || ""}
+        progressiveUrl={activeProgressiveUrl}
         isSourceTransitioning={isEpisodeTransition}
         dashUrl={watch?.dash_url ?? undefined}
         drm={buildDrmConfig(watch?.drm)}
-        poster={posterUrl}
         title={`${seriesTitle} — ${episodeTitle}`}
         backHref={`/series/${seriesSlug}`}
         immersive
@@ -246,7 +249,7 @@ const WatchPageInner = memo(function WatchPageInner() {
                 Number(watch.series.id),
                 watch.series.slug,
                 watch.series.title,
-                watch.series.poster_url,
+                watch.series.poster_url ?? knownPoster,
                 {
                   id: Number(watch.episode.id),
                   title: watch.episode.title || episodeTitle,
@@ -255,23 +258,35 @@ const WatchPageInner = memo(function WatchPageInner() {
                 seasonNumber,
                 episodeNumber,
               )
-            : undefined
+            : {
+                mediaId: String(series?.id ?? slug),
+                mediaType: "series",
+                slug: seriesSlug,
+                seriesSlug,
+                seasonNumber,
+                episodeNumber,
+                title: `${seriesTitle} — ${episodeTitle}`,
+                posterUrl: knownPoster,
+              }
         }
       />
     );
   }
 
-  if (!isSeriesPlayback && activeHlsUrl) {
+  if (!isSeriesPlayback && activeHasSource) {
     const watchMovie = watchMovieData?.watchMovie;
-    const manifestAudioTracks = buildManifestAudioTracks(watchMovie?.audio_tracks);
+    const manifestAudioTracks = buildManifestAudioTracks(
+      watchMovie?.audio_tracks,
+      Boolean(watchMovie?.dubbed_audio_url),
+    );
 
     return (
       <HlsVideoPlayer
-        src={activeHlsUrl}
+        src={activeHlsUrl || ""}
+        progressiveUrl={activeProgressiveUrl}
         isSourceTransitioning={false}
         dashUrl={watchMovie?.dash_url ?? undefined}
         drm={buildDrmConfig(watchMovie?.drm)}
-        poster={movie?.poster_url ?? undefined}
         title={movie?.title ?? knownTitle}
         backHref={`/movies/${movie?.slug ?? watchMovie?.slug ?? slug}`}
         immersive
@@ -287,10 +302,16 @@ const WatchPageInner = memo(function WatchPageInner() {
                   mediaId: watchMovie.id,
                   mediaType: "movie",
                   slug: watchMovie.slug || slug,
-                  title: slug,
-                  posterUrl: null,
+                  title: knownTitle,
+                  posterUrl: knownPoster,
                 }
-              : undefined
+              : {
+                  mediaId: slug,
+                  mediaType: "movie",
+                  slug,
+                  title: knownTitle,
+                  posterUrl: knownPoster,
+                }
         }
       />
     );
@@ -317,7 +338,7 @@ const WatchPageInner = memo(function WatchPageInner() {
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-black p-6">
       <div className="max-w-2xl rounded-[32px] border border-[#fb7185]/25 bg-[#fb7185]/10 px-6 py-8 text-[#fecdd3]">
-        {restError || "خروجی HLS برای این عنوان آماده نیست."}
+        {restError || "خروجی پخش برای این عنوان آماده نیست."}
       </div>
     </div>
   );

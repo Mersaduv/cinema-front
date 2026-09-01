@@ -4,6 +4,7 @@ import {
   applyIngestedSeasonImages,
   finalizeTmdbImageIngestMessage,
   mergeIngestedActorProfiles,
+  resolveTmdbSyncedImageFields,
 } from "../admin-tmdb-image-ingest";
 
 describe("admin-tmdb-image-ingest", () => {
@@ -40,6 +41,39 @@ describe("admin-tmdb-image-ingest", () => {
 
     expect(merged[0].profile_url).toBe("/images/2026/a.jpg");
     expect(merged[1].profile_url).toBe("/images/2026/b.jpg");
+  });
+
+  it("keeps remote TMDB URLs in source fields only after TMDB sync", () => {
+    const next = resolveTmdbSyncedImageFields({
+      poster_url: "https://image.tmdb.org/t/p/w780/poster.jpg",
+      backdrop_url: "https://image.tmdb.org/t/p/original/backdrop.jpg",
+      current_poster_url: "",
+      current_backdrop_url: "",
+    });
+
+    expect(next.poster_url).toBe("");
+    expect(next.backdrop_url).toBe("");
+    expect(next.poster_source_url).toContain("image.tmdb.org");
+    expect(next.backdrop_source_url).toContain("image.tmdb.org");
+  });
+
+  it("does not keep remote URLs in poster_url when ingest fails", () => {
+    const form = {
+      poster_url: "https://image.tmdb.org/t/p/w780/poster.jpg",
+      backdrop_url: "https://image.tmdb.org/t/p/original/backdrop.jpg",
+      poster_source_url: "https://image.tmdb.org/t/p/w780/poster.jpg",
+      backdrop_source_url: "https://image.tmdb.org/t/p/original/backdrop.jpg",
+    };
+
+    const next = applyIngestedPrimaryImages(form, {
+      poster_url: "https://image.tmdb.org/t/p/w780/poster.jpg",
+      backdrop_url: "https://image.tmdb.org/t/p/original/backdrop.jpg",
+      stats: { requested: 2, succeeded: 0, failed: 2 },
+    });
+
+    expect(next.poster_url).toBe("");
+    expect(next.backdrop_url).toBe("");
+    expect(next.poster_source_url).toContain("image.tmdb.org");
   });
 
   it("applies absolute CDN managed URLs as relative /images paths", () => {

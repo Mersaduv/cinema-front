@@ -12,6 +12,7 @@ type BackdropImageProps = Omit<
   alt?: string;
   usage?: "hero-backdrop" | "detail-backdrop";
   placeholderPath?: string;
+  allowRemoteFallback?: boolean;
 };
 
 export default function BackdropImage({
@@ -23,6 +24,7 @@ export default function BackdropImage({
   image,
   src,
   fallbackUrl,
+  allowRemoteFallback = false,
   ...rest
 }: BackdropImageProps) {
   if (usage === "hero-backdrop") {
@@ -52,6 +54,7 @@ export default function BackdropImage({
       objectFit="cover"
       loading={loading}
       placeholderPath={placeholderPath}
+      allowRemoteFallback={allowRemoteFallback}
       fill
       {...rest}
     />

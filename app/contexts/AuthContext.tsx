@@ -16,6 +16,11 @@ import {
   tokenStorage,
   User,
 } from "../lib/auth";
+import {
+  clearStaffAccessCookie,
+  setStaffAccessCookie,
+} from "../lib/staff-access";
+import { mapAuthErrorMessage } from "../lib/auth-errors";
 import { migrateAnonymousWatchProgress } from "../lib/watchProgressMigration";
 import {
   fetchCurrentSession,
@@ -39,16 +44,19 @@ interface AuthContextType {
   login: (
     email: string,
     password: string,
+    captchaToken?: string,
   ) => Promise<{ success: boolean; message?: string }>;
   staffLogin: (
     email: string,
     password: string,
+    captchaToken?: string,
   ) => Promise<{ success: boolean; message?: string }>;
   register: (
     name: string,
     email: string,
     password: string,
     passwordConfirmation: string,
+    captchaToken?: string,
   ) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   hasRole: (role: string) => boolean;
@@ -67,9 +75,23 @@ const defaultAuthContext: AuthContextType = {
   isViewer: false,
   isStaff: false,
   isRefreshing: false,
-  login: async () => ({ success: false, message: "Auth unavailable" }),
-  staffLogin: async () => ({ success: false, message: "Auth unavailable" }),
-  register: async () => ({ success: false, message: "Auth unavailable" }),
+  login: async (
+    _email?: string,
+    _password?: string,
+    _captchaToken?: string,
+  ) => ({ success: false, message: "Auth unavailable" }),
+  staffLogin: async (
+    _email?: string,
+    _password?: string,
+    _captchaToken?: string,
+  ) => ({ success: false, message: "Auth unavailable" }),
+  register: async (
+    _name?: string,
+    _email?: string,
+    _password?: string,
+    _passwordConfirmation?: string,
+    _captchaToken?: string,
+  ) => ({ success: false, message: "Auth unavailable" }),
   logout: async () => {},
   hasRole: () => false,
   hasPermission: () => false,
@@ -84,6 +106,15 @@ function maybeMigrateWatchProgress(user: User) {
   if (isViewerAccount(user)) {
     void migrateAnonymousWatchProgress(String(user.id));
   }
+}
+
+function syncStaffAccessCookie(user: User | null): void {
+  if (user && isStaffAccount(user)) {
+    setStaffAccessCookie();
+    return;
+  }
+
+  clearStaffAccessCookie();
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -120,10 +151,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (result.user) {
           setUser(result.user);
+          syncStaffAccessCookie(result.user);
           maybeMigrateWatchProgress(result.user);
         } else if (result.status === 401 || result.status === 403) {
           setUser(null);
           setHasToken(false);
+          clearStaffAccessCookie();
         }
       } catch {
         // Keep cached user on transient network errors.
@@ -156,6 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!token) {
         setUser(null);
         setLoading(false);
+        clearStaffAccessCookie();
         setAuthReady(true);
         return;
       }
@@ -163,6 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const cached = peekCachedSessionUser();
       if (cached) {
         setUser(cached);
+        syncStaffAccessCookie(cached);
         setLoading(false);
       } else {
         setLoading(true);
@@ -185,10 +220,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (result.user) {
         setUser(result.user);
+        syncStaffAccessCookie(result.user);
         maybeMigrateWatchProgress(result.user);
       } else if (result.status === 401 || result.status === 403) {
         setUser(null);
         setHasToken(false);
+        clearStaffAccessCookie();
       }
 
       setLoading(false);
@@ -201,14 +238,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, captchaToken?: string) => {
     try {
-      const response = await authService.login({ email, password });
+      const response = await authService.login({
+        email,
+        password,
+        captcha_token: captchaToken,
+      });
       if (response.success && response.data) {
         tokenStorage.setToken(response.data.token);
         setHasToken(true);
         primeSessionUser(response.data.user);
         setUser(response.data.user);
+        syncStaffAccessCookie(response.data.user);
         setLoading(false);
         maybeMigrateWatchProgress(response.data.user);
         return { success: true };
@@ -216,10 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return {
         success: false,
-        message:
-          response.message === "Invalid credentials"
-            ? "ایمیل یا رمز عبور اشتباه است."
-            : response.message || "ورود ناموفق بود. لطفا دوباره تلاش کنید.",
+        message: mapAuthErrorMessage(response.message),
       };
     } catch (error) {
       return {
@@ -229,24 +268,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const staffLogin = async (email: string, password: string) => {
+  const staffLogin = async (
+    email: string,
+    password: string,
+    captchaToken?: string,
+  ) => {
     try {
-      const response = await authService.staffLogin({ email, password });
+      const response = await authService.staffLogin({
+        email,
+        password,
+        captcha_token: captchaToken,
+      });
       if (response.success && response.data) {
         tokenStorage.setToken(response.data.token);
         setHasToken(true);
         primeSessionUser(response.data.user);
         setUser(response.data.user);
+        syncStaffAccessCookie(response.data.user);
         setLoading(false);
         return { success: true };
       }
 
       return {
         success: false,
-        message:
-          response.message === "Invalid credentials"
-            ? "ایمیل یا رمز عبور اشتباه است."
-            : response.message || "ورود ناموفق بود. لطفا دوباره تلاش کنید.",
+        message: mapAuthErrorMessage(response.message),
       };
     } catch (error) {
       return {
@@ -261,6 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     passwordConfirmation: string,
+    captchaToken?: string,
   ) => {
     try {
       const response = await authService.register({
@@ -268,12 +314,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
         password_confirmation: passwordConfirmation,
+        captcha_token: captchaToken,
       });
       if (response.success && response.data) {
         tokenStorage.setToken(response.data.token);
         setHasToken(true);
         primeSessionUser(response.data.user);
         setUser(response.data.user);
+        syncStaffAccessCookie(response.data.user);
         setLoading(false);
         maybeMigrateWatchProgress(response.data.user);
         return { success: true };
@@ -293,16 +341,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     const wasStaff = isStaffAccount(user);
+    const onAdminPath =
+      typeof window !== "undefined" &&
+      (window.location.pathname === "/admin" ||
+        window.location.pathname.startsWith("/admin/"));
+    const destination =
+      wasStaff && onAdminPath ? "/adminbod" : wasStaff ? "/" : "/login";
+
     try {
       await authService.logout();
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
       invalidateSession();
+      clearStaffAccessCookie();
       setHasToken(false);
       setUser(null);
       setLoading(false);
-      router.push(wasStaff ? "/adminbod" : "/login");
+
+      if (onAdminPath && wasStaff) {
+        window.location.replace(destination);
+        return;
+      }
+
+      router.replace(destination);
     }
   };
 

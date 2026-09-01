@@ -1,4 +1,5 @@
 import { localizeGenreLabels } from "../../../../lib/genre-labels";
+import { resolveTmdbSyncedImageFields } from "../../../../lib/admin-tmdb-image-ingest";
 import { toManagedImagePublicPath } from "../../../../lib/cinema-image";
 import { resolveEpisodeTitle } from "../../../../lib/episode-title";
 import { filterLatinPersonNameList, resolveLatinPersonName } from "../../../../lib/person-name";
@@ -34,6 +35,8 @@ export type EpisodeDraft = {
   download_links: Record<string, string>;
   subtitle_url: string;
   dubbed_audio_url: string;
+  has_subtitle: boolean;
+  has_dubbed: boolean;
   publish_status: SeriesPublishStatus;
 };
 
@@ -111,6 +114,8 @@ export type SeriesFormState = {
   countries: string[];
   actors: AdminSeriesActor[];
   crew: SeriesCrewFormRow[];
+  /** Series-wide playback mode — drives seasons/episodes link fields (like movie form). */
+  playback_protocol: "hls" | "mp4";
   hls_base_url: string;
   drm_scheme: string;
   drm_license_url: string;
@@ -119,6 +124,35 @@ export type SeriesFormState = {
   tmdb_excluded_episodes: TmdbExcludedEpisode[];
   admin_notes: string;
 };
+
+export function inferSeriesPlaybackProtocol(
+  seasons: SeasonDraft[],
+): "hls" | "mp4" {
+  let mp4Count = 0;
+  let hlsCount = 0;
+
+  for (const season of seasons) {
+    for (const episode of season.episodes) {
+      if (episode.source_method === "url" || episode.source_method === "upload") {
+        mp4Count += 1;
+      } else if (episode.source_method === "hls") {
+        hlsCount += 1;
+      }
+    }
+  }
+
+  if (mp4Count > 0 && mp4Count >= hlsCount) {
+    return "mp4";
+  }
+
+  return "hls";
+}
+
+export function episodeSourceMethodForProtocol(
+  protocol: "hls" | "mp4",
+): EpisodeDraft["source_method"] {
+  return protocol === "mp4" ? "url" : "hls";
+}
 
 export type TmdbSyncPhase =
   | "idle"
@@ -129,10 +163,16 @@ export type TmdbSyncPhase =
 
 export type TmdbSeasonSyncStatus = "pending" | "loading" | "done" | "error";
 
+export type TmdbSeasonSyncRow = {
+  season_number: number;
+  status: TmdbSeasonSyncStatus;
+  error?: string;
+};
+
 export type TmdbSyncState = {
   phase: TmdbSyncPhase;
   overviewReady: boolean;
-  seasonProgress: Array<{ season_number: number; status: TmdbSeasonSyncStatus }>;
+  seasonProgress: TmdbSeasonSyncRow[];
 };
 
 export const initialTmdbSyncState: TmdbSyncState = {
@@ -238,7 +278,9 @@ export function mergeEpisodeDraftFromTmdb(
       ? String(episode.duration_minutes)
       : currentEpisode?.duration_minutes || current.episode_runtime_minutes,
     still_url: episode.still_url || currentEpisode?.still_url || "",
-    source_method: currentEpisode?.source_method || "hls",
+    source_method:
+      currentEpisode?.source_method ||
+      episodeSourceMethodForProtocol(current.playback_protocol || "hls"),
     video_url: currentEpisode?.video_url || "",
     embed_url: currentEpisode?.embed_url || "",
     hls_url: currentEpisode?.hls_url || "",
@@ -246,9 +288,11 @@ export function mergeEpisodeDraftFromTmdb(
     dash_url: currentEpisode?.dash_url || episode.dash_url || "",
     dash_verified: currentEpisode?.dash_verified ?? Boolean(episode.dash_verified),
     download_links: currentEpisode?.download_links ?? {},
-    subtitle_url: currentEpisode?.subtitle_url || "",
-    dubbed_audio_url: currentEpisode?.dubbed_audio_url || "",
-    publish_status: currentEpisode?.publish_status || "draft",
+    subtitle_url: currentEpisode?.subtitle_url || episode.subtitle_url || "",
+    dubbed_audio_url: currentEpisode?.dubbed_audio_url || episode.dubbed_audio_url || "",
+    has_subtitle: currentEpisode?.has_subtitle ?? Boolean(episode.has_subtitle),
+    has_dubbed: currentEpisode?.has_dubbed ?? Boolean(episode.has_dubbed),
+    publish_status: currentEpisode?.publish_status || episode.publish_status || "draft",
   };
 }
 
@@ -355,7 +399,7 @@ export function mergeSeasonDraftFromTmdb(
             air_date: "",
             duration_minutes: "",
             still_url: "",
-            source_method: "hls",
+            source_method: episodeSourceMethodForProtocol(current.playback_protocol || "hls"),
             video_url: "",
             embed_url: "",
             hls_url: "",
@@ -365,6 +409,8 @@ export function mergeSeasonDraftFromTmdb(
             download_links: {},
             subtitle_url: "",
             dubbed_audio_url: "",
+            has_subtitle: false,
+            has_dubbed: false,
             publish_status: "draft",
           },
         ];
@@ -435,16 +481,14 @@ function applyTmdbSeriesLevelFields(
         : current.number_of_episodes,
     network: payload.network || current.network,
     provider_name: payload.network || current.provider_name,
-    poster_url:
-      toManagedImagePublicPath(current.poster_url) ||
-      payload.poster_url ||
-      current.poster_url,
-    poster_source_url: payload.poster_url || current.poster_source_url || "",
-    backdrop_url:
-      toManagedImagePublicPath(current.backdrop_url) ||
-      payload.backdrop_url ||
-      current.backdrop_url,
-    backdrop_source_url: payload.backdrop_url || current.backdrop_source_url || "",
+    ...resolveTmdbSyncedImageFields({
+      poster_url: payload.poster_url,
+      backdrop_url: payload.backdrop_url,
+      current_poster_url: current.poster_url,
+      current_backdrop_url: current.backdrop_url,
+      current_poster_source_url: current.poster_source_url,
+      current_backdrop_source_url: current.backdrop_source_url,
+    }),
     trailer_url: payload.trailer_url || current.trailer_url,
     homepage_url: payload.homepage_url || current.homepage_url,
     age_rating: payload.age_rating || current.age_rating,
@@ -590,4 +634,53 @@ export function resolveSeasonNumbersForTmdbSync(
     (seasonNumber) =>
       seasonNumber > 0 && !isTmdbSeasonExcluded(excludedSeasonNumbers, seasonNumber),
   );
+}
+
+export async function fetchTmdbSeasonsWithConcurrency<T>(
+  seasonNumbers: number[],
+  fetchSeason: (seasonNumber: number) => Promise<T>,
+  options: { concurrency?: number; signal?: AbortSignal } = {},
+): Promise<Array<{ seasonNumber: number; settled: PromiseSettledResult<T> }>> {
+  const concurrency = Math.max(1, options.concurrency ?? 2);
+  const output: Array<{ seasonNumber: number; settled: PromiseSettledResult<T> }> = [];
+
+  for (let index = 0; index < seasonNumbers.length; index += concurrency) {
+    if (options.signal?.aborted) {
+      break;
+    }
+
+    const batch = seasonNumbers.slice(index, index + concurrency);
+    const settled = await Promise.allSettled(
+      batch.map((seasonNumber) => fetchSeason(seasonNumber)),
+    );
+
+    for (let batchIndex = 0; batchIndex < batch.length; batchIndex += 1) {
+      output.push({
+        seasonNumber: batch[batchIndex],
+        settled: settled[batchIndex],
+      });
+    }
+  }
+
+  return output;
+}
+
+export function resolveTmdbSeasonFetchErrorMessage(
+  settled: PromiseSettledResult<{ success?: boolean; message?: string; errors?: Record<string, string[]> }>,
+): string {
+  if (settled.status === "rejected") {
+    return settled.reason instanceof Error
+      ? settled.reason.message
+      : "دریافت این فصل از TMDB ناموفق بود.";
+  }
+
+  if (!settled.value.success) {
+    const firstError = settled.value.errors
+      ? Object.values(settled.value.errors)[0]?.[0]
+      : undefined;
+
+    return firstError || settled.value.message || "دریافت این فصل از TMDB ناموفق بود.";
+  }
+
+  return "دریافت این فصل از TMDB ناموفق بود.";
 }

@@ -43,7 +43,7 @@ type EditMode = "edit" | "censor";
 export default function AdminCommentsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ReviewStatus | "">("pending");
+  const [statusFilter, setStatusFilter] = useState<ReviewStatus | "">("");
   const [typeFilter, setTypeFilter] = useState<"movie" | "series" | "">("");
   const [page, setPage] = useState(1);
   const [error, setError] = useState("");
@@ -215,19 +215,22 @@ export default function AdminCommentsPage() {
       </div>
 
       <div className="rounded-[32px] border border-white/8 bg-white/[0.02] p-5">
-        <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto]">
-          <label className="relative block">
-            <span className="sr-only">جستجو</span>
-            <HiOutlineSearch className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6f8795]" />
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="جستجو در متن یا نام کاربر..."
-              className="w-full rounded-[22px] border border-white/10 bg-[#071019] py-3.5 pr-12 pl-4 text-sm text-white outline-none transition focus:border-[#38bdf8]/40"
-            />
+        <div className="grid gap-3 lg:grid-cols-[1fr_180px_160px] lg:items-end">
+          <label className="block">
+            <span className="mb-2 block text-sm text-[#8ea4b3]">جستجو</span>
+            <div className="relative">
+              <HiOutlineSearch className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6f8795]" />
+              <input
+                type="search"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="جستجو در متن یا نام کاربر..."
+                className="w-full rounded-2xl border border-white/10 bg-[#071019] py-3 pr-12 pl-4 text-sm text-white outline-none transition focus:border-[#38bdf8]/40 min-h-[56px]"
+              />
+            </div>
           </label>
 
-          <label className="block min-w-[180px]">
+          <label className="block">
             <span className="mb-2 block text-sm text-[#8ea4b3]">وضعیت</span>
             <AdminSelect
               value={statusFilter}
@@ -241,7 +244,7 @@ export default function AdminCommentsPage() {
             />
           </label>
 
-          <label className="block min-w-[160px]">
+          <label className="block">
             <span className="mb-2 block text-sm text-[#8ea4b3]">نوع محتوا</span>
             <AdminSelect
               value={typeFilter}

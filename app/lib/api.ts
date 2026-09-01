@@ -171,11 +171,18 @@ class ApiClient {
       }
 
       if (!response.ok) {
+        const fallbackMessage =
+          response.status === 413
+            ? 'حجم فایل از محدودیت سرور بیشتر است. حداکثر مجاز آپلود تصویر ۱۰ مگابایت است.'
+            : response.status >= 500
+              ? 'خطای داخلی سرور هنگام آپلود. لطفاً دوباره تلاش کنید.'
+              : 'آپلود تصویر انجام نشد.';
+
         return {
           success: false,
           status: response.status,
           message:
-            (typeof data.message === 'string' && data.message) || 'An error occurred',
+            (typeof data.message === 'string' && data.message) || fallbackMessage,
           errors: data.errors as Record<string, string[]> | undefined,
         };
       }
@@ -189,7 +196,7 @@ class ApiClient {
       const rawMessage = error instanceof Error ? error.message : 'Network error';
       const message =
         rawMessage === 'Failed to fetch'
-          ? 'اتصال به سرور برقرار نشد. لطفاً API را بررسی کنید.'
+          ? 'اتصال به سرور برقرار نشد. اگر فایل بزرگ است، حجم آن را کمتر از ۱۰ مگابایت کنید یا وضعیت API را بررسی کنید.'
           : rawMessage;
 
       return {

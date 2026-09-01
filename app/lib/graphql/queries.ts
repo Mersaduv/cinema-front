@@ -152,6 +152,7 @@ export const GET_MOVIE_CRITICAL = /* GraphQL */ `
       metadata {
         playback {
           hls_url
+          progressive_url
           downloads {
             quality
             url
@@ -261,6 +262,7 @@ export const GET_MOVIE = /* GraphQL */ `
       metadata {
         playback {
           hls_url
+          progressive_url
           downloads {
             quality
             url
@@ -382,6 +384,7 @@ export const GET_MOVIE_PREVIEW = /* GraphQL */ `
       metadata {
         playback {
           hls_url
+          progressive_url
           downloads {
             quality
             url
@@ -397,6 +400,7 @@ export const WATCH_MOVIE = /* GraphQL */ `
   query WatchMovie($slug: String!) {
     watchMovie(slug: $slug) {
       hls_url
+      progressive_url
       dash_url
       subtitle_url
       dubbed_audio_url

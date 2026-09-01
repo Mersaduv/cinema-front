@@ -17,6 +17,7 @@ export class ProgressiveEngine implements PlaybackEngine {
   attach(video: HTMLVideoElement, src: string): void {
     this.destroy();
     this.video = video;
+    video.preload = "auto";
     video.src = src;
 
     this.onLoadedMetadata = () => {
@@ -24,6 +25,8 @@ export class ProgressiveEngine implements PlaybackEngine {
     };
 
     video.addEventListener("loadedmetadata", this.onLoadedMetadata);
+    // Kick the network immediately; setting src alone can delay on some browsers.
+    video.load();
   }
 
   destroy(): void {

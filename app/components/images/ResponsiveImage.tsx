@@ -33,6 +33,8 @@ export type ResponsiveImageProps = {
   width?: number;
   height?: number;
   draggable?: boolean;
+  /** Admin preview: show TMDB/external fallback when managed src is not ready yet. */
+  allowRemoteFallback?: boolean;
 };
 
 export default function ResponsiveImage({
@@ -53,6 +55,7 @@ export default function ResponsiveImage({
   width,
   height,
   draggable,
+  allowRemoteFallback = false,
 }: ResponsiveImageProps) {
   const isTvCompat = useIsTvCompat();
   const [loaded, setLoaded] = useState(false);
@@ -83,7 +86,10 @@ export default function ResponsiveImage({
     ? (placeholderPath ?? null)
     : useFallback && normalizedFallback && normalizedFallback !== primarySrc
       ? normalizedFallback
-      : (primarySrc ?? placeholderPath ?? null);
+      : (primarySrc ??
+        (allowRemoteFallback ? normalizedFallback : null) ??
+        placeholderPath ??
+        null);
 
   const blurSrc = errored || useFallback ? undefined : pickBlurSrc(optimizedImage);
   const srcSet =

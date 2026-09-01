@@ -6,11 +6,17 @@ import Link from "next/link";
 import Image from "next/image";
 import { HiEye, HiEyeOff } from "react-icons/hi";
 import { useAuth } from "../contexts/AuthContext";
+import GoogleRecaptcha from "../components/auth/GoogleRecaptcha";
+import { setStaffAccessCookie } from "../lib/staff-access";
+
+const ADMIN_PANEL_ROLES = ["admin", "media", "support"] as const;
 
 export default function AdminBodLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const {
@@ -22,13 +28,19 @@ export default function AdminBodLoginPage() {
     loading: authLoading,
   } = useAuth();
   const router = useRouter();
+  const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
 
   useEffect(() => {
     if (!authReady || authLoading) {
       return;
     }
 
-    if (isAuthenticated && isStaff && hasRole("admin")) {
+    if (
+      isAuthenticated &&
+      isStaff &&
+      ADMIN_PANEL_ROLES.some((role) => hasRole(role))
+    ) {
+      setStaffAccessCookie();
       router.replace("/admin");
     }
   }, [authReady, authLoading, isAuthenticated, isStaff, hasRole, router]);
@@ -44,11 +56,20 @@ export default function AdminBodLoginPage() {
       return;
     }
 
-    const result = await staffLogin(email, password);
+    if (recaptchaSiteKey && !captchaToken) {
+      setError("لطفا کپچای گوگل را تکمیل کنید.");
+      setLoading(false);
+      return;
+    }
+
+    const result = await staffLogin(email, password, captchaToken || undefined);
 
     if (result.success) {
+      setStaffAccessCookie();
       router.replace("/admin");
     } else {
+      setCaptchaToken("");
+      setCaptchaResetKey((current) => current + 1);
       setError(result.message || "ورود ناموفق بود. لطفا دوباره تلاش کنید.");
     }
 
@@ -127,6 +148,27 @@ export default function AdminBodLoginPage() {
                   {showPassword ? <HiEyeOff className="h-5 w-5" /> : <HiEye className="h-5 w-5" />}
                 </button>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm text-white/70">تأیید امنیتی</p>
+              {recaptchaSiteKey ? (
+                <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-4">
+                  <GoogleRecaptcha
+                    key={captchaResetKey}
+                    siteKey={recaptchaSiteKey}
+                    resetKey={captchaResetKey}
+                    onToken={setCaptchaToken}
+                    onExpired={() => setCaptchaToken("")}
+                  />
+                </div>
+              ) : (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                  کلید کپچا تنظیم نشده است. مقدار{" "}
+                  <code className="text-amber-100">NEXT_PUBLIC_RECAPTCHA_SITE_KEY</code>{" "}
+                  را در env فرانت‌اند قرار دهید.
+                </div>
+              )}
             </div>
 
             <button

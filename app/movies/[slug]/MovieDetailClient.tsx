@@ -63,7 +63,9 @@ export default function MovieDetailClient({
     document.head.appendChild(link);
 
     const prefetchPlayer = () => {
-      void import("../../components/player/HlsVideoPlayer");
+      void import("../../components/player/HlsVideoPlayer").catch(() => {
+        // Stale chunk after rebuild — ignore; watch page will load fresh assets.
+      });
     };
 
     let idleId: number | undefined;

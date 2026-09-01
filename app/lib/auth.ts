@@ -42,11 +42,13 @@ export interface RegisterData {
   email: string;
   password: string;
   password_confirmation: string;
+  captcha_token?: string;
 }
 
 export interface LoginData {
   email: string;
   password: string;
+  captcha_token?: string;
 }
 
 export function isViewerAccount(user: User | null | undefined): boolean {

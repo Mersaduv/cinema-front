@@ -68,6 +68,8 @@ export interface AdminSeriesEpisode {
   download_links?: Record<string, string>;
   subtitle_url?: string | null;
   dubbed_audio_url?: string | null;
+  has_subtitle?: boolean;
+  has_dubbed?: boolean;
   publish_status?: SeriesPublishStatus;
 }
 
@@ -454,7 +456,7 @@ export const adminSeriesService = {
 
     return apiClient.get<{ season: AdminSeriesSeason }>(
       `/admin/tmdb/tv/season/fetch?${params.toString()}`,
-      { signal: options.signal },
+      { signal: options.signal, timeoutMs: 120_000 },
     );
   },
 

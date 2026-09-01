@@ -31,22 +31,29 @@ export default function TmdbTitleSearch({
   const [results, setResults] = useState<TmdbSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const requestRef = useRef(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const trimmed = query.trim();
+    const isNumericId = /^\d+$/.test(trimmed);
+    const minLength = isNumericId ? 1 : 2;
 
-    if (trimmed.length < 2 || /^\d+$/.test(trimmed)) {
+    if (trimmed.length < minLength) {
       setResults([]);
       setLoading(false);
       setOpen(false);
+      setSearched(false);
+      setSearchError("");
       return;
     }
 
     const timer = window.setTimeout(async () => {
       const requestId = ++requestRef.current;
       setLoading(true);
+      setSearchError("");
 
       try {
         const response = await search(trimmed);
@@ -57,11 +64,23 @@ export default function TmdbTitleSearch({
 
         if (response.success && response.data?.results) {
           setResults(response.data.results);
-          setOpen(response.data.results.length > 0);
+          setOpen(true);
+          setSearched(true);
         } else {
           setResults([]);
-          setOpen(false);
+          setOpen(true);
+          setSearched(true);
+          setSearchError(response.message || "جستجو انجام نشد.");
         }
+      } catch {
+        if (requestId !== requestRef.current) {
+          return;
+        }
+
+        setResults([]);
+        setOpen(true);
+        setSearched(true);
+        setSearchError("جستجو در TMDB انجام نشد.");
       } finally {
         if (requestId === requestRef.current) {
           setLoading(false);
@@ -107,12 +126,13 @@ export default function TmdbTitleSearch({
               setOpen(true);
             }
           }}
-          placeholder={placeholder}
+          placeholder={placeholder || "عنوان، سال یا نام انگلیسی — برای کد TMDB از فیلد پایین استفاده کنید"}
           className="w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#38bdf8]/45"
         />
       </label>
 
-      {open && results.length > 0 ? (
+      {open && searched && !loading ? (
+        results.length > 0 ? (
         <ul className="absolute z-30 mt-2 max-h-80 w-full overflow-y-auto rounded-2xl border border-white/10 bg-[#071019] shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
           {results.map((result) => {
             const title = result.title || result.original_title || "بدون عنوان";
@@ -167,6 +187,11 @@ export default function TmdbTitleSearch({
             );
           })}
         </ul>
+        ) : (
+        <div className="absolute z-30 mt-2 w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-[#8ea4b3] shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
+          {searchError || "نتیجه‌ای یافت نشد. اگر کد TMDB را می‌دانید، در فیلد «کد TMDB» پایین وارد کنید."}
+        </div>
+        )
       ) : null}
     </div>
   );

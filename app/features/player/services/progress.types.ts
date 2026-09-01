@@ -35,6 +35,8 @@ export type WatchProgressRecord = {
   isDirty: boolean;
   title?: string;
   posterUrl?: string | null;
+  backdropUrl?: string | null;
+  stillUrl?: string | null;
   slug?: string;
   seriesSlug?: string;
 };

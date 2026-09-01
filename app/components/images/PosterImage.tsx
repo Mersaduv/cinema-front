@@ -11,6 +11,7 @@ type PosterImageProps = Omit<
   alt?: string;
   usage?: "poster-grid" | "poster-card" | "detail-poster";
   placeholderPath?: string;
+  allowRemoteFallback?: boolean;
 };
 
 export default function PosterImage({
@@ -23,6 +24,7 @@ export default function PosterImage({
   image,
   src,
   fallbackUrl,
+  allowRemoteFallback = false,
   ...rest
 }: PosterImageProps) {
   const resolvedLoading =
@@ -40,6 +42,7 @@ export default function PosterImage({
       loading={resolvedLoading}
       fetchPriority={fetchPriority}
       placeholderPath={placeholderPath}
+      allowRemoteFallback={allowRemoteFallback}
       fill
       {...rest}
     />

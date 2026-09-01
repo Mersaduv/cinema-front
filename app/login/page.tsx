@@ -16,17 +16,20 @@ import Image from "next/image";
 import { useAuth } from "../contexts/AuthContext";
 import TvLoginPanel from "../components/tv/TvLoginPanel";
 import { useIsTvCompat } from "../hooks/useTvCapabilities";
+import GoogleRecaptcha from "../components/auth/GoogleRecaptcha";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { login, isAuthenticated, isViewer, isStaff, authReady, loading: authLoading } = useAuth();
   const router = useRouter();
   const isTvCompat = useIsTvCompat();
+  const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
 
   const resolveRedirect = () => {
     if (typeof window === "undefined") {
@@ -67,7 +70,13 @@ export default function LoginPage() {
       return;
     }
 
-    const result = await login(email, password);
+    if (recaptchaSiteKey && !captchaToken) {
+      setError("لطفا کپچای گوگل را تکمیل کنید.");
+      setLoading(false);
+      return;
+    }
+
+    const result = await login(email, password, captchaToken || undefined);
 
     if (result.success) {
       router.replace(resolveRedirect());
@@ -240,6 +249,16 @@ export default function LoginPage() {
                 >
                   فراموشی رمز عبور؟
                 </Link>
+              </div>
+
+              <div className="flex flex-col items-center justify-center gap-2">
+                {recaptchaSiteKey ? (
+                  <GoogleRecaptcha
+                    siteKey={recaptchaSiteKey}
+                    onToken={setCaptchaToken}
+                    onExpired={() => setCaptchaToken("")}
+                  />
+                ) : null}
               </div>
 
               {/* Submit Button */}

@@ -90,6 +90,7 @@ type GraphqlMovieDetail = {
   metadata?: {
     playback?: {
       hls_url?: string | null;
+      progressive_url?: string | null;
       downloads?: Array<{ quality: string; url: string }>;
     } | null;
   } | null;
@@ -389,9 +390,10 @@ export function graphqlMovieToPublic(movie: GraphqlMovieDetail): PublicMovie {
         [],
       gallery: details?.gallery ?? (movie.poster_url ? [movie.poster_url] : []),
     },
-    playback: movie.metadata?.playback?.hls_url
+    playback: movie.metadata?.playback?.hls_url || movie.metadata?.playback?.progressive_url
       ? {
-          master_playlist_url: movie.metadata.playback.hls_url,
+          master_playlist_url: movie.metadata.playback.hls_url ?? null,
+          progressive_url: movie.metadata.playback.progressive_url ?? null,
           subtitle_url: null,
           audio_tracks: [],
           variants: [],

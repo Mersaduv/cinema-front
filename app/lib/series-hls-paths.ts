@@ -383,6 +383,7 @@ export type EpisodeHlsFillInput = {
       episode_number: string;
       hls_url: string;
       hls_verified: boolean;
+      source_method?: string;
     }>;
   }>;
 };
@@ -404,6 +405,11 @@ export function fillEmptyEpisodeHlsFromBases<T extends EpisodeHlsFillInput>(
     const seasonBase = season.hls_base_url.trim();
 
     const nextEpisodes = season.episodes.map((episode) => {
+      const method = (episode.source_method || "hls").toLowerCase();
+      if (method !== "hls" && method !== "") {
+        return episode;
+      }
+
       if (episode.hls_url.trim()) {
         return episode;
       }
@@ -481,6 +487,11 @@ export function buildEmptyEpisodeHlsDiscoveryGroups(
     }
 
     for (const episode of season.episodes) {
+      const method = (episode.source_method || "hls").toLowerCase();
+      if (method !== "hls" && method !== "") {
+        continue;
+      }
+
       if (episode.hls_url.trim()) {
         continue;
       }
@@ -542,6 +553,10 @@ export function applyDiscoveredEpisodeHlsToForm<T extends EpisodeHlsFillInput>(
       const discovered = discoveryByEpisodeId.get(`${season.id}:${episode.id}`);
 
       if (!discovered || episode.hls_url.trim()) {
+        return episode;
+      }
+
+      if (episode.source_method && episode.source_method !== "hls") {
         return episode;
       }
 

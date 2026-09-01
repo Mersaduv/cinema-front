@@ -1,5 +1,11 @@
 import type { TmdbActor, TmdbMoviePayload } from "./admin-movies";
-import { toManagedImagePublicPath } from "./cinema-image";
+import {
+  isTmdbImageUrl,
+  normalizeImageUrl,
+  pickImageSrc,
+  toManagedImagePublicPath,
+  type ResponsiveImageAsset,
+} from "./cinema-image";
 
 export type IngestTmdbImagesPayload = {
   entity_id?: number | string | null;
@@ -70,6 +76,120 @@ export function withTmdbImageProcessingMessage(
   const base = (previousMessage ?? "").replace(IMAGE_PROCESSING_MESSAGE_PATTERN, "").trim();
 
   return base ? `${base} ${processingMessage}` : processingMessage;
+}
+
+export function isRemoteCatalogImageUrl(url: string | null | undefined): boolean {
+  const normalized = normalizeImageUrl(url);
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (toManagedImagePublicPath(normalized)) {
+    return false;
+  }
+
+  return (
+    isTmdbImageUrl(normalized) ||
+    normalized.startsWith("http://") ||
+    normalized.startsWith("https://") ||
+    normalized.startsWith("//")
+  );
+}
+
+export function resolveTmdbSyncedImageFields(input: {
+  poster_url?: string | null;
+  backdrop_url?: string | null;
+  current_poster_url?: string;
+  current_backdrop_url?: string;
+  current_poster_source_url?: string;
+  current_backdrop_source_url?: string;
+}): {
+  poster_url: string;
+  backdrop_url: string;
+  poster_source_url: string;
+  backdrop_source_url: string;
+} {
+  const incomingPoster = input.poster_url?.trim() || "";
+  const incomingBackdrop = input.backdrop_url?.trim() || "";
+  const currentPoster = input.current_poster_url?.trim() || "";
+  const currentBackdrop = input.current_backdrop_url?.trim() || "";
+  const currentPosterSource = input.current_poster_source_url?.trim() || "";
+  const currentBackdropSource = input.current_backdrop_source_url?.trim() || "";
+
+  const posterSource =
+    (isRemoteCatalogImageUrl(incomingPoster) ? incomingPoster : "") ||
+    currentPosterSource ||
+    (isRemoteCatalogImageUrl(currentPoster) ? currentPoster : "");
+  const backdropSource =
+    (isRemoteCatalogImageUrl(incomingBackdrop) ? incomingBackdrop : "") ||
+    currentBackdropSource ||
+    (isRemoteCatalogImageUrl(currentBackdrop) ? currentBackdrop : "");
+
+  const posterManaged =
+    toManagedImagePublicPath(incomingPoster) ||
+    toManagedImagePublicPath(currentPoster);
+  const backdropManaged =
+    toManagedImagePublicPath(incomingBackdrop) ||
+    toManagedImagePublicPath(currentBackdrop);
+
+  return {
+    poster_url: posterManaged ?? "",
+    backdrop_url: backdropManaged ?? "",
+    poster_source_url: posterSource,
+    backdrop_source_url: backdropSource,
+  };
+}
+
+export function needsPrimaryImageIngest(input: {
+  poster_url?: string;
+  backdrop_url?: string;
+  poster_source_url?: string;
+  backdrop_source_url?: string;
+}): boolean {
+  const posterManaged = toManagedImagePublicPath(input.poster_url);
+  const backdropManaged = toManagedImagePublicPath(input.backdrop_url);
+
+  if (
+    (input.poster_source_url?.trim() || isRemoteCatalogImageUrl(input.poster_url)) &&
+    !posterManaged
+  ) {
+    return true;
+  }
+
+  if (
+    (input.backdrop_source_url?.trim() || isRemoteCatalogImageUrl(input.backdrop_url)) &&
+    !backdropManaged
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function buildAdminPreviewImageSources(
+  image: ResponsiveImageAsset | null | undefined,
+  managedUrl?: string | null,
+  sourceUrl?: string | null,
+  ...extraFallbacks: Array<string | null | undefined>
+): { src: string | null; fallbackUrl: string | null } {
+  const managed =
+    pickImageSrc(image, managedUrl) ?? toManagedImagePublicPath(managedUrl);
+  const remoteCandidates = [
+    sourceUrl,
+    isRemoteCatalogImageUrl(managedUrl) ? managedUrl : null,
+    ...extraFallbacks,
+  ];
+
+  const remote =
+    remoteCandidates
+      .map((candidate) => normalizeImageUrl(candidate))
+      .find((candidate): candidate is string => Boolean(candidate)) ?? null;
+
+  return {
+    src: managed,
+    fallbackUrl: remote,
+  };
 }
 
 export function buildMovieTmdbImageIngestPayload(
@@ -226,7 +346,12 @@ export function preserveIngestedPrimaryImages<
 }
 
 export function applyIngestedPrimaryImages<
-  T extends { poster_url: string; backdrop_url: string },
+  T extends {
+    poster_url: string;
+    backdrop_url: string;
+    poster_source_url?: string;
+    backdrop_source_url?: string;
+  },
 >(
   form: T,
   data: IngestTmdbImagesResult,
@@ -236,18 +361,22 @@ export function applyIngestedPrimaryImages<
   const backdropUrl = data.backdrop_url?.trim();
   const posterSource =
     sources?.poster_url?.trim() ||
-    (form.poster_url.startsWith("http") ? form.poster_url : "");
+    form.poster_source_url?.trim() ||
+    (isRemoteCatalogImageUrl(form.poster_url) ? form.poster_url : "");
   const backdropSource =
     sources?.backdrop_url?.trim() ||
-    (form.backdrop_url.startsWith("http") ? form.backdrop_url : "");
+    form.backdrop_source_url?.trim() ||
+    (isRemoteCatalogImageUrl(form.backdrop_url) ? form.backdrop_url : "");
 
   const managedPoster = toManagedImagePublicPath(posterUrl);
   const managedBackdrop = toManagedImagePublicPath(backdropUrl);
+  const existingManagedPoster = toManagedImagePublicPath(form.poster_url);
+  const existingManagedBackdrop = toManagedImagePublicPath(form.backdrop_url);
 
   return {
     ...form,
-    poster_url: managedPoster ?? form.poster_url,
-    backdrop_url: managedBackdrop ?? form.backdrop_url,
+    poster_url: managedPoster ?? existingManagedPoster ?? "",
+    backdrop_url: managedBackdrop ?? existingManagedBackdrop ?? "",
     ...(posterSource ? { poster_source_url: posterSource } : {}),
     ...(backdropSource ? { backdrop_source_url: backdropSource } : {}),
   };

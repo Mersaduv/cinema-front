@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HiMiniPlay, HiOutlineXMark } from "react-icons/hi2";
 import { useAuth } from "../contexts/AuthContext";
 import { tokenStorage } from "../lib/token-storage";
+import { moviesService } from "../lib/movies";
+import { seriesService } from "../lib/series";
 import {
   createDefaultTrackerConfig,
   ProgressTracker,
@@ -81,20 +83,37 @@ function pickFromRecord(record: WatchProgressRecord, keys: readonly string[]): s
   return null;
 }
 
-function resolveCardImage(record: WatchProgressRecord): string | null {
+function resolveCardImage(
+  record: WatchProgressRecord,
+  layout: "poster" | "landscape",
+): string | null {
   if (record.mediaType === "series") {
     const episodeImage = pickFromRecord(record, [
+      "stillUrl",
+      "still_url",
       "episodeStillUrl",
       "episode_still_url",
       "episodeImageUrl",
       "episode_image_url",
-      "stillUrl",
-      "still_url",
       "thumbnailUrl",
       "thumbnail_url",
     ]);
     if (episodeImage) {
       return episodeImage;
+    }
+  }
+
+  if (layout === "landscape") {
+    const landscapeImage = pickFromRecord(record, [
+      "backdropUrl",
+      "backdrop_url",
+      "coverUrl",
+      "cover_url",
+      "posterUrl",
+      "poster_url",
+    ]);
+    if (landscapeImage) {
+      return landscapeImage;
     }
   }
 
@@ -104,6 +123,97 @@ function resolveCardImage(record: WatchProgressRecord): string | null {
   }
 
   return pickFromRecord(record, ["backdropUrl", "backdrop_url", "coverUrl", "cover_url"]);
+}
+
+async function fetchCatalogImages(
+  record: WatchProgressRecord,
+): Promise<Partial<WatchProgressRecord> | null> {
+  const slug =
+    record.mediaType === "series"
+      ? record.seriesSlug || record.slug
+      : record.slug;
+
+  if (!slug) {
+    return null;
+  }
+
+  try {
+    if (record.mediaType === "series") {
+      const response = await seriesService.show(slug, { lite: true });
+      const series = response.data?.series;
+      if (!series) {
+        return null;
+      }
+
+      return {
+        title: series.title || record.title,
+        posterUrl: series.poster_url ?? null,
+        backdropUrl: series.backdrop_url ?? null,
+        slug: series.slug || record.slug,
+        seriesSlug: series.slug || record.seriesSlug,
+      };
+    }
+
+    const response = await moviesService.show(slug);
+    const movie = response.data?.movie;
+    if (!movie) {
+      return null;
+    }
+
+    return {
+      title: movie.title || record.title,
+      posterUrl:
+        movie.poster_url ||
+        movie.poster_image?.src ||
+        movie.poster_image?.original ||
+        null,
+      backdropUrl:
+        movie.backdrop_image?.src ||
+        movie.backdrop_image?.original ||
+        movie.details?.backdrop_url ||
+        null,
+      slug: movie.slug || record.slug,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function enrichMissingCardImages(
+  records: WatchProgressRecord[],
+  layout: "poster" | "landscape",
+): Promise<WatchProgressRecord[]> {
+  const tracker = ProgressTracker.getInstance();
+
+  return Promise.all(
+    records.map(async (record) => {
+      if (resolveCardImage(record, layout)) {
+        return record;
+      }
+
+      const patch = await fetchCatalogImages(record);
+      if (!patch) {
+        return record;
+      }
+
+      tracker.patchDisplayMetadata(record.mediaId, record.episodeId, {
+        title: patch.title,
+        posterUrl: patch.posterUrl,
+        backdropUrl: patch.backdropUrl,
+        stillUrl: patch.stillUrl,
+        slug: patch.slug,
+        seriesSlug: patch.seriesSlug,
+      });
+
+      return {
+        ...record,
+        ...patch,
+        title: patch.title || record.title,
+        posterUrl: patch.posterUrl ?? record.posterUrl,
+        backdropUrl: patch.backdropUrl ?? record.backdropUrl,
+      };
+    }),
+  );
 }
 
 function progressRowKey(record: WatchProgressRecord): string {
@@ -137,6 +247,8 @@ function mergeProgressRows(
       slug: serverRow.slug || localRow.slug,
       seriesSlug: serverRow.seriesSlug || localRow.seriesSlug,
       posterUrl: serverRow.posterUrl || localRow.posterUrl,
+      backdropUrl: serverRow.backdropUrl || localRow.backdropUrl,
+      stillUrl: serverRow.stillUrl || localRow.stillUrl,
     };
   });
 
@@ -171,6 +283,7 @@ function ContinueWatchingCard({
 
   const isLandscape = layout === "landscape";
   const cardTitle = record.title || "ادامه تماشا";
+  const cardImage = resolveCardImage(record, layout);
   const imageLoading = isTvCompat && index < 8 ? "eager" : undefined;
   const shellAttrs = isLandscape
     ? { "data-tv-landscape-shell": true }
@@ -196,7 +309,7 @@ function ContinueWatchingCard({
             record.mediaType === "series" ? (
               <EpisodeStillImage
                 seriesTitle={cardTitle}
-                src={resolveCardImage(record)}
+                src={cardImage}
                 usage="episode-card"
                 loading={imageLoading}
                 wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
@@ -204,7 +317,7 @@ function ContinueWatchingCard({
             ) : (
               <BackdropImage
                 title={cardTitle}
-                src={resolveCardImage(record)}
+                src={cardImage}
                 usage="detail-backdrop"
                 loading={imageLoading}
                 wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
@@ -213,7 +326,7 @@ function ContinueWatchingCard({
           ) : (
             <PosterImage
               title={cardTitle}
-              src={resolveCardImage(record)}
+              src={cardImage}
               usage="poster-grid"
               loading={imageLoading}
               wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
@@ -273,7 +386,7 @@ export default function ContinueWatching({
   limit?: number;
   layout?: "poster" | "landscape";
 }) {
-  const { user, hasToken, isAuthenticated } = useAuth();
+  const { user, hasToken, isAuthenticated, isViewer } = useAuth();
   const [items, setItems] = useState<WatchProgressRecord[]>([]);
   const [ready, setReady] = useState(false);
 
@@ -300,8 +413,69 @@ export default function ContinueWatching({
     setReady(true);
   }, [isAuthenticated, limit, mediaType, showCompleted, userId]);
 
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  const missingImageKey = useMemo(
+    () =>
+      items
+        .filter((record) => !resolveCardImage(record, layout))
+        .map(progressRowKey)
+        .join("|"),
+    [items, layout],
+  );
+
   useEffect(() => {
-    if (hasToken) {
+    if (!ready || !missingImageKey) {
+      return;
+    }
+
+    let cancelled = false;
+    const targetKeys = new Set(missingImageKey.split("|").filter(Boolean));
+    const targets = itemsRef.current.filter((record) =>
+      targetKeys.has(progressRowKey(record)),
+    );
+
+    void enrichMissingCardImages(targets, layout).then((enrichedTargets) => {
+      if (cancelled || enrichedTargets.length === 0) {
+        return;
+      }
+
+      const byKey = new Map(
+        enrichedTargets.map((row) => [progressRowKey(row), row]),
+      );
+
+      setItems((current) => {
+        let changed = false;
+        const next = current.map((row) => {
+          const enriched = byKey.get(progressRowKey(row));
+          if (!enriched) {
+            return row;
+          }
+
+          if (
+            enriched.posterUrl === row.posterUrl &&
+            enriched.backdropUrl === row.backdropUrl &&
+            enriched.stillUrl === row.stillUrl
+          ) {
+            return row;
+          }
+
+          changed = true;
+          return enriched;
+        });
+
+        return changed ? next : current;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [layout, missingImageKey, ready]);
+
+  useEffect(() => {
+    if (hasToken && isViewer) {
       return;
     }
 
@@ -309,10 +483,10 @@ export default function ContinueWatching({
       loadLocal();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [hasToken, loadLocal]);
+  }, [hasToken, isViewer, loadLocal]);
 
   useEffect(() => {
-    if (!hasToken) {
+    if (!hasToken || !isViewer) {
       return;
     }
 
@@ -370,7 +544,7 @@ export default function ContinueWatching({
     return () => {
       controller.abort();
     };
-  }, [hasToken, isAuthenticated, limit, loadLocal, mediaType, showCompleted, userId]);
+  }, [hasToken, isAuthenticated, isViewer, limit, loadLocal, mediaType, showCompleted, userId]);
 
   const playableItems = items.filter((record) => buildWatchHref(record) !== null);
   const hasItems = playableItems.length > 0;

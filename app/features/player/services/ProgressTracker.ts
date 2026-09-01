@@ -281,6 +281,8 @@ export class ProgressTracker {
         seriesSlug: remote.seriesSlug ?? local.seriesSlug,
         title: remote.title ?? local.title,
         posterUrl: remote.posterUrl ?? local.posterUrl,
+        backdropUrl: remote.backdropUrl ?? local.backdropUrl,
+        stillUrl: remote.stillUrl ?? local.stillUrl,
         seasonNumber: remote.seasonNumber ?? local.seasonNumber,
         episodeNumber: remote.episodeNumber ?? local.episodeNumber,
         syncedAt: remote.syncedAt ?? local.syncedAt,
@@ -407,11 +409,40 @@ export class ProgressTracker {
       syncedAt: existing?.syncedAt ?? null,
       syncVersion: existing?.syncVersion ?? 0,
       isDirty: markDirty ? true : (existing?.isDirty ?? true),
-      title: this.activeMedia.title,
-      posterUrl: this.activeMedia.posterUrl,
-      slug: this.activeMedia.slug,
-      seriesSlug: this.activeMedia.seriesSlug,
+      title: this.activeMedia.title || existing?.title,
+      posterUrl: this.activeMedia.posterUrl ?? existing?.posterUrl ?? null,
+      backdropUrl: existing?.backdropUrl ?? null,
+      stillUrl: existing?.stillUrl ?? null,
+      slug: this.activeMedia.slug || existing?.slug,
+      seriesSlug: this.activeMedia.seriesSlug || existing?.seriesSlug,
     };
+  }
+
+  patchDisplayMetadata(
+    mediaId: string,
+    episodeId: string | undefined,
+    patch: Pick<
+      WatchProgressRecord,
+      "title" | "posterUrl" | "backdropUrl" | "stillUrl" | "slug" | "seriesSlug"
+    >,
+  ): WatchProgressRecord | null {
+    const existing = this.localAdapter.read(mediaId, episodeId);
+    if (!existing) {
+      return null;
+    }
+
+    const updated: WatchProgressRecord = {
+      ...existing,
+      title: patch.title || existing.title,
+      posterUrl: patch.posterUrl ?? existing.posterUrl,
+      backdropUrl: patch.backdropUrl ?? existing.backdropUrl,
+      stillUrl: patch.stillUrl ?? existing.stillUrl,
+      slug: patch.slug || existing.slug,
+      seriesSlug: patch.seriesSlug || existing.seriesSlug,
+    };
+
+    this.localAdapter.write(updated);
+    return updated;
   }
 
   private getCurrentRecord(): WatchProgressRecord | null {

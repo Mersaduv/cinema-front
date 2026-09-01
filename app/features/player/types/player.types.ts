@@ -70,6 +70,7 @@ export type EpisodeSummary = {
   episodeNumber: number;
   title: string;
   hlsUrl?: string | null;
+  progressiveUrl?: string | null;
   subtitleUrl?: string | null;
   dubbedAudioUrl?: string | null;
   durationSeconds?: number | null;

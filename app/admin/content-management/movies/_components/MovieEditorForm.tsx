@@ -8,7 +8,6 @@ import {
   HiOutlineCheckCircle,
   HiOutlinePlay,
   HiOutlinePlus,
-  HiOutlinePhotograph,
   HiOutlineRefresh,
   HiOutlineSearch,
   HiOutlineSparkles,
@@ -21,6 +20,18 @@ import AdminSelect from "../../../../components/admin/AdminSelect";
 import EditorPublishSubmitBar from "../../../../components/admin/EditorPublishSubmitBar";
 import MovieFormStatusPanel from "../../../../components/admin/MovieFormStatusPanel";
 import TmdbTitleSearch from "../../../../components/admin/TmdbTitleSearch";
+import PlaybackSubtitleDubFields from "../../_components/PlaybackSubtitleDubFields";
+import FormFieldAnchor from "../../_components/FormFieldAnchor";
+import {
+  formFieldBorderClass,
+  issuesToErrorMap,
+  scrollToFormField,
+} from "../../_lib/admin-form-tab-validation";
+import {
+  validateMovieDetailsTab,
+  validateMovieMediaTab,
+  validateMovieTab,
+} from "../../_lib/movie-tab-validation";
 import SeoFieldsPanel from "../../../../components/admin/SeoFieldsPanel";
 import {
   ContentWarningsField,
@@ -31,8 +42,10 @@ import PublishOutcomeModal, {
 } from "../../../../components/admin/PublishOutcomeModal";
 import TmdbPreviewSkeleton from "../../../../components/admin/TmdbPreviewSkeleton";
 import { BackdropImage, PosterImage } from "../../../../components/images";
+import AdminImageUrlField from "../../_components/AdminImageUrlField";
 
 import { sortCastByOrder, sortCastRows } from "../../../../lib/cast-utils";
+import { isProgressiveVideoUrl } from "../../../../features/player/utils/format";
 import {
   filterLatinPersonNameList,
   isLatinPersonName,
@@ -59,13 +72,15 @@ import {
 import { normalizeListItemLabel, normalizeStringList } from "../../../../lib/list-item-label";
 import {
   applyIngestedPrimaryImages,
+  buildAdminPreviewImageSources,
   buildMovieTmdbImageIngestPayload,
   finalizeTmdbImageIngestMessage,
   mergeIngestedActorProfiles,
+  needsPrimaryImageIngest,
+  resolveTmdbSyncedImageFields,
   withTmdbImageProcessingMessage,
 } from "../../../../lib/admin-tmdb-image-ingest";
 import {
-  pickAdminPreviewImageSrc,
   toManagedImagePublicPath,
 } from "../../../../lib/cinema-image";
 import {
@@ -209,9 +224,13 @@ type MovieEditorFormState = {
   poster_url: string;
   backdrop_url: string;
   trailer_url: string;
+  playback_protocol: "hls" | "mp4";
   hls_url: string;
+  progressive_url: string;
   subtitle_source_path: string;
   dubbed_audio_url: string;
+  has_subtitle: boolean;
+  has_dubbed_audio: boolean;
   drm_scheme: string;
   drm_license_url: string;
   download_links: DownloadLinkRow[];
@@ -303,9 +322,13 @@ function createInitialFormState(): MovieEditorFormState {
     poster_url: "",
     backdrop_url: "",
     trailer_url: "",
+    playback_protocol: "hls",
     hls_url: "",
+    progressive_url: "",
     subtitle_source_path: "",
     dubbed_audio_url: "",
+    has_subtitle: false,
+    has_dubbed_audio: false,
     drm_scheme: "none",
     drm_license_url: "",
     download_links: [createDownloadLinkRow()],
@@ -435,6 +458,7 @@ export default function MovieEditorForm({
   const [fetchingTmdb, setFetchingTmdb] = useState(false);
   const [ingestingTmdbImages, setIngestingTmdbImages] = useState(false);
   const [error, setError] = useState("");
+  const [tabFieldErrors, setTabFieldErrors] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState("");
   const [searchMessage, setSearchMessage] = useState("");
   const [lastFetchedTmdbCode, setLastFetchedTmdbCode] = useState("");
@@ -455,6 +479,8 @@ export default function MovieEditorForm({
   const hlsPreviewGenerationRef = useRef(0);
   const lastHlsPreviewComparableRef = useRef("");
   const [form, setForm] = useState<MovieEditorFormState>(createInitialFormState);
+  const formRef = useRef(form);
+  formRef.current = form;
   const [hlsSyncMessage, setHlsSyncMessage] = useState("");
   const [hlsPreviewLoading, setHlsPreviewLoading] = useState(false);
   const [publishStatus, setPublishStatus] = useState<PublishStatus>("draft");
@@ -626,13 +652,23 @@ export default function MovieEditorForm({
             "",
           trailer_url:
             nextMovie.metadata?.tmdb?.trailer_url || nextMovie.trailer_url || "",
+          playback_protocol: (
+            nextMovie.metadata?.playback?.protocol === "mp4" ||
+            (Boolean(nextMovie.metadata?.playback?.progressive_url) &&
+              !nextMovie.metadata?.playback?.hls_url)
+              ? "mp4"
+              : "hls"
+          ) as MovieEditorFormState["playback_protocol"],
           hls_url:
             nextMovie.metadata?.playback?.hls_url ||
             nextMovie.media_asset?.master_playlist_url ||
             "",
+          progressive_url: nextMovie.metadata?.playback?.progressive_url || "",
           subtitle_source_path:
             nextMovie.subtitle_source_url || nextMovie.subtitle_source_path || "",
           dubbed_audio_url: nextMovie.dubbed_source_url || "",
+          has_subtitle: Boolean(nextMovie.has_subtitle),
+          has_dubbed_audio: Boolean(nextMovie.has_dubbed_audio),
           drm_scheme: nextMovie.drm_scheme || "none",
           drm_license_url: nextMovie.drm_license_url || "",
           download_links: Object.entries(nextMovie.metadata?.playback?.downloads || {}).length
@@ -868,6 +904,7 @@ export default function MovieEditorForm({
       dubbed_audio_url?: string | null;
       download_links?: Record<string, string>;
       has_dubbed_audio?: boolean;
+      has_subtitle?: boolean;
     },
     options?: { mergeDownloads?: boolean },
   ) => {
@@ -901,6 +938,8 @@ export default function MovieEditorForm({
           String(payload.dubbed_audio_url).trim() !== ""
             ? String(payload.dubbed_audio_url).trim()
             : prev.dubbed_audio_url,
+        has_subtitle: payload.has_subtitle ?? prev.has_subtitle,
+        has_dubbed_audio: payload.has_dubbed_audio ?? prev.has_dubbed_audio,
         download_links:
           options?.mergeDownloads === false
             ? prev.download_links
@@ -1019,7 +1058,9 @@ export default function MovieEditorForm({
     form.poster_url.trim() !== "" &&
     form.backdrop_url.trim() !== "" &&
     form.trailer_url.trim() !== "" &&
-    form.hls_url.trim() !== "";
+    (form.playback_protocol === "mp4"
+      ? isProgressiveVideoUrl(form.progressive_url)
+      : form.hls_url.trim() !== "");
 
   const canProceedToNextTab =
     activeTab === "details"
@@ -1061,18 +1102,59 @@ export default function MovieEditorForm({
     return isDetailsTabComplete && isMediaTabComplete;
   };
 
+  const applyTabFieldIssues = (
+    issues: ReturnType<typeof validateMovieTab>,
+  ): boolean => {
+    if (issues.length === 0) {
+      return false;
+    }
+
+    setTabFieldErrors(issuesToErrorMap(issues));
+    setError(issues[0].message);
+    scrollToFormField(issues[0].field);
+    return true;
+  };
+
   const goToTab = (target: EditorTab) => {
+    if (target !== "details") {
+      const detailsIssues = validateMovieDetailsTab(form, buildSlug);
+
+      if (detailsIssues.length > 0) {
+        if (activeTab !== "details") {
+          setActiveTab("details");
+        }
+
+        applyTabFieldIssues(detailsIssues);
+        return;
+      }
+    }
+
+    if (target === "seo" || target === "publish") {
+      const mediaIssues = validateMovieMediaTab(form);
+
+      if (mediaIssues.length > 0) {
+        if (activeTab !== "media") {
+          setActiveTab("media");
+        }
+
+        applyTabFieldIssues(mediaIssues);
+        return;
+      }
+    }
+
     if (!canAccessTab(target)) {
       setError(
         target === "media"
           ? "ابتدا مرحله جزئیات را کامل کن."
           : target === "seo"
             ? "ابتدا مراحل جزئیات و لینک‌ها را کامل کن."
-            : "ابتدا مراحل جزئیات و لینک‌ها را کامل کن."
+            : "ابتدا مراحل جزئیات و لینک‌ها را کامل کن.",
       );
       return;
     }
+
     setActiveTab(target);
+    setTabFieldErrors({});
     setError("");
     window.requestAnimationFrame(() => {
       formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1096,20 +1178,26 @@ export default function MovieEditorForm({
       return;
     }
 
-    if (!canProceedToNextTab) {
-      setError(
-        activeTab === "details"
-          ? "ابتدا فیلدهای اصلی این تب مثل عنوان، خلاصه، کارگردان، نویسنده و بازیگران را کامل کن."
-          : "ابتدا لینک‌های اصلی این تب مثل پوستر، بنر، تریلر و HLS را کامل کن."
-      );
+    const issues = validateMovieTab(activeTab, form, buildSlug);
+
+    if (applyTabFieldIssues(issues)) {
       return;
     }
 
-    goToTab(tabOrder[currentIndex + 1]);
+    setTabFieldErrors({});
+    setError("");
+    setActiveTab(tabOrder[currentIndex + 1]);
+    window.requestAnimationFrame(() => {
+      formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
-  const applyTmdbMovie = (payload: TmdbMoviePayload, query: string) => {
-    const nextTitle = payload.title || payload.original_title || form.title;
+  const buildTmdbMovieFormState = (
+    current: MovieEditorFormState,
+    payload: TmdbMoviePayload,
+    query: string,
+  ): MovieEditorFormState => {
+    const nextTitle = payload.title || payload.original_title || current.title;
     const nextActors = payload.cast?.length
       ? normalizeActors(
           payload.cast.map((c, idx) => ({
@@ -1145,7 +1233,7 @@ export default function MovieEditorForm({
       });
     }
 
-    setForm((current) => ({
+    return {
       ...current,
       tmdb_query: query,
       title: nextTitle,
@@ -1156,7 +1244,7 @@ export default function MovieEditorForm({
           nextTitle,
           current.original_title,
           current.title,
-          payload.tmdb_id ? `movie-${payload.tmdb_id}` : null
+          payload.tmdb_id ? `movie-${payload.tmdb_id}` : null,
         ) || current.slug,
       ...mergeSeasonEpisodeSynopsisFromTmdb(
         resolveTmdbMainSynopsis(payload),
@@ -1173,8 +1261,12 @@ export default function MovieEditorForm({
         typeof payload.popularity === "number" ? String(payload.popularity) : current.popularity,
       vote_count:
         typeof payload.vote_count === "number" ? String(payload.vote_count) : current.vote_count,
-      poster_url: payload.poster_url || current.poster_url,
-      backdrop_url: payload.backdrop_url || current.backdrop_url,
+      ...resolveTmdbSyncedImageFields({
+        poster_url: payload.poster_url,
+        backdrop_url: payload.backdrop_url,
+        current_poster_url: current.poster_url,
+        current_backdrop_url: current.backdrop_url,
+      }),
       trailer_url: payload.trailer_url || current.trailer_url,
       age_rating: payload.age_rating || current.age_rating,
       original_language: normalizeOriginalLanguageToIso(
@@ -1214,12 +1306,21 @@ export default function MovieEditorForm({
       actors: nextActors,
       crew: nextCrew.length ? nextCrew : current.crew,
       belongs_to_collection: payload.belongs_to_collection ?? null,
-    }));
-
-    setActiveTab("details");
+    };
   };
 
-  async function ingestTmdbImagesAfterSync(payload: TmdbMoviePayload) {
+  const applyTmdbMovie = (payload: TmdbMoviePayload, query: string): MovieEditorFormState => {
+    const nextForm = buildTmdbMovieFormState(formRef.current, payload, query);
+    formRef.current = nextForm;
+    setForm(nextForm);
+    setActiveTab("details");
+    return nextForm;
+  };
+
+  async function ingestTmdbImagesAfterSync(
+    payload: TmdbMoviePayload,
+    baseForm: MovieEditorFormState,
+  ) {
     tmdbImageIngestAbortRef.current?.abort();
     const abortController = new AbortController();
     tmdbImageIngestAbortRef.current = abortController;
@@ -1231,28 +1332,55 @@ export default function MovieEditorForm({
     );
 
     try {
-      const response = await adminMoviesService.ingestTmdbImages(
-        buildMovieTmdbImageIngestPayload(payload, movie?.id ?? movieId ?? null),
-        { signal },
-      );
+      let latestForm = baseForm;
+      let lastData: Awaited<ReturnType<typeof adminMoviesService.ingestTmdbImages>>["data"] | null =
+        null;
 
-      if (signal.aborted || !response.success || !response.data) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (signal.aborted) {
+          return;
+        }
+
+        const response = await adminMoviesService.ingestTmdbImages(
+          buildMovieTmdbImageIngestPayload(payload, movie?.id ?? movieId ?? null),
+          { signal },
+        );
+
+        if (signal.aborted || !response.success || !response.data) {
+          if (attempt < 2) {
+            await new Promise((resolve) => window.setTimeout(resolve, 600 * (attempt + 1)));
+          }
+          continue;
+        }
+
+        lastData = response.data;
+        latestForm = {
+          ...applyIngestedPrimaryImages(latestForm, response.data, {
+            poster_url: payload.poster_url,
+            backdrop_url: payload.backdrop_url,
+          }),
+          actors: response.data.actors?.length
+            ? mergeIngestedActorProfiles(latestForm.actors, response.data.actors)
+            : latestForm.actors,
+        };
+
+        if (!needsPrimaryImageIngest(latestForm)) {
+          break;
+        }
+
+        if (attempt < 2) {
+          await new Promise((resolve) => window.setTimeout(resolve, 600 * (attempt + 1)));
+        }
+      }
+
+      if (signal.aborted) {
         return;
       }
 
-      const data = response.data;
+      formRef.current = latestForm;
+      setForm(latestForm);
 
-      setForm((current) => ({
-        ...applyIngestedPrimaryImages(current, data, {
-          poster_url: payload.poster_url,
-          backdrop_url: payload.backdrop_url,
-        }),
-        actors: data.actors?.length
-          ? mergeIngestedActorProfiles(current.actors, data.actors)
-          : current.actors,
-      }));
-
-      if ((data.stats?.succeeded ?? 0) > 0) {
+      if ((lastData?.stats?.succeeded ?? 0) > 0) {
         setSearchMessage((current) => finalizeTmdbImageIngestMessage(current));
       }
     } catch (ingestError) {
@@ -1280,12 +1408,12 @@ export default function MovieEditorForm({
     }
 
     if (response.success && response.data) {
-      applyTmdbMovie(response.data.movie, requestKey);
+      const syncedForm = applyTmdbMovie(response.data.movie, requestKey);
       setLastFetchedTmdbCode(String(response.data.movie.tmdb_id ?? requestKey));
       setSearchMessage(
         nextMessage || "اطلاعات فیلم از TMDB روی فرم اعمال شد؛ پردازش تصاویر در حال انجام است.",
       );
-      void ingestTmdbImagesAfterSync(response.data.movie);
+      void ingestTmdbImagesAfterSync(response.data.movie, syncedForm);
     } else {
       const firstError = response.errors
         ? Object.values(response.errors)[0]?.[0]
@@ -1333,6 +1461,12 @@ export default function MovieEditorForm({
   };
 
   useEffect(() => {
+    if (form.playback_protocol !== "hls") {
+      setHlsSyncMessage("");
+      setHlsPreviewLoading(false);
+      return;
+    }
+
     const raw = form.hls_url.trim();
 
     if (!raw) {
@@ -1387,7 +1521,7 @@ export default function MovieEditorForm({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [form.hls_url]);
+  }, [form.hls_url, form.playback_protocol]);
 
   const buildPublicationFormData = () => {
     const formData = new FormData();
@@ -1487,12 +1621,19 @@ export default function MovieEditorForm({
     if (form.trailer_url.trim()) {
       formData.append("trailer_url", form.trailer_url.trim());
     }
-    if (form.hls_url.trim()) {
+    formData.append("playback_protocol", form.playback_protocol);
+    if (form.playback_protocol === "mp4") {
+      if (form.progressive_url.trim()) {
+        formData.append("progressive_url", form.progressive_url.trim());
+      }
+    } else if (form.hls_url.trim()) {
       formData.append("hls_url", form.hls_url.trim());
     }
-    if (form.subtitle_source_path.trim()) {
-      formData.append("subtitle_source_path", form.subtitle_source_path.trim());
-    }
+    // Always send so clearing the field clears DB too.
+    formData.append("subtitle_source_path", form.subtitle_source_path.trim());
+    formData.append("dubbed_source_path", form.dubbed_audio_url.trim());
+    formData.append("has_subtitle", form.has_subtitle ? "1" : "0");
+    formData.append("has_dubbed_audio", form.has_dubbed_audio ? "1" : "0");
     formData.append("drm_scheme", form.drm_scheme || "none");
     if (form.drm_scheme !== "none" && form.drm_license_url.trim()) {
       formData.append("drm_license_url", form.drm_license_url.trim());
@@ -1728,7 +1869,13 @@ export default function MovieEditorForm({
       return;
     }
 
-    if (!form.hls_url.trim()) {
+    if (form.playback_protocol === "mp4") {
+      if (!isProgressiveVideoUrl(form.progressive_url)) {
+        setError("آدرس ویدیو MP4 معتبر الزامی است.");
+        setActiveTab("media");
+        return;
+      }
+    } else if (!form.hls_url.trim()) {
       setError("مسیر HLS اجباری است.");
       setActiveTab("media");
       return;
@@ -1838,25 +1985,34 @@ export default function MovieEditorForm({
   }
 
   const playbackUrl =
-    form.hls_url || movie?.metadata?.playback?.hls_url || movie?.media_asset?.master_playlist_url || "";
+    form.playback_protocol === "mp4"
+      ? form.progressive_url ||
+        movie?.metadata?.playback?.progressive_url ||
+        ""
+      : form.hls_url ||
+        movie?.metadata?.playback?.hls_url ||
+        movie?.media_asset?.master_playlist_url ||
+        "";
   const isTmdbLoading = searchingTmdb || fetchingTmdb || ingestingTmdbImages;
   const previewPosterImage = movie?.poster_image ?? null;
   const previewBackdropImage = movie?.backdrop_image ?? null;
-  const previewPosterUrl =
-    pickAdminPreviewImageSrc(
-      previewPosterImage,
-      form.poster_url,
-      movie?.metadata?.tmdb?.poster_url,
-      movie?.poster_url,
-      movie?.metadata?.tmdb?.poster_source_url,
-    ) ?? "";
-  const previewBackdropUrl =
-    pickAdminPreviewImageSrc(
-      previewBackdropImage,
-      form.backdrop_url,
-      movie?.metadata?.tmdb?.backdrop_url,
-      movie?.metadata?.tmdb?.backdrop_source_url,
-    ) ?? "";
+  const previewPosterSources = buildAdminPreviewImageSources(
+    previewPosterImage,
+    form.poster_url,
+    movie?.metadata?.tmdb?.poster_source_url,
+    movie?.metadata?.tmdb?.poster_url,
+    movie?.poster_url,
+  );
+  const previewBackdropSources = buildAdminPreviewImageSources(
+    previewBackdropImage,
+    form.backdrop_url,
+    movie?.metadata?.tmdb?.backdrop_source_url,
+    movie?.metadata?.tmdb?.backdrop_url,
+  );
+  const previewPosterUrl = previewPosterSources.src ?? "";
+  const previewPosterFallbackUrl = previewPosterSources.fallbackUrl;
+  const previewBackdropUrl = previewBackdropSources.src ?? "";
+  const previewBackdropFallbackUrl = previewBackdropSources.fallbackUrl;
   const productionStatusLabel =
     translateProductionStatus(form.production_status) ||
     form.production_status ||
@@ -1973,13 +2129,20 @@ export default function MovieEditorForm({
           <section className="space-y-6">
             {activeTab === "details" ? (
               <div className="space-y-5">
+                <FormFieldAnchor field="tmdb_id" error={tabFieldErrors.tmdb_id}>
                 <div className="rounded-[28px] border border-[#38bdf8]/20 bg-[#38bdf8]/[0.06] p-5 space-y-4">
                   <TmdbTitleSearch
                     label="جستجوی عنوان فیلم در TMDB"
                     placeholder="نام فیلم را بنویسید…"
                     search={(query) => adminMoviesService.searchTmdb(query, "fa-IR", "movie")}
                     onSelect={(tmdbId) => {
-                      void fetchAndApplyTmdb(String(tmdbId));
+                      const code = String(tmdbId);
+                      setForm((current) => ({
+                        ...current,
+                        tmdb_query: code,
+                      }));
+                      setLastFetchedTmdbCode(code);
+                      void fetchAndApplyTmdb(code);
                     }}
                   />
 
@@ -2022,16 +2185,19 @@ export default function MovieEditorForm({
                     </div>
                   </div>
                 </div>
+                </FormFieldAnchor>
 
                 <div className="grid gap-5 md:grid-cols-2">
+                  <FormFieldAnchor field="title" error={tabFieldErrors.title}>
                   <label className="block">
                     <span className="mb-2 block text-sm text-[#8ea4b3]">نام</span>
                     <input
                       value={form.title}
                       onChange={(event) => handleChange("title", event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45"
+                      className={`w-full rounded-2xl border bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${formFieldBorderClass(Boolean(tabFieldErrors.title))}`}
                     />
                   </label>
+                  </FormFieldAnchor>
 
                   <label className="block">
                     <span className="mb-2 block text-sm text-[#8ea4b3]">نام اصلی</span>
@@ -2044,13 +2210,14 @@ export default function MovieEditorForm({
                 </div>
 
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                  <FormFieldAnchor field="slug" error={tabFieldErrors.slug}>
                   <label className="block">
                     <span className="mb-2 block text-sm text-[#8ea4b3]">slug</span>
                     <input
                       value={form.slug}
                       onChange={(event) => handleChange("slug", event.target.value)}
                       dir="ltr"
-                      className={`w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrInputClass}`}
+                      className={`w-full rounded-2xl border bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrInputClass} ${formFieldBorderClass(Boolean(tabFieldErrors.slug))}`}
                     />
                     <SlugAvailabilityHint
                       status={slugAvailability.status}
@@ -2058,15 +2225,18 @@ export default function MovieEditorForm({
                       onApplySuggestion={(nextSlug) => handleChange("slug", nextSlug)}
                     />
                   </label>
+                  </FormFieldAnchor>
 
+                  <FormFieldAnchor field="release_year" error={tabFieldErrors.release_year}>
                   <label className="block">
                     <span className="mb-2 block text-sm text-[#8ea4b3]">سال</span>
                     <input
                       value={form.release_year}
                       onChange={(event) => handleChange("release_year", event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45"
+                      className={`w-full rounded-2xl border bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${formFieldBorderClass(Boolean(tabFieldErrors.release_year))}`}
                     />
                   </label>
+                  </FormFieldAnchor>
 
                   <label className="block">
                     <span className="mb-2 block text-sm text-[#8ea4b3]">امتیاز</span>
@@ -2144,6 +2314,7 @@ export default function MovieEditorForm({
                   </label>
                 </div>
 
+                <FormFieldAnchor field="age_rating" error={tabFieldErrors.age_rating}>
                 <label className="block">
                   <span className="mb-2 block text-sm text-[#8ea4b3]">
                     رده‌بندی سنی <span className="text-[#f5c518]">*</span>
@@ -2154,6 +2325,7 @@ export default function MovieEditorForm({
                     options={ageRatingOptions}
                   />
                 </label>
+                </FormFieldAnchor>
 
                 <ContentWarningsField
                   values={form.content_warnings}
@@ -2169,13 +2341,14 @@ export default function MovieEditorForm({
                   onHomepageUrlChange={(value) => handleChange("homepage_url", value)}
                 />
 
+                <FormFieldAnchor field="synopsis" error={tabFieldErrors.synopsis}>
                 <label className="block">
                   <span className="mb-2 block text-sm text-[#8ea4b3]">خلاصه داستان</span>
                   <textarea
                     rows={6}
                     value={form.synopsis}
                     onChange={(event) => handleChange("synopsis", event.target.value)}
-                    className="w-full rounded-[26px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-8 text-white outline-none transition focus:border-[#f5c518]/45"
+                    className={`w-full rounded-[26px] border bg-white/[0.04] px-4 py-3 text-sm leading-8 text-white outline-none transition focus:border-[#f5c518]/45 ${formFieldBorderClass(Boolean(tabFieldErrors.synopsis))}`}
                   />
                   {form.synopsis_en.trim() ? (
                     <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
@@ -2183,6 +2356,7 @@ export default function MovieEditorForm({
                     </p>
                   ) : null}
                 </label>
+                </FormFieldAnchor>
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <AdminTaxonomyMultiSelect
@@ -2229,7 +2403,12 @@ export default function MovieEditorForm({
                     (field) => (
                     <div
                       key={field}
-                      className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
+                      data-form-field={field}
+                      className={`rounded-[24px] border bg-white/[0.03] p-4 ${
+                        tabFieldErrors[field]
+                          ? "border-red-400/45 ring-1 ring-red-400/45"
+                          : "border-white/10"
+                      }`}
                     >
                       <p className="text-xs text-[#8ea4b3]">{freeArrayFieldLabels[field]}</p>
 
@@ -2285,11 +2464,17 @@ export default function MovieEditorForm({
                           <HiOutlinePlus className="h-4 w-4" />
                         </button>
                       </div>
+                      {tabFieldErrors[field] ? (
+                        <p className="mt-2 text-xs font-medium text-red-300" role="alert">
+                          {tabFieldErrors[field]}
+                        </p>
+                      ) : null}
                     </div>
                   ),
                   )}
                 </div>
 
+                <FormFieldAnchor field="actors" error={tabFieldErrors.actors}>
                 <div className="space-y-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-lg font-bold text-white">بازیگران</h3>
@@ -2373,6 +2558,7 @@ export default function MovieEditorForm({
                     </div>
                   )}
                 </div>
+                </FormFieldAnchor>
 
                 <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                   <button
@@ -2385,8 +2571,11 @@ export default function MovieEditorForm({
                   <button
                     type="button"
                     onClick={goToNextTab}
-                    disabled={!canProceedToNextTab}
-                    className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d] disabled:cursor-not-allowed disabled:opacity-60"
+                    className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
+                      canProceedToNextTab
+                        ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
+                        : "border-[#f5c518]/25 bg-[#f5c518]/70 text-[#081018] hover:bg-[#f5c518]"
+                    }`}
                   >
                     تب بعدی
                   </button>
@@ -2406,35 +2595,54 @@ export default function MovieEditorForm({
                 ) : null}
 
                 <div className="grid gap-5 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-2 flex items-center gap-2 text-sm text-[#8ea4b3]">
-                      <HiOutlinePhotograph className="h-4 w-4" />
-                      پوستر
-                    </span>
-                    <input
-                      type="url"
-                      dir="ltr"
-                      value={form.poster_url}
-                      onChange={(event) => handleChange("poster_url", event.target.value)}
-                      className={`w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass}`}
-                    />
-                  </label>
+                  <FormFieldAnchor field="poster_url" error={tabFieldErrors.poster_url}>
+                  <AdminImageUrlField
+                    label="پوستر"
+                    value={form.poster_url}
+                    onChange={(value) => handleChange("poster_url", value)}
+                    entityType="movie"
+                    entityId={movie?.id ?? movieId ?? null}
+                    imageRole="poster"
+                    onUploaded={(result) => {
+                      setMovie((current) =>
+                        current
+                          ? {
+                              ...current,
+                              poster_url: result.image_path,
+                              poster_image: result.image ?? current.poster_image ?? null,
+                            }
+                          : current,
+                      );
+                    }}
+                    className={ltrLinkInputClass}
+                  />
+                  </FormFieldAnchor>
 
-                  <label className="block">
-                    <span className="mb-2 flex items-center gap-2 text-sm text-[#8ea4b3]">
-                      <HiOutlinePhotograph className="h-4 w-4" />
-                      بنر
-                    </span>
-                    <input
-                      type="url"
-                      dir="ltr"
-                      value={form.backdrop_url}
-                      onChange={(event) => handleChange("backdrop_url", event.target.value)}
-                      className={`w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass}`}
-                    />
-                  </label>
+                  <FormFieldAnchor field="backdrop_url" error={tabFieldErrors.backdrop_url}>
+                  <AdminImageUrlField
+                    label="تصویر پس‌زمینه"
+                    value={form.backdrop_url}
+                    onChange={(value) => handleChange("backdrop_url", value)}
+                    entityType="movie"
+                    entityId={movie?.id ?? movieId ?? null}
+                    imageRole="backdrop"
+                    onUploaded={(result) => {
+                      setMovie((current) =>
+                        current
+                          ? {
+                              ...current,
+                              backdrop_url: result.image_path,
+                              backdrop_image: result.image ?? current.backdrop_image ?? null,
+                            }
+                          : current,
+                      );
+                    }}
+                    className={ltrLinkInputClass}
+                  />
+                  </FormFieldAnchor>
                 </div>
 
+                <FormFieldAnchor field="trailer_url" error={tabFieldErrors.trailer_url}>
                 <label className="block">
                   <span className="mb-2 flex items-center gap-2 text-sm text-[#8ea4b3]">
                     <HiOutlineVideoCamera className="h-4 w-4" />
@@ -2445,9 +2653,10 @@ export default function MovieEditorForm({
                     dir="ltr"
                     value={form.trailer_url}
                     onChange={(event) => handleChange("trailer_url", event.target.value)}
-                    className={`w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass}`}
+                    className={`w-full rounded-2xl border bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass} ${formFieldBorderClass(Boolean(tabFieldErrors.trailer_url))}`}
                   />
                 </label>
+                </FormFieldAnchor>
 
                 <div
                   className={`relative rounded-[28px] border bg-white/[0.03] p-5 transition ${
@@ -2456,63 +2665,111 @@ export default function MovieEditorForm({
                       : "border-white/10"
                   }`}
                 >
-                  {hlsPreviewLoading ? (
+                  {hlsPreviewLoading && form.playback_protocol === "hls" ? (
                     <div className="mb-4 flex items-center gap-2 rounded-2xl border border-[#38bdf8]/25 bg-[#38bdf8]/10 px-4 py-3 text-sm text-[#bae6fd]">
                       <HiOutlineRefresh className="h-4 w-4 shrink-0 animate-spin" />
                       <span>در حال پردازش و بررسی پکیج HLS…</span>
                     </div>
                   ) : null}
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <label className="block md:col-span-2">
-                      <span className="mb-2 block text-sm text-[#8ea4b3]">مسیر HLS</span>
-                      <input
-                        type="text"
-                        dir="ltr"
-                        required
-                        value={form.hls_url}
-                        onChange={(event) => handleChange("hls_url", event.target.value)}
-                        placeholder="پوشهٔ پکیج یا آدرس کامل master.m3u8"
-                        className={`w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass}`}
-                      />
-                      {hlsSyncMessage ? (
-                        <p className="mt-2 text-xs text-[#86efac]">{hlsSyncMessage}</p>
-                      ) : null}
-                    </label>
 
-                    <label className="block md:col-span-2">
-                      <span className="mb-2 block text-sm text-[#8ea4b3]">
-                        لینک زیرنویس
-                      </span>
-                      <input
-                        type="url"
-                        dir="ltr"
-                        value={form.subtitle_source_path}
-                        onChange={(event) =>
-                          handleChange("subtitle_source_path", event.target.value)
-                        }
-                        placeholder="https://cdn.example.com/subtitles/movie-fa.vtt"
-                        className={`w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass}`}
-                      />
-                    </label>
-
-                    <label className="block md:col-span-2">
-                      <span className="mb-2 flex items-center gap-2 text-sm text-[#8ea4b3]">
-                        <HiOutlineVolumeUp className="h-4 w-4" />
-                        لینک پلی‌لیست صوتی دوبله (از پکیج HLS)
-                      </span>
-                      <input
-                        type="url"
-                        dir="ltr"
-                        value={form.dubbed_audio_url}
-                        onChange={(event) =>
-                          handleChange("dubbed_audio_url", event.target.value)
-                        }
-                        placeholder="معمولاً audio/fa/index.m3u8 — با ست شدن HLS پر می‌شود"
-                        className={`w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass}`}
-                      />
-                    </label>
+                  <div className="mb-4">
+                    <p className="mb-2 text-sm text-[#8ea4b3]">روش پخش فیلم</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(
+                        [
+                          { value: "hls" as const, label: "HLS (پکیج m3u8)" },
+                          { value: "mp4" as const, label: "ویدیو مستقیم MP4" },
+                        ] as const
+                      ).map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              playback_protocol: option.value,
+                            }))
+                          }
+                          className={`rounded-2xl border px-4 py-2 text-xs font-semibold transition ${
+                            form.playback_protocol === option.value
+                              ? "border-[#f5c518]/45 bg-[#f5c518]/15 text-white"
+                              : "border-white/10 bg-[#071019] text-[#c7d5de] hover:border-white/20"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
+                  <div className="grid gap-5 md:grid-cols-2">
+                    {form.playback_protocol === "hls" ? (
+                      <FormFieldAnchor field="hls_url" error={tabFieldErrors.hls_url} className="md:col-span-2">
+                      <label className="block">
+                        <span className="mb-2 block text-sm text-[#8ea4b3]">مسیر HLS</span>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          required
+                          value={form.hls_url}
+                          onChange={(event) => handleChange("hls_url", event.target.value)}
+                          placeholder="پوشهٔ پکیج یا آدرس کامل master.m3u8"
+                          className={`w-full rounded-2xl border bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass} ${formFieldBorderClass(Boolean(tabFieldErrors.hls_url), "border-white/10")}`}
+                        />
+                        {hlsSyncMessage ? (
+                          <p className="mt-2 text-xs text-[#86efac]">{hlsSyncMessage}</p>
+                        ) : null}
+                      </label>
+                      </FormFieldAnchor>
+                    ) : (
+                      <FormFieldAnchor field="progressive_url" error={tabFieldErrors.progressive_url} className="md:col-span-2">
+                      <label className="block">
+                        <span className="mb-2 block text-sm text-[#8ea4b3]">
+                          آدرس ویدیو مستقیم (MP4)
+                        </span>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          required
+                          value={form.progressive_url}
+                          onChange={(event) =>
+                            handleChange("progressive_url", event.target.value)
+                          }
+                          placeholder="https://cdn.example.com/movies/title/video.mp4"
+                          className={`w-full rounded-2xl border bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass} ${formFieldBorderClass(Boolean(tabFieldErrors.progressive_url), "border-white/10")}`}
+                        />
+                        <p className="mt-2 text-xs text-[#8ea4b3]">
+                          فایل progressive؛ بدون تبدیل به HLS پخش می‌شود.
+                        </p>
+                      </label>
+                      </FormFieldAnchor>
+                    )}
+
+                    <PlaybackSubtitleDubFields
+                      playbackProtocol={form.playback_protocol}
+                      subtitleUrl={form.subtitle_source_path}
+                      dubbedAudioUrl={form.dubbed_audio_url}
+                      hasSubtitle={form.has_subtitle}
+                      hasDubbed={form.has_dubbed_audio}
+                      ltrInputClass={ltrLinkInputClass}
+                      onSubtitleUrlChange={(value) => handleChange("subtitle_source_path", value)}
+                      onDubbedAudioUrlChange={(value) => handleChange("dubbed_audio_url", value)}
+                      onHasSubtitleChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          has_subtitle: value,
+                        }))
+                      }
+                      onHasDubbedChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          has_dubbed_audio: value,
+                        }))
+                      }
+                    />
+                  </div>
+
+                  {form.playback_protocol === "hls" ? (
                   <details className="mt-5 rounded-[24px] border border-white/10 bg-black/20 p-5">
                     <summary className="cursor-pointer text-sm font-semibold text-white">
                       تنظیمات DRM (اختیاری)
@@ -2581,6 +2838,7 @@ export default function MovieEditorForm({
                       ) : null}
                     </div>
                   </details>
+                  ) : null}
 
                   <div className="mt-5 space-y-4">
                     <div className="flex items-center justify-between gap-3">
@@ -2648,8 +2906,11 @@ export default function MovieEditorForm({
                   <button
                     type="button"
                     onClick={goToNextTab}
-                    disabled={!canProceedToNextTab}
-                    className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d] disabled:cursor-not-allowed disabled:opacity-60"
+                    className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
+                      canProceedToNextTab
+                        ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
+                        : "border-[#f5c518]/25 bg-[#f5c518]/70 text-[#081018] hover:bg-[#f5c518]"
+                    }`}
                   >
                     تب بعدی
                   </button>
@@ -2790,8 +3051,9 @@ export default function MovieEditorForm({
                   actors={extractActorNames(form.actors)}
                   downloadCount={downloadLinkCount}
                   playbackReady={Boolean(playbackUrl.trim())}
-                  hasSubtitle={Boolean(form.subtitle_source_path.trim())}
+                  hasSubtitle={form.has_subtitle || Boolean(form.subtitle_source_path.trim())}
                   hasDubbed={
+                    form.has_dubbed_audio ||
                     Boolean(form.dubbed_audio_url.trim()) ||
                     form.tags.some((tag) => /dub|دوبله/i.test(tag))
                   }
@@ -2898,14 +3160,19 @@ export default function MovieEditorForm({
               <div className="mt-4 overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.03]">
                 {isTmdbLoading ? (
                   <TmdbPreviewSkeleton className="rounded-none border-0" heightClass="h-[26rem]" />
-                ) : previewBackdropUrl || previewPosterUrl ? (
+                ) : previewBackdropUrl ||
+                  previewBackdropFallbackUrl ||
+                  previewPosterUrl ||
+                  previewPosterFallbackUrl ? (
                   <div className="relative h-[26rem] overflow-hidden">
-                    {previewBackdropUrl || previewBackdropImage ? (
+                    {previewBackdropUrl || previewBackdropFallbackUrl || previewBackdropImage ? (
                       <div className="absolute inset-0">
                         <BackdropImage
                           title={form.title || "Movie"}
                           image={previewBackdropImage}
                           src={previewBackdropUrl}
+                          fallbackUrl={previewBackdropFallbackUrl}
+                          allowRemoteFallback
                           usage="detail-backdrop"
                         />
                       </div>
@@ -2914,11 +3181,13 @@ export default function MovieEditorForm({
                     <div className="relative flex h-full flex-col justify-end p-5">
                       <div className="flex items-end gap-4">
                         <div className="h-40 w-28 overflow-hidden rounded-[22px] border border-white/10 bg-[#071019] shadow-[0_20px_40px_rgba(0,0,0,0.32)]">
-                          {previewPosterUrl || previewPosterImage ? (
+                          {previewPosterUrl || previewPosterFallbackUrl || previewPosterImage ? (
                             <PosterImage
                               title={form.title || "Movie"}
                               image={previewPosterImage}
                               src={previewPosterUrl}
+                              fallbackUrl={previewPosterFallbackUrl}
+                              allowRemoteFallback
                               usage="detail-poster"
                             />
                           ) : (
@@ -2961,7 +3230,10 @@ export default function MovieEditorForm({
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                   <p className="text-[#8ea4b3]">پخش</p>
                   <p className="mt-2 break-all font-semibold text-white">
-                    {playbackUrl || "هنوز مسیر HLS ثبت نشده"}
+                    {playbackUrl ||
+                      (form.playback_protocol === "mp4"
+                        ? "هنوز آدرس MP4 ثبت نشده"
+                        : "هنوز مسیر HLS ثبت نشده")}
                   </p>
                 </div>
               </div>

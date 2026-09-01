@@ -66,7 +66,7 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
 
   return (
     <section
-      className="relative min-h-[52vh] overflow-hidden md:min-h-[58vh] lg:min-h-[62vh]"
+      className="relative min-h-[60vh] overflow-hidden md:min-h-[68vh] lg:min-h-[74vh]"
       dir="rtl"
       aria-label="محتوای ویژه"
       onMouseEnter={() => setIsPaused(true)}
@@ -102,8 +102,8 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
       <div className="absolute inset-0 bg-[linear-gradient(270deg,rgba(5,7,11,0.05)_0%,rgba(5,7,11,0.45)_38%,rgba(5,7,11,0.88)_68%,rgba(5,7,11,0.97)_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,7,11,0.2)_0%,rgba(5,7,11,0.15)_45%,rgba(5,7,11,0.92)_88%,rgba(5,7,11,1)_100%)]" />
 
-      <div className="relative z-10 flex min-h-[52vh] flex-col justify-end md:min-h-[58vh] lg:min-h-[62vh]">
-        <div className="mx-auto w-full max-w-[1820px] px-4 pb-28 pt-32 md:px-7 md:pb-32 lg:pb-36">
+      <div className="relative z-10 flex min-h-[60vh] flex-col justify-end md:min-h-[68vh] lg:min-h-[74vh]">
+        <div className="mx-auto w-full max-w-[1820px] px-4 pb-28 pt-36 md:px-7 md:pb-36 lg:pb-40">
           <div className="ml-auto max-w-2xl space-y-4 text-right lg:max-w-3xl">
             <p
               className="text-sm font-bold tracking-wide md:text-base"

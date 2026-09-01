@@ -19,12 +19,26 @@ import {
   HiOutlineSave,
   HiOutlineTrash,
   HiOutlineUserGroup,
-  HiOutlineVolumeUp,
   HiOutlineX,
 } from "react-icons/hi";
 import AdminScheduleDateTimePicker from "../../../../components/admin/AdminScheduleDateTimePicker";
 import AdminSelect from "../../../../components/admin/AdminSelect";
 import EditorPublishSubmitBar from "../../../../components/admin/EditorPublishSubmitBar";
+import AdminImageUrlField from "../../_components/AdminImageUrlField";
+import PlaybackSubtitleDubFields from "../../_components/PlaybackSubtitleDubFields";
+import FormFieldAnchor from "../../_components/FormFieldAnchor";
+import {
+  issuesToErrorMap,
+  scrollToFormField,
+  formFieldBorderClass,
+} from "../../_lib/admin-form-tab-validation";
+import {
+  parseSeriesEpisodeFieldKey,
+  parseSeriesSeasonFieldKey,
+  validateSeriesIdentityTab,
+  validateSeriesSeasonsTab,
+  validateSeriesTab,
+} from "../../_lib/series-tab-validation";
 import PublishOutcomeModal, {
   type PublishOutcomeStatus,
 } from "../../../../components/admin/PublishOutcomeModal";
@@ -77,16 +91,18 @@ import {
 import {
   applyIngestedPrimaryImages,
   applyIngestedSeasonImages,
+  buildAdminPreviewImageSources,
   buildSeriesPrimaryIngestSource,
   buildSeriesSeasonIngestSource,
   buildSeriesTmdbImageIngestPayload,
   finalizeTmdbImageIngestMessage,
   mergeIngestedActorProfiles,
+  needsPrimaryImageIngest,
   preserveIngestedPrimaryImages,
   withTmdbImageProcessingMessage,
   type IngestTmdbImagesResult,
 } from "../../../../lib/admin-tmdb-image-ingest";
-import { pickAdminPreviewImageSrc, toManagedImagePublicPath } from "../../../../lib/cinema-image";
+import { toManagedImagePublicPath } from "../../../../lib/cinema-image";
 import { sortCastByOrder, sortCastRows } from "../../../../lib/cast-utils";
 import {
   formatEpisodeHeading,
@@ -190,9 +206,13 @@ import {
 import {
   applyTmdbSeasonToForm,
   applyTmdbSeriesOverviewToForm,
+  episodeSourceMethodForProtocol,
   finalizeTmdbSeriesSyncExclusions,
+  inferSeriesPlaybackProtocol,
   initialTmdbSyncState,
   resolveSeasonNumbersForTmdbSync,
+  fetchTmdbSeasonsWithConcurrency,
+  resolveTmdbSeasonFetchErrorMessage,
   type EpisodeDraft,
   type SeasonDraft,
   type SeriesCrewFormRow,
@@ -238,6 +258,10 @@ function collectEpisodeHlsSyncTargets(
     }
 
     for (const episode of season.episodes) {
+      if (episode.source_method && episode.source_method !== "hls") {
+        continue;
+      }
+
       const resolved = resolveEpisodeHlsUrl({
         seriesBase: form.hls_base_url,
         seasonBase: season.hls_base_url,
@@ -478,7 +502,10 @@ function buildSlug(...candidates: Array<string | null | undefined>) {
   return "";
 }
 
-function createEpisodeDraft(episodeNumber = 1): EpisodeDraft {
+function createEpisodeDraft(
+  episodeNumber = 1,
+  protocol: "hls" | "mp4" = "hls",
+): EpisodeDraft {
   return {
     id: uniqueId("episode"),
     episode_number: String(episodeNumber),
@@ -488,7 +515,7 @@ function createEpisodeDraft(episodeNumber = 1): EpisodeDraft {
     air_date: "",
     duration_minutes: "",
     still_url: "",
-    source_method: "hls",
+    source_method: episodeSourceMethodForProtocol(protocol),
     video_url: "",
     embed_url: "",
     hls_url: "",
@@ -498,11 +525,16 @@ function createEpisodeDraft(episodeNumber = 1): EpisodeDraft {
     download_links: {},
     subtitle_url: "",
     dubbed_audio_url: "",
+    has_subtitle: false,
+    has_dubbed: false,
     publish_status: "draft",
   };
 }
 
-function createSeasonDraft(seasonNumber = 1): SeasonDraft {
+function createSeasonDraft(
+  seasonNumber = 1,
+  protocol: "hls" | "mp4" = "hls",
+): SeasonDraft {
   return {
     id: uniqueId("season"),
     season_number: String(seasonNumber),
@@ -513,7 +545,7 @@ function createSeasonDraft(seasonNumber = 1): SeasonDraft {
     episode_count: "",
     poster_url: "",
     hls_base_url: "",
-    episodes: [createEpisodeDraft(1)],
+    episodes: [createEpisodeDraft(1, protocol)],
   };
 }
 
@@ -671,7 +703,12 @@ function seedVerifiedEpisodeHlsSyncState(form: SeriesFormState): {
       const syncKey = `${season.id}:${episode.id}`;
       cache[syncKey] = comparable;
 
-      if (episode.subtitle_url.trim() || episode.dubbed_audio_url.trim()) {
+      if (
+        episode.subtitle_url.trim() ||
+        episode.dubbed_audio_url.trim() ||
+        episode.has_subtitle ||
+        episode.has_dubbed
+      ) {
         messages[syncKey] = "زیرنویس و دوبله از پکیج HLS همگام شد.";
       } else if (Object.keys(episode.download_links || {}).length > 0) {
         messages[syncKey] = "مسیر HLS و لینک‌های دانلود همگام شد.";
@@ -731,10 +768,11 @@ function createInitialFormState(): SeriesFormState {
     countries: [],
     actors: [],
     crew: [],
+    playback_protocol: "hls",
     hls_base_url: "",
     drm_scheme: "none",
     drm_license_url: "",
-    seasons: [createSeasonDraft(1)],
+    seasons: [createSeasonDraft(1, "hls")],
     tmdb_excluded_season_numbers: [],
     tmdb_excluded_episodes: [],
     admin_notes: "",
@@ -807,7 +845,7 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
     series.metadata?.tmdb?.synopsis_en,
   );
 
-  return {
+  const mapped: SeriesFormState = {
     title: series.title || "",
     slug: series.slug || "",
     original_title: series.original_title || "",
@@ -910,6 +948,7 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
       profile_image: c.profile_image ?? null,
       credit_id: c.credit_id || null,
     })),
+    playback_protocol: "hls",
     hls_base_url: series.hls_base_url || "",
     drm_scheme: series.drm_scheme || "none",
     drm_license_url: series.drm_license_url || "",
@@ -970,6 +1009,8 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
                   download_links: episode.download_links || {},
                   subtitle_url: episode.subtitle_url || "",
                   dubbed_audio_url: episode.dubbed_audio_url || "",
+                  has_subtitle: Boolean(episode.has_subtitle),
+                  has_dubbed: Boolean(episode.has_dubbed),
                   publish_status: episode.publish_status || "draft",
                 };
               })
@@ -978,6 +1019,9 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
           })
         : [createSeasonDraft(1)],
   };
+
+  mapped.playback_protocol = inferSeriesPlaybackProtocol(mapped.seasons);
+  return mapped;
 }
 
 function formToPayload(
@@ -1033,6 +1077,8 @@ function formToPayload(
           })(),
           subtitle_url: nullableString(episode.subtitle_url) || null,
           dubbed_audio_url: nullableString(episode.dubbed_audio_url) || null,
+          has_subtitle: Boolean(episode.has_subtitle),
+          has_dubbed: Boolean(episode.has_dubbed),
           publish_status: episode.publish_status || form.publish_status,
         };
         });
@@ -1160,6 +1206,7 @@ export default function SeriesEditorForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitStep, setSubmitStep] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [tabFieldErrors, setTabFieldErrors] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState("");
   const [searchMessage, setSearchMessage] = useState("");
   const [searchingTmdb, setSearchingTmdb] = useState(false);
@@ -1381,7 +1428,9 @@ export default function SeriesEditorForm({
   const hasSubtitle = useMemo(
     () =>
       form.seasons.some((season) =>
-        season.episodes.some((episode) => episode.subtitle_url.trim() !== ""),
+        season.episodes.some(
+          (episode) => episode.has_subtitle || episode.subtitle_url.trim() !== "",
+        ),
       ),
     [form.seasons],
   );
@@ -1389,31 +1438,35 @@ export default function SeriesEditorForm({
   const hasDubbed = useMemo(
     () =>
       form.seasons.some((season) =>
-        season.episodes.some((episode) => episode.dubbed_audio_url.trim() !== ""),
+        season.episodes.some(
+          (episode) => episode.has_dubbed || episode.dubbed_audio_url.trim() !== "",
+        ),
       ),
     [form.seasons],
   );
 
   const previewPosterImage = series?.poster_image ?? null;
   const previewBackdropImage = series?.backdrop_image ?? null;
-  const previewPosterUrl =
-    pickAdminPreviewImageSrc(
-      previewPosterImage,
-      form.poster_url.trim(),
-      form.poster_source_url.trim(),
-      series?.poster_url,
-      series?.metadata?.tmdb?.poster_url,
-      series?.metadata?.tmdb?.poster_source_url,
-    ) ?? "";
-  const previewBackdropUrl =
-    pickAdminPreviewImageSrc(
-      previewBackdropImage,
-      form.backdrop_url.trim(),
-      form.backdrop_source_url.trim(),
-      series?.backdrop_url,
-      series?.metadata?.tmdb?.backdrop_url,
-      series?.metadata?.tmdb?.backdrop_source_url,
-    ) ?? "";
+  const previewPosterSources = buildAdminPreviewImageSources(
+    previewPosterImage,
+    form.poster_url,
+    form.poster_source_url,
+    series?.poster_url,
+    series?.metadata?.tmdb?.poster_url,
+    series?.metadata?.tmdb?.poster_source_url,
+  );
+  const previewBackdropSources = buildAdminPreviewImageSources(
+    previewBackdropImage,
+    form.backdrop_url,
+    form.backdrop_source_url,
+    series?.backdrop_url,
+    series?.metadata?.tmdb?.backdrop_url,
+    series?.metadata?.tmdb?.backdrop_source_url,
+  );
+  const previewPosterUrl = previewPosterSources.src ?? "";
+  const previewPosterFallbackUrl = previewPosterSources.fallbackUrl;
+  const previewBackdropUrl = previewBackdropSources.src ?? "";
+  const previewBackdropFallbackUrl = previewBackdropSources.fallbackUrl;
   const sortedActorsWithIndex = useMemo(() => {
     const rows = form.actors
       .map((actor, index) => {
@@ -1475,6 +1528,32 @@ export default function SeriesEditorForm({
       ...current,
       [field]: value,
     }));
+  };
+
+  const setPlaybackProtocol = (protocol: "hls" | "mp4") => {
+    setForm((current) => {
+      if (current.playback_protocol === protocol) {
+        return current;
+      }
+
+      const nextMethod = episodeSourceMethodForProtocol(protocol);
+
+      return {
+        ...current,
+        playback_protocol: protocol,
+        seasons: current.seasons.map((season) => ({
+          ...season,
+          episodes: season.episodes.map((episode) => ({
+            ...episode,
+            source_method: nextMethod,
+            // Clear cross-protocol playback fields to avoid mixed saves.
+            ...(protocol === "mp4"
+              ? { hls_url: "", hls_verified: false }
+              : { video_url: "" }),
+          })),
+        })),
+      };
+    });
   };
 
   const addArrayItems = (field: SeriesFreeArrayField, rawValue: string) => {
@@ -1639,33 +1718,57 @@ export default function SeriesEditorForm({
   async function runSeriesPrimaryImageIngest(
     formSnapshot: SeriesFormState,
     signal: AbortSignal,
-  ): Promise<void> {
-    const data = await requestSeriesImageIngest(
-      buildSeriesTmdbImageIngestPayload({
-        entityId: seriesId ?? null,
-        ...buildSeriesPrimaryIngestSource(formSnapshot),
-        includeSeasons: false,
-      }),
-      signal,
-    );
-
-    if (!data) {
-      return;
+  ): Promise<SeriesFormState> {
+    if (!needsPrimaryImageIngest(formSnapshot)) {
+      return formSnapshot;
     }
 
-    setForm((current) => {
-      const withPrimary = applyIngestedPrimaryImages(current, data, {
-        poster_url: current.poster_source_url || current.poster_url,
-        backdrop_url: current.backdrop_source_url || current.backdrop_url,
-      });
+    let latestForm = formSnapshot;
 
-      return {
-        ...withPrimary,
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (signal.aborted) {
+        return latestForm;
+      }
+
+      const data = await requestSeriesImageIngest(
+        buildSeriesTmdbImageIngestPayload({
+          entityId: seriesId ?? null,
+          ...buildSeriesPrimaryIngestSource(latestForm),
+          includeSeasons: false,
+        }),
+        signal,
+      );
+
+      if (!data) {
+        if (attempt < 2) {
+          await new Promise((resolve) => window.setTimeout(resolve, 600 * (attempt + 1)));
+        }
+        continue;
+      }
+
+      latestForm = {
+        ...applyIngestedPrimaryImages(latestForm, data, {
+          poster_url: latestForm.poster_source_url || latestForm.poster_url,
+          backdrop_url: latestForm.backdrop_source_url || latestForm.backdrop_url,
+        }),
         actors: data.actors?.length
-          ? mergeIngestedActorProfiles(withPrimary.actors, data.actors)
-          : withPrimary.actors,
+          ? mergeIngestedActorProfiles(latestForm.actors, data.actors)
+          : latestForm.actors,
       };
-    });
+
+      if (!needsPrimaryImageIngest(latestForm)) {
+        break;
+      }
+
+      if (attempt < 2) {
+        await new Promise((resolve) => window.setTimeout(resolve, 600 * (attempt + 1)));
+      }
+    }
+
+    formRef.current = latestForm;
+    setForm(latestForm);
+
+    return latestForm;
   }
 
   async function runSeriesSeasonImageIngest(
@@ -1847,13 +1950,14 @@ export default function SeriesEditorForm({
         })),
       }));
 
-      const seasonFetchPromise = Promise.allSettled(
-        seasonNumbers.map((seasonNumber) =>
+      const seasonFetchPromise = fetchTmdbSeasonsWithConcurrency(
+        seasonNumbers,
+        (seasonNumber) =>
           adminSeriesService.fetchTmdbSeason(tmdbId, seasonNumber, { signal }),
-        ),
+        { concurrency: 2, signal },
       );
 
-      const [seasonResults] = await Promise.all([
+      const [seasonFetchRows] = await Promise.all([
         seasonFetchPromise,
         primaryIngestPromise ?? Promise.resolve(),
       ]);
@@ -1866,13 +1970,14 @@ export default function SeriesEditorForm({
 
       let latestForm = formRef.current;
 
-      for (let index = 0; index < seasonResults.length; index += 1) {
-        const seasonNumber = seasonNumbers[index];
-        const result = seasonResults[index];
-
-        if (result.status === "fulfilled" && result.value.success && result.value.data?.season) {
+      for (const { seasonNumber, settled } of seasonFetchRows) {
+        if (
+          settled.status === "fulfilled" &&
+          settled.value.success &&
+          settled.value.data?.season
+        ) {
           latestForm = preserveIngestedPrimaryImages(
-            applyTmdbSeasonToForm(latestForm, result.value.data.season, {
+            applyTmdbSeasonToForm(latestForm, settled.value.data.season, {
               fullSeasonResync: true,
             }),
             formRef.current,
@@ -1892,14 +1997,20 @@ export default function SeriesEditorForm({
           setTmdbSyncState((current) => ({
             ...current,
             seasonProgress: current.seasonProgress.map((row) =>
-              row.season_number === seasonNumber ? { ...row, status: "done" } : row,
+              row.season_number === seasonNumber
+                ? { ...row, status: "done", error: undefined }
+                : row,
             ),
           }));
         } else {
+          const errorMessage = resolveTmdbSeasonFetchErrorMessage(settled);
+
           setTmdbSyncState((current) => ({
             ...current,
             seasonProgress: current.seasonProgress.map((row) =>
-              row.season_number === seasonNumber ? { ...row, status: "error" } : row,
+              row.season_number === seasonNumber
+                ? { ...row, status: "error", error: errorMessage }
+                : row,
             ),
           }));
         }
@@ -1966,6 +2077,10 @@ export default function SeriesEditorForm({
         { announceStart: false, announceComplete: true },
       );
 
+      if (!imageSession.signal.aborted) {
+        await runSeriesPrimaryImageIngest(formRef.current, imageSession.signal);
+      }
+
       setExpandedEpisodeKeys([]);
       episodeHlsComparableMapRef.current = buildEpisodeHlsComparableMap(
         formWithPreservedPrimaryImages,
@@ -1979,19 +2094,21 @@ export default function SeriesEditorForm({
       setTmdbSyncState({
         phase: "done",
         overviewReady: true,
-        seasonProgress: seasonNumbers.map((seasonNumber) => {
-          const row = seasonResults[seasonNumbers.indexOf(seasonNumber)];
-
-          return {
-            season_number: seasonNumber,
-            status:
-              row?.status === "fulfilled" &&
-              row.value.success &&
-              row.value.data?.season
-                ? "done"
-                : "error",
-          };
-        }),
+        seasonProgress: seasonFetchRows.map(({ seasonNumber, settled }) => ({
+          season_number: seasonNumber,
+          status:
+            settled.status === "fulfilled" &&
+            settled.value.success &&
+            settled.value.data?.season
+              ? "done"
+              : "error",
+          error:
+            settled.status === "fulfilled" &&
+            settled.value.success &&
+            settled.value.data?.season
+              ? undefined
+              : resolveTmdbSeasonFetchErrorMessage(settled),
+        })),
       });
       if (!imageSession.signal.aborted) {
         setSearchMessage(
@@ -2260,17 +2377,81 @@ export default function SeriesEditorForm({
     return isIdentityTabComplete;
   };
 
+  const prepareFieldFocus = (field: string) => {
+    const seasonId = parseSeriesSeasonFieldKey(field);
+    const episodeRef = parseSeriesEpisodeFieldKey(field);
+
+    if (seasonId) {
+      setExpandedSeasonIds((current) =>
+        current.includes(seasonId) ? current : [...current, seasonId],
+      );
+    }
+
+    if (episodeRef) {
+      const episodeKey = seasonEpisodeKey(episodeRef.seasonId, episodeRef.episodeId);
+      setExpandedSeasonIds((current) =>
+        current.includes(episodeRef.seasonId) ? current : [...current, episodeRef.seasonId],
+      );
+      setExpandedEpisodeKeys((current) =>
+        current.includes(episodeKey) ? current : [...current, episodeKey],
+      );
+    }
+  };
+
+  const applyTabFieldIssues = (
+    issues: ReturnType<typeof validateSeriesTab>,
+  ): boolean => {
+    if (issues.length === 0) {
+      return false;
+    }
+
+    prepareFieldFocus(issues[0].field);
+    setTabFieldErrors(issuesToErrorMap(issues));
+    setError(issues[0].message);
+    window.setTimeout(() => scrollToFormField(issues[0].field), 120);
+    return true;
+  };
+
   const goToTab = (target: SeriesEditorTab) => {
+    if (mode !== "edit") {
+      if (target !== "identity") {
+        const identityIssues = validateSeriesIdentityTab(form, buildSlug, ageRatingValues);
+
+        if (identityIssues.length > 0) {
+          if (activeTab !== "identity") {
+            setActiveTab("identity");
+          }
+
+          applyTabFieldIssues(identityIssues);
+          return;
+        }
+      }
+
+      if (target === "publish") {
+        const seasonsIssues = validateSeriesSeasonsTab(form);
+
+        if (seasonsIssues.length > 0) {
+          if (activeTab !== "seasons") {
+            setActiveTab("seasons");
+          }
+
+          applyTabFieldIssues(seasonsIssues);
+          return;
+        }
+      }
+    }
+
     if (!canAccessTab(target)) {
       setError(
         target === "publish"
           ? "ابتدا اطلاعات اصلی سریال و فصل ها و قسمت ها را کامل کن."
-          : "ابتدا اطلاعات اصلی سریال را کامل کن."
+          : "ابتدا اطلاعات اصلی سریال را کامل کن.",
       );
       return;
     }
 
     setActiveTab(target);
+    setTabFieldErrors({});
     setError("");
     window.requestAnimationFrame(() => {
       formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2294,16 +2475,18 @@ export default function SeriesEditorForm({
       return;
     }
 
-    if (!canProceedToNextTab) {
-      setError(
-        activeTab === "identity"
-          ? "ابتدا فیلدهای اصلی سریال مثل کد TMDb، عنوان، اسلاگ، خلاصه و درجه سنی را کامل کن."
-          : "ابتدا شماره فصل و شماره قسمت‌های هر فصل را کامل کن."
-      );
+    const issues = validateSeriesTab(activeTab, form, buildSlug, ageRatingValues);
+
+    if (applyTabFieldIssues(issues)) {
       return;
     }
 
-    goToTab(tabOrder[currentIndex + 1]);
+    setTabFieldErrors({});
+    setError("");
+    setActiveTab(tabOrder[currentIndex + 1]);
+    window.requestAnimationFrame(() => {
+      formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   const updateSeason = (seasonId: string, patch: Partial<SeasonDraft>) => {
@@ -2537,8 +2720,16 @@ export default function SeriesEditorForm({
                           : episode.download_links,
                       source_method: "hls",
                       subtitle_url: nextSubtitle ?? episode.subtitle_url,
+                      has_subtitle:
+                        Boolean(nextSubtitle) ||
+                        Boolean(payload.has_subtitle) ||
+                        episode.has_subtitle,
                       dubbed_audio_url:
                         dubbedFromPayload ?? dubbedFromTrack ?? episode.dubbed_audio_url,
+                      has_dubbed:
+                        Boolean(dubbedFromPayload || dubbedFromTrack) ||
+                        Boolean(payload.has_dubbed_audio) ||
+                        episode.has_dubbed,
                     };
                   }),
                 },
@@ -2784,6 +2975,10 @@ export default function SeriesEditorForm({
 
   useEffect(() => {
     if (mode !== "create" || loading) {
+      return;
+    }
+
+    if (formRef.current.playback_protocol !== "hls") {
       return;
     }
 
@@ -3231,10 +3426,11 @@ export default function SeriesEditorForm({
 
   const addSeason = () => {
     const nextSeasonNumber = getNextSeasonNumber(formRef.current.seasons);
-    const nextSeason = createSeasonDraft(nextSeasonNumber);
+    const protocol = formRef.current.playback_protocol || "hls";
+    const nextSeason = createSeasonDraft(nextSeasonNumber, protocol);
     const seriesBase = normalizeHlsBaseUrl(formRef.current.hls_base_url);
 
-    if (seriesBase) {
+    if (protocol === "hls" && seriesBase) {
       nextSeason.hls_base_url = deriveSeasonHlsBase(seriesBase, nextSeason.season_number);
       nextSeason.episodes = nextSeason.episodes.map((episode) => ({
         ...episode,
@@ -3297,15 +3493,17 @@ export default function SeriesEditorForm({
       return;
     }
 
+    const protocol = formRef.current.playback_protocol || "hls";
     const createdEpisode = createEpisodeDraft(
       getNextEpisodeNumber(targetSeason.episodes),
+      protocol,
     );
     const seriesBase = normalizeHlsBaseUrl(formRef.current.hls_base_url);
     const seasonBase =
       normalizeHlsBaseUrl(targetSeason.hls_base_url) ||
       deriveSeasonHlsBase(seriesBase, targetSeason.season_number);
 
-    if (seasonBase) {
+    if (protocol === "hls" && seasonBase) {
       createdEpisode.hls_url = deriveEpisodeHlsUrl(
         seriesBase,
         seasonBase,
@@ -3731,10 +3929,6 @@ export default function SeriesEditorForm({
             <h2 className="mt-5 text-3xl font-black text-white md:text-5xl">
               {mode === "edit" ? "ویرایش سریال" : "افزودن سریال جدید"}
             </h2>
-            <p className="mt-4 text-sm leading-8 text-[#d8e5ec] md:text-base">
-              این فرم از الگوی رایج TV Show در وردپرس الهام گرفته شده: متادیتا، تصاویر،
-              فصل ها، قسمت ها، روش پخش هر قسمت و وضعیت انتشار در یک جریان واحد مدیریت می شوند.
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -3864,10 +4058,10 @@ export default function SeriesEditorForm({
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <TextField label="عنوان فارسی/نمایشی" value={form.title} onChange={(value) => updateField("title", value)} required />
+                <TextField label="عنوان فارسی/نمایشی" value={form.title} onChange={(value) => updateField("title", value)} required fieldKey="title" error={tabFieldErrors.title} />
                 <TextField label="عنوان اصلی" value={form.original_title} onChange={(value) => updateField("original_title", value)} />
                 <div>
-                  <TextField label="Slug" value={form.slug} onChange={(value) => updateField("slug", value)} dir="ltr" placeholder="show-slug" />
+                  <TextField label="Slug" value={form.slug} onChange={(value) => updateField("slug", value)} dir="ltr" placeholder="show-slug" fieldKey="slug" error={tabFieldErrors.slug} />
                   <SlugAvailabilityHint
                     status={slugAvailability.status}
                     suggestion={slugAvailability.suggestion}
@@ -3883,6 +4077,7 @@ export default function SeriesEditorForm({
                   <span className="mb-2 block text-sm text-[#8ea4b3]">وضعیت تولید</span>
                   <AdminSelect value={form.status} onChange={(value) => updateField("status", value)} options={statusOptions} />
                 </label>
+                <FormFieldAnchor field="age_rating" error={tabFieldErrors.age_rating}>
                 <label className="block">
                   <span className="mb-2 block text-sm text-[#8ea4b3]">
                     درجه سنی <span className="text-[#f5c518]">*</span>
@@ -3893,6 +4088,7 @@ export default function SeriesEditorForm({
                     options={ageRatingOptions}
                   />
                 </label>
+                </FormFieldAnchor>
               </div>
 
               <ContentWarningsField
@@ -3916,6 +4112,8 @@ export default function SeriesEditorForm({
                 value={form.synopsis}
                 onChange={(value) => updateField("synopsis", value)}
                 rows={5}
+                fieldKey="synopsis"
+                error={tabFieldErrors.synopsis}
               />
               {form.synopsis_en.trim() ? (
                 <p className="text-xs leading-6 text-[#8ea4b3]">
@@ -4096,8 +4294,11 @@ export default function SeriesEditorForm({
                 <button
                   type="button"
                   onClick={goToNextTab}
-                  disabled={!canProceedToNextTab}
-                  className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d] disabled:cursor-not-allowed disabled:opacity-60"
+                  className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
+                    canProceedToNextTab
+                      ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
+                      : "border-[#f5c518]/25 bg-[#f5c518]/70 text-[#081018] hover:bg-[#f5c518]"
+                  }`}
                 >
                   تب بعدی
                 </button>
@@ -4112,8 +4313,62 @@ export default function SeriesEditorForm({
                 title="تصاویر"
               />
               <div className="grid gap-4 md:grid-cols-2">
-                <TextField label="Poster URL" value={form.poster_url} onChange={(value) => updateField("poster_url", value)} dir="ltr" className={ltrInputClass} />
-                <TextField label="Backdrop URL" value={form.backdrop_url} onChange={(value) => updateField("backdrop_url", value)} dir="ltr" className={ltrInputClass} />
+                <AdminImageUrlField
+                  label="پوستر"
+                  value={form.poster_url}
+                  onChange={(value) => {
+                    setForm((current) => ({
+                      ...current,
+                      poster_url: value,
+                      ...(value.startsWith("/images/")
+                        ? { poster_source_url: "" }
+                        : {}),
+                    }));
+                  }}
+                  entityType="series"
+                  entityId={series?.id ?? seriesId ?? null}
+                  imageRole="poster"
+                  onUploaded={(result) => {
+                    setSeries((current) =>
+                      current
+                        ? {
+                            ...current,
+                            poster_url: result.image_path,
+                            poster_image: result.image ?? current.poster_image ?? null,
+                          }
+                        : current,
+                    );
+                  }}
+                  className={ltrInputClass}
+                />
+                <AdminImageUrlField
+                  label="تصویر پس‌زمینه"
+                  value={form.backdrop_url}
+                  onChange={(value) => {
+                    setForm((current) => ({
+                      ...current,
+                      backdrop_url: value,
+                      ...(value.startsWith("/images/")
+                        ? { backdrop_source_url: "" }
+                        : {}),
+                    }));
+                  }}
+                  entityType="series"
+                  entityId={series?.id ?? seriesId ?? null}
+                  imageRole="backdrop"
+                  onUploaded={(result) => {
+                    setSeries((current) =>
+                      current
+                        ? {
+                            ...current,
+                            backdrop_url: result.image_path,
+                            backdrop_image: result.image ?? current.backdrop_image ?? null,
+                          }
+                        : current,
+                    );
+                  }}
+                  className={ltrInputClass}
+                />
                 <TextField label="Trailer URL" value={form.trailer_url} onChange={(value) => updateField("trailer_url", value)} dir="ltr" className={ltrInputClass} />
                 <TextField label="Homepage URL" value={form.homepage_url} onChange={(value) => updateField("homepage_url", value)} dir="ltr" className={ltrInputClass} />
               </div>
@@ -4189,32 +4444,65 @@ export default function SeriesEditorForm({
                 </button>
               </div>
 
-              <div className="rounded-[28px] border border-[#38bdf8]/20 bg-[#38bdf8]/[0.06] p-5">
-                <div className="mb-4">
-                  <h3 className="text-base font-bold text-white">پایه پخش HLS سریال</h3>
-                  <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
-                    ساختار hls-worker:{" "}
-                    <span dir="ltr" className="text-[#d8e5ec]">
-                      {"{series}/season-01/episode-01/master.m3u8"}
-                    </span>
-                  </p>
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                <p className="mb-2 text-sm text-[#8ea4b3]">روش پخش سریال</p>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      { value: "hls" as const, label: "HLS (پکیج m3u8)" },
+                      { value: "mp4" as const, label: "ویدیو مستقیم MP4" },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setPlaybackProtocol(option.value)}
+                      className={`rounded-2xl border px-4 py-2 text-xs font-semibold transition ${
+                        form.playback_protocol === option.value
+                          ? "border-[#f5c518]/45 bg-[#f5c518]/15 text-white"
+                          : "border-white/10 bg-[#071019] text-[#c7d5de] hover:border-white/20"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
-                <TextField
-                  label="ریشه پکیج سریال"
-                  value={form.hls_base_url}
-                  onChange={handleSeriesHlsBaseChange}
-                  placeholder="http://cinema.af/content2/beta/2026-05-12/Fallout"
-                  dir="ltr"
-                  className={ltrInputClass}
-                />
-                <EpisodeHlsSyncStatus message={seriesHlsSyncMessage} />
-                <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
-                  با تغییر ریشه سریال، مسیر فصل‌ها و قسمت‌ها خودکار همگام می‌شود. اگر فیلدی را
-                  دستی عوض کنید، دیگر بازنویسی نمی‌شود. پس از «همگام‌سازی از TMDB»، مسیر HLS فقط
-                  برای قسمت‌هایی که خالی است از ریشه سریال و فصل پر می‌شود.
+                <p className="mt-3 text-xs leading-6 text-[#8ea4b3]">
+                  {form.playback_protocol === "mp4"
+                    ? "برای هر قسمت فقط لینک فایل MP4 و در صورت نیاز زیرنویس/دوبله progressive وارد کنید."
+                    : "ریشه پکیج HLS سریال را بگذارید؛ مسیر فصل و قسمت‌ها خودکار همگام می‌شود."}
                 </p>
               </div>
 
+              {form.playback_protocol === "hls" ? (
+                <div className="rounded-[28px] border border-[#38bdf8]/20 bg-[#38bdf8]/[0.06] p-5">
+                  <div className="mb-4">
+                    <h3 className="text-base font-bold text-white">پایه پخش HLS سریال</h3>
+                    <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
+                      ساختار hls-worker:{" "}
+                      <span dir="ltr" className="text-[#d8e5ec]">
+                        {"{series}/season-01/episode-01/master.m3u8"}
+                      </span>
+                    </p>
+                  </div>
+                  <TextField
+                    label="ریشه پکیج سریال"
+                    value={form.hls_base_url}
+                    onChange={handleSeriesHlsBaseChange}
+                    placeholder="http://cinema.af/content2/beta/2026-05-12/Fallout"
+                    dir="ltr"
+                    className={ltrInputClass}
+                  />
+                  <EpisodeHlsSyncStatus message={seriesHlsSyncMessage} />
+                  <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
+                    با تغییر ریشه سریال، مسیر فصل‌ها و قسمت‌ها خودکار همگام می‌شود. اگر فیلدی را
+                    دستی عوض کنید، دیگر بازنویسی نمی‌شود. پس از «همگام‌سازی از TMDB»، مسیر HLS فقط
+                    برای قسمت‌هایی که خالی است از ریشه سریال و فصل پر می‌شود.
+                  </p>
+                </div>
+              ) : null}
+
+              <FormFieldAnchor field="seasons" error={tabFieldErrors.seasons}>
               <div className="space-y-5">
                 {pendingTmdbSeasonRows.map((row) => (
                   <section
@@ -4271,7 +4559,9 @@ export default function SeriesEditorForm({
                           </p>
                           {seasonSyncStatus === "error" ? (
                             <p className="mt-1 text-xs text-[#fca5a5]">
-                              دریافت این فصل از TMDB ناموفق بود.
+                              {tmdbSyncState.seasonProgress.find(
+                                (row) => row.season_number === Number(season.season_number),
+                              )?.error || "دریافت این فصل از TMDB ناموفق بود."}
                             </p>
                           ) : null}
                         </div>
@@ -4303,7 +4593,7 @@ export default function SeriesEditorForm({
                     {expandedSeasonIds.includes(season.id) ? (
                       <div className="space-y-5 p-4">
                         <div className="grid gap-4 md:grid-cols-2">
-                          <TextField label="شماره فصل" value={season.season_number} onChange={(value) => updateSeason(season.id, { season_number: value.replace(/[^\d]/g, "") })} dir="ltr" />
+                          <TextField label="شماره فصل" value={season.season_number} onChange={(value) => updateSeason(season.id, { season_number: value.replace(/[^\d]/g, "") })} dir="ltr" fieldKey={`season:${season.id}:number`} error={tabFieldErrors[`season:${season.id}:number`]} />
                           <TextField label="نام فصل" value={season.name} onChange={(value) => updateSeason(season.id, { name: value })} />
                           <TextField label="تاریخ پخش فصل" type="date" value={season.air_date} onChange={(value) => updateSeason(season.id, { air_date: value })} />
                           <TextField label="تعداد قسمت" value={season.episode_count} onChange={(value) => updateSeason(season.id, { episode_count: value.replace(/[^\d]/g, "") })} dir="ltr" />
@@ -4326,21 +4616,37 @@ export default function SeriesEditorForm({
                         </div>
 
                         <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 space-y-4">
-                          <TextField
-                            label="پایه HLS فصل"
-                            value={season.hls_base_url}
-                            onChange={(value) => handleSeasonHlsBaseChange(season.id, value)}
-                            placeholder={buildSeasonHlsBase(form.hls_base_url, season.season_number) || "…/season-01"}
-                            dir="ltr"
-                            className={ltrInputClass}
-                          />
-                          <p className="text-xs leading-6 text-[#8ea4b3]">
-                            با تغییر پایه فصل، مسیر قسمت‌ها خودکار پر می‌شود. از قسمت هم می‌توان
-                            ریشه سریال و فصل را پر کرد.
-                          </p>
+                          {form.playback_protocol === "hls" ? (
+                            <>
+                              <TextField
+                                label="پایه HLS فصل"
+                                value={season.hls_base_url}
+                                onChange={(value) => handleSeasonHlsBaseChange(season.id, value)}
+                                placeholder={buildSeasonHlsBase(form.hls_base_url, season.season_number) || "…/season-01"}
+                                dir="ltr"
+                                className={ltrInputClass}
+                              />
+                              <p className="text-xs leading-6 text-[#8ea4b3]">
+                                با تغییر پایه فصل، مسیر قسمت‌ها خودکار پر می‌شود. از قسمت هم می‌توان
+                                ریشه سریال و فصل را پر کرد.
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-xs leading-6 text-[#8ea4b3]">
+                              حالت MP4: برای هر قسمت لینک فایل ویدیو را جداگانه وارد کنید.
+                            </p>
+                          )}
                         </div>
 
-                        <div className="space-y-3">
+                        <div
+                          className="space-y-3"
+                          data-form-field={`season:${season.id}:episodes`}
+                        >
+                          {tabFieldErrors[`season:${season.id}:episodes`] ? (
+                            <p className="text-xs font-medium text-red-300" role="alert">
+                              {tabFieldErrors[`season:${season.id}:episodes`]}
+                            </p>
+                          ) : null}
                           {season.episodes.map((episode) => {
                             const episodeKey = seasonEpisodeKey(season.id, episode.id);
                             const isEpisodeExpanded = expandedEpisodeKeys.includes(episodeKey);
@@ -4450,42 +4756,12 @@ export default function SeriesEditorForm({
 
                                 {isEpisodeExpanded ? (
                                   <div className="grid gap-4 border-t border-white/10 px-4 py-4 md:grid-cols-2">
-                                    <TextField label="شماره قسمت" value={episode.episode_number} onChange={(value) => updateEpisode(season.id, episode.id, { episode_number: value.replace(/[^\d]/g, "") })} dir="ltr" />
+                                    <TextField label="شماره قسمت" value={episode.episode_number} onChange={(value) => updateEpisode(season.id, episode.id, { episode_number: value.replace(/[^\d]/g, "") })} dir="ltr" fieldKey={`episode:${season.id}:${episode.id}:number`} error={tabFieldErrors[`episode:${season.id}:${episode.id}:number`]} />
                                     <TextField label="عنوان قسمت" value={episode.title} onChange={(value) => updateEpisode(season.id, episode.id, { title: value })} />
                                     <TextField label="تاریخ پخش" type="date" value={episode.air_date} onChange={(value) => updateEpisode(season.id, episode.id, { air_date: value })} />
                                     <TextField label="مدت قسمت" value={episode.duration_minutes} onChange={(value) => updateEpisode(season.id, episode.id, { duration_minutes: value.replace(/[^\d]/g, "") })} dir="ltr" />
                                     <div className="md:col-span-2 space-y-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                                      <div>
-                                        <p className="mb-2 text-sm text-[#8ea4b3]">روش پخش قسمت</p>
-                                        <div className="flex flex-wrap gap-2">
-                                          {(
-                                            [
-                                              { value: "hls", label: "HLS" },
-                                              { value: "url", label: "ویدیو مستقیم" },
-                                              { value: "embed", label: "Embed" },
-                                            ] as const
-                                          ).map((option) => (
-                                            <button
-                                              key={option.value}
-                                              type="button"
-                                              onClick={() =>
-                                                updateEpisode(season.id, episode.id, {
-                                                  source_method: option.value,
-                                                })
-                                              }
-                                              className={`rounded-2xl border px-4 py-2 text-xs font-semibold transition ${
-                                                episode.source_method === option.value
-                                                  ? "border-[#f5c518]/45 bg-[#f5c518]/15 text-white"
-                                                  : "border-white/10 bg-[#071019] text-[#c7d5de] hover:border-white/20"
-                                              }`}
-                                            >
-                                              {option.label}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-
-                                      {episode.source_method === "hls" ? (
+                                      {form.playback_protocol === "hls" ? (
                                         <>
                                           <TextField
                                             label="مسیر HLS"
@@ -4514,68 +4790,50 @@ export default function SeriesEditorForm({
                                             </p>
                                           ) : null}
                                         </>
-                                      ) : null}
-
-                                      {episode.source_method === "url" ? (
+                                      ) : (
                                         <TextField
                                           label="آدرس ویدیو مستقیم (MP4)"
                                           value={episode.video_url}
                                           onChange={(value) =>
                                             updateEpisode(season.id, episode.id, {
                                               video_url: value,
+                                              source_method: "url",
                                             })
                                           }
                                           placeholder="https://cdn.example.com/episodes/s01e01.mp4"
                                           dir="ltr"
                                           className={ltrInputClass}
                                         />
-                                      ) : null}
+                                      )}
 
-                                      {episode.source_method === "embed" ? (
-                                        <TextField
-                                          label="آدرس Embed (iframe src)"
-                                          value={episode.embed_url}
-                                          onChange={(value) =>
-                                            updateEpisode(season.id, episode.id, {
-                                              embed_url: value,
-                                            })
-                                          }
-                                          placeholder="https://player.example.com/embed/123"
-                                          dir="ltr"
-                                          className={ltrInputClass}
-                                        />
-                                      ) : null}
-
-                                      <TextField
-                                        label="لینک زیرنویس"
-                                        value={episode.subtitle_url}
-                                        onChange={(value) =>
+                                      <PlaybackSubtitleDubFields
+                                        playbackProtocol={form.playback_protocol}
+                                        subtitleUrl={episode.subtitle_url}
+                                        dubbedAudioUrl={episode.dubbed_audio_url}
+                                        hasSubtitle={episode.has_subtitle}
+                                        hasDubbed={episode.has_dubbed}
+                                        ltrInputClass={ltrInputClass}
+                                        onSubtitleUrlChange={(value) =>
                                           updateEpisode(season.id, episode.id, {
                                             subtitle_url: value,
                                           })
                                         }
-                                        placeholder="http://cinema.af/.../subtitles/fa.vtt"
-                                        dir="ltr"
-                                        className={ltrInputClass}
+                                        onDubbedAudioUrlChange={(value) =>
+                                          updateEpisode(season.id, episode.id, {
+                                            dubbed_audio_url: value,
+                                          })
+                                        }
+                                        onHasSubtitleChange={(value) =>
+                                          updateEpisode(season.id, episode.id, {
+                                            has_subtitle: value,
+                                          })
+                                        }
+                                        onHasDubbedChange={(value) =>
+                                          updateEpisode(season.id, episode.id, {
+                                            has_dubbed: value,
+                                          })
+                                        }
                                       />
-                                      <label className="block">
-                                        <span className="mb-2 flex items-center gap-2 text-sm text-[#8ea4b3]">
-                                          <HiOutlineVolumeUp className="h-4 w-4" />
-                                          لینک پلی‌لیست صوتی دوبله (از پکیج HLS)
-                                        </span>
-                                        <input
-                                          type="url"
-                                          dir="ltr"
-                                          value={episode.dubbed_audio_url}
-                                          onChange={(event) =>
-                                            updateEpisode(season.id, episode.id, {
-                                              dubbed_audio_url: event.target.value,
-                                            })
-                                          }
-                                          placeholder="معمولاً audio/fa/index.m3u8 — با ست شدن HLS پر می‌شود"
-                                          className={`w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#607684] focus:border-[#f5c518]/45 ${ltrInputClass}`}
-                                        />
-                                      </label>
 
                                       <EpisodeDownloadLinksEditor
                                         rows={episodeDownloadRowsFromMap(episode.download_links || {})}
@@ -4619,6 +4877,7 @@ export default function SeriesEditorForm({
                 );
                 })}
               </div>
+              </FormFieldAnchor>
 
               <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                 <button
@@ -4631,8 +4890,11 @@ export default function SeriesEditorForm({
                 <button
                   type="button"
                   onClick={goToNextTab}
-                  disabled={!canProceedToNextTab}
-                  className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d] disabled:cursor-not-allowed disabled:opacity-60"
+                  className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
+                    canProceedToNextTab
+                      ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
+                      : "border-[#f5c518]/25 bg-[#f5c518]/70 text-[#081018] hover:bg-[#f5c518]"
+                  }`}
                 >
                   تب بعدی
                 </button>
@@ -4868,22 +5130,25 @@ export default function SeriesEditorForm({
             <div className="mt-4 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03]">
               {isTmdbLoading ? (
                 <TmdbPreviewSkeleton className="rounded-none border-0" />
-              ) : previewBackdropUrl || previewPosterUrl ? (
+              ) : previewBackdropUrl ||
+                previewBackdropFallbackUrl ||
+                previewPosterUrl ||
+                previewPosterFallbackUrl ? (
                 <div className="relative h-[24rem] overflow-hidden">
-                  {previewBackdropUrl || previewBackdropImage ? (
+                  {previewBackdropUrl || previewBackdropFallbackUrl || previewBackdropImage ? (
                     <div className="absolute inset-0">
                       <BackdropImage
                         title={form.title || "Series"}
                         image={previewBackdropImage}
                         src={previewBackdropUrl}
                         fallbackUrl={
+                          previewBackdropFallbackUrl ||
                           form.backdrop_source_url.trim() ||
-                          (form.backdrop_url.startsWith("http")
-                            ? form.backdrop_url
-                            : series?.metadata?.tmdb?.backdrop_source_url ||
-                              series?.metadata?.tmdb?.backdrop_url ||
-                              null)
+                          series?.metadata?.tmdb?.backdrop_source_url ||
+                          series?.metadata?.tmdb?.backdrop_url ||
+                          null
                         }
+                        allowRemoteFallback
                         usage="detail-backdrop"
                       />
                     </div>
@@ -4892,19 +5157,19 @@ export default function SeriesEditorForm({
                   <div className="relative flex h-full flex-col justify-end p-4">
                     <div className="flex items-end gap-4">
                       <div className="h-36 w-24 overflow-hidden rounded-[20px] border border-white/10 bg-[#071019] shadow-[0_20px_40px_rgba(0,0,0,0.32)]">
-                        {previewPosterUrl || previewPosterImage ? (
+                        {previewPosterUrl || previewPosterFallbackUrl || previewPosterImage ? (
                           <PosterImage
                             title={form.title || "Series"}
                             image={previewPosterImage}
                             src={previewPosterUrl}
                             fallbackUrl={
+                              previewPosterFallbackUrl ||
                               form.poster_source_url.trim() ||
-                              (form.poster_url.startsWith("http")
-                                ? form.poster_url
-                                : series?.metadata?.tmdb?.poster_source_url ||
-                                  series?.metadata?.tmdb?.poster_url ||
-                                  null)
+                              series?.metadata?.tmdb?.poster_source_url ||
+                              series?.metadata?.tmdb?.poster_url ||
+                              null
                             }
+                            allowRemoteFallback
                             usage="detail-poster"
                           />
                         ) : (
@@ -5166,6 +5431,8 @@ function TextField({
   required = false,
   disabled = false,
   className = "",
+  fieldKey,
+  error,
 }: {
   label: string;
   value: string;
@@ -5176,9 +5443,11 @@ function TextField({
   required?: boolean;
   disabled?: boolean;
   className?: string;
+  fieldKey?: string;
+  error?: string;
 }) {
   return (
-    <label className="block">
+    <label className="block" data-form-field={fieldKey}>
       <span className="mb-2 block text-sm text-[#8ea4b3]">
         {label}
         {required ? <span className="text-[#f5c518]"> *</span> : null}
@@ -5190,8 +5459,13 @@ function TextField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className={`w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#607684] focus:border-[#f5c518]/45 disabled:cursor-not-allowed disabled:opacity-55 ${className}`}
+        className={`w-full rounded-2xl border bg-[#071019] px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#607684] focus:border-[#f5c518]/45 disabled:cursor-not-allowed disabled:opacity-55 ${formFieldBorderClass(Boolean(error))} ${className}`}
       />
+      {error ? (
+        <p className="mt-2 text-xs font-medium text-red-300" role="alert">
+          {error}
+        </p>
+      ) : null}
     </label>
   );
 }
@@ -5203,6 +5477,8 @@ function TextAreaField({
   rows = 4,
   placeholder,
   dir,
+  fieldKey,
+  error,
 }: {
   label: string;
   value: string;
@@ -5210,9 +5486,11 @@ function TextAreaField({
   rows?: number;
   placeholder?: string;
   dir?: "rtl" | "ltr";
+  fieldKey?: string;
+  error?: string;
 }) {
   return (
-    <label className="block">
+    <label className="block" data-form-field={fieldKey}>
       <span className="mb-2 block text-sm text-[#8ea4b3]">{label}</span>
       <textarea
         rows={rows}
@@ -5220,8 +5498,13 @@ function TextAreaField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm leading-7 text-white outline-none transition placeholder:text-[#607684] focus:border-[#f5c518]/45"
+        className={`w-full rounded-2xl border bg-[#071019] px-4 py-3 text-sm leading-7 text-white outline-none transition placeholder:text-[#607684] focus:border-[#f5c518]/45 ${formFieldBorderClass(Boolean(error))}`}
       />
+      {error ? (
+        <p className="mt-2 text-xs font-medium text-red-300" role="alert">
+          {error}
+        </p>
+      ) : null}
     </label>
   );
 }

@@ -115,7 +115,9 @@ export interface AdminMovieMetadata {
     belongs_to_collection?: TmdbBelongsToCollection | null;
   };
   playback: {
+    protocol?: "hls" | "mp4" | null;
     hls_url: string | null;
+    progressive_url?: string | null;
     dash_url?: string | null;
     downloads: Record<string, string>;
   };

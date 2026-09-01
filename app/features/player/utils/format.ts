@@ -49,6 +49,20 @@ export function isHlsPlaylistUrl(url?: string | null): boolean {
   return /\.m3u8(\?.*)?$/i.test(trimmed) || trimmed.includes("/master.m3u8");
 }
 
+/** Stable key for whichever playable URL the player should load. */
+export function resolveMediaPlaybackKey(media: {
+  src?: string | null;
+  progressiveUrl?: string | null;
+  dashUrl?: string | null;
+}): string {
+  return (
+    media.src?.trim() ||
+    media.progressiveUrl?.trim() ||
+    media.dashUrl?.trim() ||
+    ""
+  );
+}
+
 /** Progressive audio files suitable for the external dub <audio> element. */
 export function isProgressiveAudioUrl(url?: string | null): boolean {
   if (!url || isHlsPlaylistUrl(url)) {
@@ -56,6 +70,15 @@ export function isProgressiveAudioUrl(url?: string | null): boolean {
   }
 
   return /\.(mp3|aac|m4a|wav|ogg|opus|flac)(\?.*)?$/i.test(url.trim());
+}
+
+/** Progressive video files playable via native <video src>. */
+export function isProgressiveVideoUrl(url?: string | null): boolean {
+  if (!url || isHlsPlaylistUrl(url)) {
+    return false;
+  }
+
+  return /\.(mp4|m4v|webm|mov)(\?.*)?$/i.test(url.trim());
 }
 
 /** Build proxied subtitle URL for external sources. */

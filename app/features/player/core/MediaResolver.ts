@@ -1,4 +1,4 @@
-import { buildPlaybackSubtitleUrl, isProgressiveAudioUrl } from "../utils/format";
+import { buildPlaybackSubtitleUrl, isProgressiveAudioUrl, isProgressiveVideoUrl } from "../utils/format";
 import {
   applyPlaybackFetchInit,
   pageOriginDiffersFromCdn,
@@ -22,16 +22,40 @@ export class MediaResolver {
 
   /** Build normalized media source from raw props. */
   resolveSource(input: MediaSource): MediaSource {
-    const src = this.resolveHlsMasterUrl(input.src.trim());
+    const rawSrc = input.src.trim();
+    const rawProgressive = input.progressiveUrl?.trim() || null;
+
+    // Safety: if src is actually an MP4, treat it as progressive — never HLS-proxy it.
+    if (isProgressiveVideoUrl(rawSrc) && !rawProgressive) {
+      return {
+        ...input,
+        src: "",
+        dashUrl: input.dashUrl?.trim()
+          ? rewriteCdnUrlForPlayback(input.dashUrl.trim())
+          : null,
+        progressiveUrl: rewriteCdnUrlForPlayback(rawSrc),
+        drm: input.drm ?? null,
+        subtitleUrl: this.resolveSubtitleUrl(input.subtitleUrl),
+        dubbedAudioUrl:
+          input.dubbedAudioUrl?.trim() && isProgressiveAudioUrl(input.dubbedAudioUrl)
+            ? input.dubbedAudioUrl.trim()
+            : null,
+      };
+    }
+
+    const src = this.resolveHlsMasterUrl(rawSrc);
     const dashUrl = input.dashUrl?.trim()
       ? rewriteCdnUrlForPlayback(input.dashUrl.trim())
+      : null;
+    const progressiveUrl = rawProgressive
+      ? rewriteCdnUrlForPlayback(rawProgressive)
       : null;
 
     return {
       ...input,
       src,
       dashUrl,
-      progressiveUrl: input.progressiveUrl?.trim() || null,
+      progressiveUrl,
       drm: input.drm ?? null,
       subtitleUrl: this.resolveSubtitleUrl(input.subtitleUrl),
       dubbedAudioUrl:
@@ -50,6 +74,10 @@ export class MediaResolver {
       return url;
     }
 
+    if (isProgressiveVideoUrl(url)) {
+      return rewriteCdnUrlForPlayback(url);
+    }
+
     if (pageOriginDiffersFromCdn() && isHlsManifestUrl(url)) {
       return buildHlsManifestProxyUrl(url);
     }
@@ -59,16 +87,35 @@ export class MediaResolver {
 
   /** Build playback manifest bundle for the policy engine. */
   toPlaybackManifest(source: MediaSource): PlaybackManifest {
+    const progressive = source.progressiveUrl?.trim() || null;
+    const hls = source.src?.trim() || "";
+
     return {
-      hls: source.src,
+      hls: isProgressiveVideoUrl(hls) ? "" : hls,
       dash: source.dashUrl ?? null,
-      progressive: source.progressiveUrl ?? null,
+      progressive: progressive || (isProgressiveVideoUrl(hls) ? hls : null),
       drm: source.drm ?? null,
     };
   }
 
   /** Prefetch HLS manifest (lightweight HEAD with GET fallback). */
   async prefetchManifest(url: string, signal?: AbortSignal): Promise<boolean> {
+    if (isProgressiveVideoUrl(url)) {
+      try {
+        const response = await fetch(
+          url,
+          applyPlaybackFetchInit(url, {
+            method: "HEAD",
+            signal,
+            headers: { Accept: "video/mp4, */*" },
+          }),
+        );
+        return response.ok;
+      } catch {
+        return false;
+      }
+    }
+
     const acceptHeader = { Accept: "application/vnd.apple.mpegurl, */*" };
 
     try {

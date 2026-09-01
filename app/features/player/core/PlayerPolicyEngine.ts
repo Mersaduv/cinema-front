@@ -152,7 +152,7 @@ export function resolvePlaybackPolicy(
   if (!first) {
     return {
       ok: false,
-      reason: "مرورگر یا دستگاه شما از HLS پشتیبانی نمی‌کند.",
+      reason: "مرورگر یا دستگاه شما از این منبع پخش پشتیبانی نمی‌کند.",
     };
   }
 
@@ -161,7 +161,7 @@ export function resolvePlaybackPolicy(
   if (!policy) {
     return {
       ok: false,
-      reason: "مرورگر یا دستگاه شما از HLS پشتیبانی نمی‌کند.",
+      reason: "مرورگر یا دستگاه شما از این منبع پخش پشتیبانی نمی‌کند.",
     };
   }
 

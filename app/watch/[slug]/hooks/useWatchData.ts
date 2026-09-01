@@ -13,6 +13,7 @@ const WatchMovieDocument = gql`
       id
       slug
       hls_url
+      progressive_url
       dash_url
       subtitle_url
       dubbed_audio_url
@@ -33,6 +34,8 @@ const WatchEpisodeDocument = gql`
   query WatchEpisode($seriesSlug: String!, $season: Int!, $episode: Int!) {
     watchEpisode(seriesSlug: $seriesSlug, season: $season, episode: $episode) {
       hls_url
+      video_url
+      source_method
       dash_url
       subtitle_url
       dubbed_audio_url
@@ -63,6 +66,8 @@ const WatchEpisodeDocument = gql`
         title
         episode_number
         hls_url
+        video_url
+        source_method
         dash_url
         subtitle_url
         dubbed_audio_url
@@ -73,6 +78,8 @@ const WatchEpisodeDocument = gql`
         title
         episode_number
         hls_url
+        video_url
+        source_method
         dash_url
         subtitle_url
         dubbed_audio_url
@@ -87,9 +94,15 @@ type GqlNavEpisode = {
   episode_number: number;
   title?: string | null;
   hls_url?: string | null;
+  video_url?: string | null;
+  source_method?: string | null;
   subtitle_url?: string | null;
   dubbed_audio_url?: string | null;
 };
+
+function isPlayableNavEpisode(gqlEp: GqlNavEpisode): boolean {
+  return Boolean(gqlEp.hls_url?.trim() || gqlEp.video_url?.trim());
+}
 
 function mapGqlNavEpisode(
   gqlEp: GqlNavEpisode,
@@ -101,6 +114,7 @@ function mapGqlNavEpisode(
     episodeNumber: gqlEp.episode_number,
     title: gqlEp.title || `قسمت ${gqlEp.episode_number}`,
     hlsUrl: gqlEp.hls_url ?? null,
+    progressiveUrl: gqlEp.video_url ?? null,
     subtitleUrl: gqlEp.subtitle_url,
     dubbedAudioUrl: gqlEp.dubbed_audio_url,
   };
@@ -120,6 +134,7 @@ export function useWatchData(
       query: WatchMovieDocument,
       variables: { slug },
       pause: isSeriesPlayback || !slug,
+      requestPolicy: "cache-and-network",
     });
 
   const [{ data: watchEpisodeData, error: watchEpisodeError, fetching: watchEpisodeFetching }] =
@@ -131,10 +146,24 @@ export function useWatchData(
         episode: episodeNumber,
       },
       pause: !isSeriesPlayback || !slug,
+      requestPolicy: "cache-and-network",
     });
 
+  const graphqlMovieHls = watchMovieData?.watchMovie?.hls_url?.trim() || null;
+  const graphqlMovieProgressive =
+    watchMovieData?.watchMovie?.progressive_url?.trim() || null;
+  const graphqlHasMovieSource = Boolean(graphqlMovieHls || graphqlMovieProgressive);
+
+  // REST is only a fallback when GraphQL finished without a playable URL.
+  const shouldFetchRestMovie =
+    !isSeriesPlayback &&
+    Boolean(slug) &&
+    !watchMovieFetching &&
+    !graphqlHasMovieSource &&
+    !watchMovieError;
+
   const { data: movie, error: movieRestError } = useSWR(
-    !isSeriesPlayback && slug ? `watch-rest-movie:${slug}` : null,
+    shouldFetchRestMovie ? `watch-rest-movie:${slug}` : null,
     async () => {
       const response = await moviesService.show(slug);
       if (response.success && response.data?.movie) {
@@ -191,9 +220,11 @@ export function useWatchData(
     return seriesFromRest;
   }, [isSeriesPlayback, seriesFromRest, watchEpisodeData?.watchEpisode?.series]);
 
-  const graphqlMovieHls = watchMovieData?.watchMovie?.hls_url?.trim() || null;
   const graphqlEpisodeHls = watchEpisodeData?.watchEpisode?.hls_url?.trim() || null;
+  const graphqlEpisodeProgressive =
+    watchEpisodeData?.watchEpisode?.video_url?.trim() || null;
   const restMovieHls = movieData?.playback?.master_playlist_url?.trim() || null;
+  const restMovieProgressive = movieData?.playback?.progressive_url?.trim() || null;
 
   const hlsUrl = useMemo(() => {
     if (isSeriesPlayback) {
@@ -202,6 +233,21 @@ export function useWatchData(
 
     return graphqlMovieHls || restMovieHls;
   }, [graphqlEpisodeHls, graphqlMovieHls, isSeriesPlayback, restMovieHls]);
+
+  const progressiveUrl = useMemo(() => {
+    if (isSeriesPlayback) {
+      return graphqlEpisodeProgressive;
+    }
+
+    return graphqlMovieProgressive || restMovieProgressive;
+  }, [
+    graphqlEpisodeProgressive,
+    graphqlMovieProgressive,
+    isSeriesPlayback,
+    restMovieProgressive,
+  ]);
+
+  const hasPlayableSource = Boolean(hlsUrl || progressiveUrl);
 
   const seriesContext = useMemo((): SeriesPlaybackContext | null => {
     if (!isSeriesPlayback) {
@@ -220,28 +266,28 @@ export function useWatchData(
       seasons: [],
       currentSeason: seasonNumber,
       currentEpisode: episodeNumber,
-      nextEpisode: watch.next_episode?.hls_url
+      nextEpisode: watch.next_episode && isPlayableNavEpisode(watch.next_episode)
         ? mapGqlNavEpisode(watch.next_episode, seasonNumber)
         : null,
-      prevEpisode: watch.prev_episode?.hls_url
+      prevEpisode: watch.prev_episode && isPlayableNavEpisode(watch.prev_episode)
         ? mapGqlNavEpisode(watch.prev_episode, seasonNumber)
         : null,
     };
   }, [episodeNumber, isSeriesPlayback, seasonNumber, watchEpisodeData?.watchEpisode]);
 
-  const waitingForHls =
-    !hlsUrl &&
+  const waitingForSource =
+    !hasPlayableSource &&
     ((isSeriesPlayback && watchEpisodeFetching) ||
       (!isSeriesPlayback && watchMovieFetching));
 
   const waitingForRestFallback =
-    !hlsUrl &&
-    !waitingForHls &&
-    !isSeriesPlayback &&
+    !hasPlayableSource &&
+    !waitingForSource &&
+    shouldFetchRestMovie &&
     !movie &&
     !movieRestError;
 
-  const showSkeleton = waitingForHls || waitingForRestFallback;
+  const showSkeleton = waitingForSource || waitingForRestFallback;
 
   const watchAuthError = useMemo(() => {
     const graphQLError = isSeriesPlayback ? watchEpisodeError : watchMovieError;
@@ -267,6 +313,8 @@ export function useWatchData(
     seasonNumber,
     episodeNumber,
     hlsUrl,
+    progressiveUrl,
+    hasPlayableSource,
     showSkeleton,
     restError,
     watchAuthError,

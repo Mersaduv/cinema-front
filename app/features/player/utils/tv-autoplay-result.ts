@@ -1,10 +1,10 @@
 /**
- * TV play gate is shown only when silent autoplay fails on a TV-class device.
- * Browser shells (Tizen / webOS) attempt autoplay first; gate is the fallback.
+ * Play gate is shown when silent autoplay fails (common after soft navigation).
+ * TV and browser both need a one-tap start when the gesture window has expired.
  */
 export function shouldShowTvPlayGate(
   autoplayStarted: boolean,
-  isTv: boolean,
+  _isTv: boolean,
 ): boolean {
-  return !autoplayStarted && isTv;
+  return !autoplayStarted;
 }

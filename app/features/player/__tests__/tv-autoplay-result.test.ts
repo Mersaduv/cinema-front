@@ -10,7 +10,7 @@ describe("shouldShowTvPlayGate", () => {
     expect(shouldShowTvPlayGate(false, true)).toBe(true);
   });
 
-  it("does not show gate when autoplay fails on desktop", () => {
-    expect(shouldShowTvPlayGate(false, false)).toBe(false);
+  it("shows gate on desktop when autoplay fails after soft navigation", () => {
+    expect(shouldShowTvPlayGate(false, false)).toBe(true);
   });
 });

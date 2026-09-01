@@ -16,7 +16,6 @@ import { EpisodePanel } from "./EpisodePanel";
 import { ErrorOverlay } from "./ErrorOverlay";
 import { LoadingOverlay } from "./LoadingOverlay";
 import { NextEpisodeCountdown } from "./NextEpisodeCountdown";
-import { ResumePrompt } from "./ResumePrompt";
 import { SkipIntroButton, SkipRecapButton } from "./SkipButtons";
 import { SubtitleLayer, type SubtitleLayerHandle } from "./SubtitleLayer";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -29,13 +28,14 @@ import { usePlayerBootPhase } from "../hooks/usePlayerBootPhase";
 import { getEngineLabel } from "../services/capability";
 import { useWatchProgress } from "../hooks/useWatchProgress";
 import { useRecordContentView } from "../hooks/useRecordContentView";
-import { ProgressTracker } from "../services/ProgressTracker";
+import { createDefaultTrackerConfig, ProgressTracker } from "../services/ProgressTracker";
 import { PROGRESS_CONSTANTS } from "../services/progress.types";
 import { selectIsLoading, usePlayerStore } from "../store/playerStore";
 import type { PlayerShellProps } from "../types/player.types";
-import { buildPlaybackSubtitleUrl, formatSeconds } from "../utils/format";
+import { buildPlaybackSubtitleUrl } from "../utils/format";
 import { isSameOriginMediaRequest } from "../../../lib/playback-networking";
 import { optimizeManagedImageUrl } from "../../../lib/cinema-image";
+import { tokenStorage } from "../../../lib/token-storage";
 
 /**
  * Production-grade player shell — composes controller, controls, and overlays.
@@ -60,14 +60,12 @@ function PlayerShellComponent({
     [media.subtitleUrl],
   );
 
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isViewer } = useAuth();
 
   const resumeDecision = useMemo(() => {
     if (!watchMedia) {
       return {
-        showPrompt: false,
         resumeTime: null as number | null,
-        label: "",
       };
     }
 
@@ -82,18 +80,10 @@ function PlayerShellComponent({
         : null;
 
     return {
-      showPrompt: decision.showPrompt && resumeTime != null,
       resumeTime,
-      label: resumeTime != null ? formatSeconds(resumeTime) : "",
     };
   }, [watchMedia, user]);
 
-  const resumeSessionKey = watchMedia
-    ? `${watchMedia.slug}:${watchMedia.mediaId}:${watchMedia.episodeId ?? "movie"}`
-    : "";
-  const [resumePromptDismissedFor, setResumePromptDismissedFor] = useState<
-    string | null
-  >(null);
   const [isDraggingSeek, setIsDraggingSeek] = useState(false);
   const [seekFeedback, setSeekFeedback] = useState<{
     side: "left" | "right";
@@ -122,15 +112,13 @@ function PlayerShellComponent({
     cancelAutoplay,
     skipIntro,
     skipRecap,
-    confirmResume,
-    confirmStartOver,
   } = usePlayer({
     media,
     seriesContext,
     onEpisodeSelect,
     onEnded,
-    initialResumeTime: resumeDecision.showPrompt ? null : resumeDecision.resumeTime,
-    startupMode: resumeDecision.showPrompt ? "prompt" : "auto",
+    initialResumeTime: resumeDecision.resumeTime,
+    startupMode: "auto",
     pendingResumeTime: resumeDecision.resumeTime,
     subtitleLayerRef,
   });
@@ -139,7 +127,6 @@ function PlayerShellComponent({
   const duration = usePlayerStore((s) => s.duration);
   const readyState = usePlayerStore((s) => s.readyState);
   const isLoading = usePlayerStore(selectIsLoading);
-  const recoveryMessage = usePlayerStore((s) => s.recoveryMessage);
   const error = usePlayerStore((s) => s.error);
   const showControls = usePlayerStore((s) => s.showControls);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -175,7 +162,7 @@ function PlayerShellComponent({
   useWatchProgress({
     media: watchMedia ?? null,
     userId: user?.id != null ? String(user.id) : null,
-    isAuthenticated,
+    isAuthenticated: isAuthenticated && isViewer,
     enabled: progressEnabled,
     currentTime,
     duration,
@@ -202,8 +189,13 @@ function PlayerShellComponent({
       return undefined;
     }
 
-    return isSameOriginMediaRequest(media.src) ? "anonymous" : undefined;
-  }, [media.src]);
+    const playbackUrl =
+      media.src?.trim() || media.progressiveUrl?.trim() || media.dashUrl?.trim() || "";
+
+    return playbackUrl && isSameOriginMediaRequest(playbackUrl)
+      ? "anonymous"
+      : undefined;
+  }, [media.src, media.progressiveUrl, media.dashUrl]);
 
   const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) {
@@ -267,16 +259,6 @@ function PlayerShellComponent({
   const controlsInteractive =
     showControls || !isPlaying || openMenu !== null || episodePanelOpen;
 
-  const handleResume = useCallback(() => {
-    setResumePromptDismissedFor(resumeSessionKey);
-    void confirmResume();
-  }, [confirmResume, resumeSessionKey]);
-
-  const handleStartOver = useCallback(() => {
-    setResumePromptDismissedFor(resumeSessionKey);
-    void confirmStartOver();
-  }, [confirmStartOver, resumeSessionKey]);
-
   const goPrevEpisode = useCallback(() => {
     const prev = seriesContext?.prevEpisode;
     if (prev && onEpisodeSelect) {
@@ -309,12 +291,41 @@ function PlayerShellComponent({
       return;
     }
 
+    // Persist progress immediately so Continue Watching works without a home refresh.
+    const video = videoRef.current;
+    if (watchMedia && video && Number.isFinite(video.currentTime) && video.currentTime > 0) {
+      const tracker = ProgressTracker.getInstance();
+      tracker.init(
+        createDefaultTrackerConfig({
+          userId: user?.id != null ? String(user.id) : null,
+          isAuthenticated: isAuthenticated && isViewer,
+          getAuthToken: () => tokenStorage.getToken(),
+        }),
+      );
+      tracker.attachMedia(watchMedia);
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        tracker.updateDuration(video.duration);
+      }
+      tracker.tick(video.currentTime, video.duration || undefined);
+      tracker.pause();
+    }
+
     if (backHref) {
       router.push(backHref);
     } else {
       router.back();
     }
-  }, [backHref, episodePanelOpen, openMenu, router]);
+  }, [
+    backHref,
+    episodePanelOpen,
+    isAuthenticated,
+    isViewer,
+    openMenu,
+    router,
+    user?.id,
+    videoRef,
+    watchMedia,
+  ]);
 
   usePlayerKeyboard(
     containerRef,
@@ -409,15 +420,17 @@ function PlayerShellComponent({
     video.style.setProperty("--cinema-subtitle-bg", bgMap[subtitleBackground]);
   }, [subtitleBackground, subtitleFontColor, subtitleFontSize, videoRef]);
 
-  const loadingMessage =
-    recoveryMessage ||
-    (isSourceTransitioning ? "در حال بارگذاری قسمت..." : null) ||
-    (fsmState === "recovering" ? "بازیابی پخش..." : "در حال بارگذاری پخش...");
-
-  const showFullBleedPoster =
-    immersive &&
-    Boolean(optimizedPoster) &&
-    (isLoading || readyState < HTMLMediaElement.HAVE_CURRENT_DATA);
+  const showBufferingOverlay =
+    !error &&
+    !isDraggingSeek &&
+    (isLoading ||
+      isSourceTransitioning ||
+      fsmState === "seeking" ||
+      // Keep spinner until first frames exist — never flash poster/black alone.
+      (!isPlaying &&
+        readyState < HTMLMediaElement.HAVE_CURRENT_DATA &&
+        fsmState !== "ended" &&
+        fsmState !== "idle"));
 
   return (
     <div
@@ -445,28 +458,15 @@ function PlayerShellComponent({
         <div
           className={`relative bg-black ${immersive ? "aspect-auto h-dvh w-screen" : "aspect-video w-full"}`}
         >
-          {showFullBleedPoster ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={optimizedPoster!}
-              alt=""
-              aria-hidden
-              className="absolute inset-0 z-[1] h-full w-full object-cover object-center"
-            />
-          ) : null}
-
           <video
             ref={videoRef}
             playsInline
+            preload="auto"
             crossOrigin={videoCrossOrigin}
             controls={false}
             poster={immersive ? undefined : optimizedPoster || undefined}
             className={`cinema-player-video relative z-[2] h-full w-full bg-black ${
-              showFullBleedPoster
-                ? "opacity-0"
-                : immersive
-                  ? "object-cover object-center"
-                  : "object-contain"
+              immersive ? "object-cover object-center" : "object-contain"
             }`}
           />
 
@@ -501,7 +501,9 @@ function PlayerShellComponent({
                 <IoPlaySharp className="h-20 w-20" />
               </button>
               <p className="mt-4 text-2xl font-bold text-white" dir="rtl">
-                برای شروع پخش، دکمه تأیید را فشار دهید
+                {isTv
+                  ? "برای شروع پخش، دکمه تأیید را فشار دهید"
+                  : "برای شروع پخش ضربه بزنید"}
               </p>
             </div>
           ) : null}
@@ -535,25 +537,7 @@ function PlayerShellComponent({
             </div>
           ) : null}
 
-          {resumeDecision.showPrompt &&
-          controlsEnabled &&
-          resumePromptDismissedFor !== resumeSessionKey ? (
-            <ResumePrompt
-              label={resumeDecision.label}
-              onResume={handleResume}
-              onStartOver={handleStartOver}
-            />
-          ) : null}
-
-          {(isLoading || isSourceTransitioning) && !error && !isDraggingSeek ? (
-            <LoadingOverlay message={loadingMessage} phase={recoveryMessage} />
-          ) : null}
-
-          {!isDraggingSeek && fsmState === "seeking" && !error ? (
-            <div className="pointer-events-none absolute inset-0 z-[25] flex items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-[#38bdf8] opacity-80" />
-            </div>
-          ) : null}
+          {showBufferingOverlay ? <LoadingOverlay /> : null}
 
           {seekFeedback ? (
             <div

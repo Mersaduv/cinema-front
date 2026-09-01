@@ -42,10 +42,14 @@ export interface PublicSeriesEpisode {
   still_url: string | null;
   still_image?: ResponsiveImageAsset | null;
   hls_url: string | null;
+  video_url?: string | null;
+  source_method?: string | null;
   dash_url?: string | null;
   download_links?: Record<string, string>;
   subtitle_url: string | null;
   dubbed_audio_url: string | null;
+  has_subtitle?: boolean;
+  has_dubbed?: boolean;
 }
 
 export interface PublicSeriesSeason {
@@ -111,6 +115,18 @@ export interface PublicSeries {
   };
   reviews?: ReviewsPayload;
   cached_avg_rating?: number | null;
+}
+
+export function episodeHasSubtitle(
+  episode: Pick<PublicSeriesEpisode, "has_subtitle" | "subtitle_url">,
+): boolean {
+  return Boolean(episode.has_subtitle || episode.subtitle_url);
+}
+
+export function episodeHasDubbed(
+  episode: Pick<PublicSeriesEpisode, "has_dubbed" | "dubbed_audio_url">,
+): boolean {
+  return Boolean(episode.has_dubbed || episode.dubbed_audio_url);
 }
 
 export const seriesService = {

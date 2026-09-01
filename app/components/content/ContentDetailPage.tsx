@@ -29,6 +29,7 @@ import type {
   PublicSeriesEpisode,
   PublicSeriesSeason,
 } from "../../lib/series";
+import { episodeHasDubbed, episodeHasSubtitle } from "../../lib/series";
 import AuthRequiredDialog from "../auth/AuthRequiredDialog";
 import RelatedContentSlider from "../catalog/RelatedContentSlider";
 import CastSlider from "./CastSlider";
@@ -128,6 +129,10 @@ function episodeWatchHref(seriesSlug: string, episode: PublicSeriesEpisode) {
   });
 
   return `/watch/${seriesSlug}?${params.toString()}`;
+}
+
+function episodeIsPlayable(episode: PublicSeriesEpisode): boolean {
+  return Boolean(episode.hls_url?.trim() || episode.video_url?.trim());
 }
 
 function EpisodeGridSkeleton() {
@@ -241,7 +246,7 @@ export default function ContentDetailPage({
   };
 
   const navigateToEpisode = (episode: PublicSeriesEpisode) => {
-    if (!episode.hls_url || !series?.slug) {
+    if (!episodeIsPlayable(episode) || !series?.slug) {
       return;
     }
 
@@ -512,9 +517,17 @@ export default function ContentDetailPage({
     kind === "movie" && movie
       ? `/watch/${movie.slug}`
       : kind === "series" && series
-        ? activeSeason?.episodes[0]
-          ? episodeWatchHref(series.slug, activeSeason.episodes[0])
-          : `/watch/${series.slug}?season=${activeSeason?.season_number ?? 1}&episode=1`
+        ? (() => {
+            const firstPlayable =
+              activeSeason?.episodes.find((episode) => episodeIsPlayable(episode)) ??
+              seasons
+                .flatMap((season) => season.episodes || [])
+                .find((episode) => episodeIsPlayable(episode));
+
+            return firstPlayable
+              ? episodeWatchHref(series.slug, firstPlayable)
+              : `/watch/${series.slug}?season=${activeSeason?.season_number ?? 1}&episode=1`;
+          })()
         : "#";
 
   const durationLabel =
@@ -527,25 +540,13 @@ export default function ContentDetailPage({
   const countriesLabel = (
     kind === "movie" ? movie?.details.countries : series?.details.countries
   )?.join("، ");
-  const languageItems =
-    kind === "movie"
-      ? movie?.details.languages?.length
-        ? movie.details.languages
-        : movie?.details.original_language
-          ? [movie.details.original_language]
-          : []
-      : series?.details.languages?.length
-        ? series.details.languages
-        : series?.details.original_language
-          ? [series.details.original_language]
-          : [];
   const hasSubtitle =
     kind === "movie"
       ? Boolean(movie?.has_subtitle || movie?.subtitle_source_url)
       : Boolean(
         series?.has_subtitle ||
         seasons.some((season) =>
-          (season.episodes || []).some((episode) => Boolean(episode.subtitle_url)),
+          (season.episodes || []).some((episode) => episodeHasSubtitle(episode)),
         ),
       );
   const hasDubbedAudio =
@@ -557,7 +558,7 @@ export default function ContentDetailPage({
       : Boolean(
         series?.has_dubbed ||
         seasons.some((season) =>
-          (season.episodes || []).some((episode) => Boolean(episode.dubbed_audio_url)),
+          (season.episodes || []).some((episode) => episodeHasDubbed(episode)),
         ),
       );
 
@@ -726,22 +727,6 @@ export default function ContentDetailPage({
                 <span className="rounded-full border border-white/12 bg-black/30 px-3 py-1.5">
                   کشور: {countriesLabel || "نامشخص"}
                 </span>
-                <span className="text-white/35">|</span>
-                <span className="text-white/62">زبان:</span>
-                {languageItems.length > 0 ? (
-                  languageItems.map((lang) => (
-                    <span
-                      key={`language-${lang}`}
-                      className="rounded-full border border-white/12 bg-black/30 px-3 py-1.5"
-                    >
-                      {lang}
-                    </span>
-                  ))
-                ) : (
-                  <span className="rounded-full border border-white/12 bg-black/30 px-3 py-1.5">
-                    نامشخص
-                  </span>
-                )}
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -990,7 +975,7 @@ export default function ContentDetailPage({
                                 )}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                               </div>
-                              {episode.hls_url ? (
+                              {episodeIsPlayable(episode) ? (
                                 <Link
                                   href={episodeWatchHref(series.slug, episode)}
                                   data-tv-focusable
@@ -1002,12 +987,12 @@ export default function ContentDetailPage({
                                 </Link>
                               ) : null}
                               <div className="pointer-events-none absolute bottom-2 right-2 z-20 flex gap-1.5">
-                                {episode.subtitle_url ? (
+                                {episodeHasSubtitle(episode) ? (
                                   <span className="rounded-md border border-[#f5c518]/30 bg-black/70 px-2 py-0.5 text-[10px] font-bold text-[#f8d977]">
                                     زیرنویس
                                   </span>
                                 ) : null}
-                                {episode.dubbed_audio_url ? (
+                                {episodeHasDubbed(episode) ? (
                                   <span className="rounded-md border border-[#f5c518]/30 bg-black/70 px-2 py-0.5 text-[10px] font-bold text-[#f8d977]">
                                     دوبله
                                   </span>
@@ -1031,7 +1016,7 @@ export default function ContentDetailPage({
                                 </p>
                               ) : null}
                               <div className="flex items-center justify-between gap-2 pt-1">
-                                {episode.hls_url ? (
+                                {episodeIsPlayable(episode) ? (
                                   <Link
                                     href={episodeWatchHref(series.slug, episode)}
                                     data-tv-focusable
@@ -1080,7 +1065,7 @@ export default function ContentDetailPage({
                             data-episode-season={episode.season_number}
                             data-episode-number={episode.episode_number}
                             data-episode-key={episodeRowKey(episode)}
-                            tabIndex={episode.hls_url ? 0 : undefined}
+                            tabIndex={episodeIsPlayable(episode) ? 0 : undefined}
                             onClick={() => navigateToEpisode(episode)}
                             onKeyDown={(event) => handleEpisodeCardKeyDown(event, episode)}
                             className="flex flex-col gap-4 rounded-[28px] border border-white/8 bg-white/[0.03] p-4 transition hover:border-white/14 hover:bg-white/[0.045] focus-within:border-[#38bdf8]/50 md:flex-row md:items-center"
@@ -1118,12 +1103,12 @@ export default function ContentDetailPage({
                                   </p>
                                 ) : null}
                                 <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {episode.subtitle_url ? (
+                                  {episodeHasSubtitle(episode) ? (
                                     <span className="rounded-md border border-[#f5c518]/25 bg-[#f5c518]/10 px-2 py-0.5 text-[10px] font-bold text-[#f8d977]">
                                       زیرنویس
                                     </span>
                                   ) : null}
-                                  {episode.dubbed_audio_url ? (
+                                  {episodeHasDubbed(episode) ? (
                                     <span className="rounded-md border border-[#f5c518]/25 bg-[#f5c518]/10 px-2 py-0.5 text-[10px] font-bold text-[#f8d977]">
                                       دوبله
                                     </span>
@@ -1133,7 +1118,7 @@ export default function ContentDetailPage({
                             </div>
 
                             <div className="flex items-center gap-3">
-                              {episode.hls_url ? (
+                              {episodeIsPlayable(episode) ? (
                                 <>
                                   {episode.download_links &&
                                     Object.keys(episode.download_links).length > 0 ? (

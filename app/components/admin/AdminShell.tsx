@@ -12,7 +12,7 @@ import {
   HiOutlineSparkles,
   HiX,
 } from "react-icons/hi";
-import ProtectedRoute from "../ProtectedRoute";
+import AdminAccessGate from "./AdminAccessGate";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   adminNavigation,
@@ -292,12 +292,7 @@ export default function AdminShell({
   };
 
   return (
-    <ProtectedRoute
-      requireAuth
-      requireStaff
-      requireRole={["admin", "media", "support"]}
-      redirectTo="/adminbod"
-    >
+    <AdminAccessGate>
       <div className="relative min-h-screen overflow-hidden bg-[#07131b] text-white">
         <style jsx>{`
           .admin-sidebar-scroll {
@@ -452,6 +447,6 @@ export default function AdminShell({
           </main>
         </div>
       </div>
-    </ProtectedRoute>
+    </AdminAccessGate>
   );
 }

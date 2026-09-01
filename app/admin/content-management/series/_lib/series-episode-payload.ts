@@ -58,6 +58,8 @@ export function episodeDraftFingerprint(episode: EpisodeDraft): string {
     download_links: episode.download_links,
     subtitle_url: episode.subtitle_url.trim(),
     dubbed_audio_url: episode.dubbed_audio_url.trim(),
+    has_subtitle: episode.has_subtitle,
+    has_dubbed: episode.has_dubbed,
     publish_status: episode.publish_status,
   };
 
@@ -108,6 +110,8 @@ export function buildEpisodeUpsertPayload(
     download_links: downloadMapFromEpisode(episode),
     subtitle_url: nullableString(episode.subtitle_url) || null,
     dubbed_audio_url: nullableString(episode.dubbed_audio_url) || null,
+    has_subtitle: Boolean(episode.has_subtitle),
+    has_dubbed: Boolean(episode.has_dubbed),
     publish_status: (episode.publish_status || form.publish_status) as SeriesPublishStatus,
     season: {
       hls_base_url: seasonHlsBase || null,
@@ -138,6 +142,8 @@ export function mergeSavedEpisodeIntoDraft(
     download_links: saved.download_links || episode.download_links,
     subtitle_url: saved.subtitle_url || episode.subtitle_url,
     dubbed_audio_url: saved.dubbed_audio_url || episode.dubbed_audio_url,
+    has_subtitle: saved.has_subtitle ?? episode.has_subtitle,
+    has_dubbed: saved.has_dubbed ?? episode.has_dubbed,
     publish_status: saved.publish_status || episode.publish_status,
   };
 }

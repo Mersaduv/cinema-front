@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { reconcileResumeTime } from "../services/progressReconcile";
 import { PROGRESS_CONSTANTS } from "../services/progress.types";
 
-describe("resume prompt rules", () => {
-  it("shows for position > 30s", () => {
+describe("resume auto rules", () => {
+  it("resumes for position > 30s without prompt", () => {
     const decision = reconcileResumeTime(
       {
         mediaId: "1",
@@ -23,13 +23,13 @@ describe("resume prompt rules", () => {
       null,
     );
 
-    expect(decision.showPrompt).toBe(true);
+    expect(decision.showPrompt).toBe(false);
     expect(decision.resumeTime).toBeGreaterThanOrEqual(
       PROGRESS_CONSTANTS.RESUME_MIN_SECONDS,
     );
   });
 
-  it("hides for position < 30s", () => {
+  it("skips resume for position < 30s", () => {
     const decision = reconcileResumeTime(
       {
         mediaId: "1",
@@ -50,5 +50,6 @@ describe("resume prompt rules", () => {
     );
 
     expect(decision.showPrompt).toBe(false);
+    expect(decision.resumeTime).toBe(0);
   });
 });

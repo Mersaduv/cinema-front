@@ -63,6 +63,8 @@ export function usePlayerBootPhase(
   return {
     phase,
     controlsEnabled: phase !== "stream",
-    progressEnabled: phase === "progress",
+    // Start persisting as soon as controls unlock so Back → Continue Watching
+    // always has a fresh local resume point without requiring a home refresh.
+    progressEnabled: phase !== "stream",
   };
 }

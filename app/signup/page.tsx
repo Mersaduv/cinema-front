@@ -14,6 +14,7 @@ import {
 } from "react-icons/md";
 import Image from "next/image";
 import { useAuth } from "../contexts/AuthContext";
+import GoogleRecaptcha from "../components/auth/GoogleRecaptcha";
 
 export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -22,10 +23,12 @@ export default function SignUpPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { register, isAuthenticated } = useAuth();
   const router = useRouter();
+  const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
 
   // Redirect if already authenticated (using useEffect to avoid render error)
   useEffect(() => {
@@ -53,9 +56,20 @@ export default function SignUpPage() {
       return;
     }
 
+    if (recaptchaSiteKey && !captchaToken) {
+      setError("لطفا کپچای گوگل را تکمیل کنید.");
+      return;
+    }
+
     setLoading(true);
 
-    const result = await register(name, email, password, passwordConfirmation);
+    const result = await register(
+      name,
+      email,
+      password,
+      passwordConfirmation,
+      captchaToken || undefined,
+    );
     
     if (result.success) {
       router.push('/');
@@ -259,6 +273,16 @@ export default function SignUpPage() {
               >
                 {loading ? "در حال ثبت‌نام..." : "ثبت نام"}
               </button>
+
+              {recaptchaSiteKey ? (
+                <div className="mt-4 flex flex-col items-center justify-center gap-2">
+                  <GoogleRecaptcha
+                    siteKey={recaptchaSiteKey}
+                    onToken={setCaptchaToken}
+                    onExpired={() => setCaptchaToken("")}
+                  />
+                </div>
+              ) : null}
             </form>
 
             {/* Login Link */}

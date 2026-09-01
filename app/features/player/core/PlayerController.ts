@@ -474,6 +474,37 @@ export class PlayerController {
   }
 
   setAudioTrack(index: number): void {
+    const dubbedUrl = this.currentSource?.dubbedAudioUrl?.trim() || null;
+    if (dubbedUrl && isProgressiveAudioUrl(dubbedUrl)) {
+      const mediaTracks = this.currentSource?.audioTracks ?? [];
+      let wantDub = false;
+
+      if (mediaTracks.length > 0) {
+        const track = mediaTracks[index];
+        const language = (track?.language ?? "").toLowerCase();
+        wantDub = Boolean(
+          track &&
+            (["fa", "fas", "per", "persian", "farsi"].includes(language) ||
+              /dub|دوبله/i.test(track.label)),
+        );
+      } else {
+        wantDub = index === 1;
+      }
+
+      if (wantDub) {
+        this.activateExternalDub(dubbedUrl);
+        if (this.video && !this.video.paused) {
+          this.video.muted = true;
+          void this.sync.audio.syncPlayState();
+        }
+      } else {
+        this.deactivateExternalDub();
+      }
+
+      this.emitSnapshot();
+      return;
+    }
+
     this.engine?.setAudioTrack(index);
   }
 

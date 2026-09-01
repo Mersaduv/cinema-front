@@ -87,6 +87,7 @@ export interface PublicMovie {
   };
   playback: {
     master_playlist_url: string | null;
+    progressive_url?: string | null;
     subtitle_url?: string | null;
     audio_tracks?: Array<{
       key: string;

@@ -27,6 +27,7 @@ import {
   normalizeAudioOptionLabel,
   normalizeSubtitleOptionLabel,
 } from "../utils/labels";
+import { isProgressiveAudioUrl, resolveMediaPlaybackKey } from "../utils/format";
 import { mediaResolver } from "../core/MediaResolver";
 import { detectDeviceCapabilities } from "../services/capability";
 import { shouldShowTvPlayGate } from "../utils/tv-autoplay-result";
@@ -122,17 +123,26 @@ function resolveInitialAudioTrackIndex(
   preferredIndex: number | undefined,
   userSelected: boolean,
 ): number {
-  if (engineTracks.length === 0) {
+  const effectiveTracks: EngineAudioTrack[] =
+    engineTracks.length > 0
+      ? engineTracks
+      : (mediaTracks ?? []).map((track, index) => ({
+          id: index,
+          name: track.label,
+          lang: track.language,
+        }));
+
+  if (effectiveTracks.length === 0) {
     return 0;
   }
 
-  const dubbedIdx = findDubbedTrackIndex(engineTracks, mediaTracks);
+  const dubbedIdx = findDubbedTrackIndex(effectiveTracks, mediaTracks);
 
   if (
     userSelected &&
     preferredIndex !== undefined &&
     preferredIndex >= 0 &&
-    preferredIndex < engineTracks.length
+    preferredIndex < effectiveTracks.length
   ) {
     return preferredIndex;
   }
@@ -144,7 +154,7 @@ function resolveInitialAudioTrackIndex(
   if (
     preferredIndex !== undefined &&
     preferredIndex >= 0 &&
-    preferredIndex < engineTracks.length
+    preferredIndex < effectiveTracks.length
   ) {
     return preferredIndex;
   }
@@ -154,12 +164,12 @@ function resolveInitialAudioTrackIndex(
       (track) => track.is_default || track.language === "eng",
     );
 
-    if (originalTrack >= 0 && originalTrack < engineTracks.length) {
+    if (originalTrack >= 0 && originalTrack < effectiveTracks.length) {
       return originalTrack;
     }
   }
 
-  const originalEngineIdx = engineTracks.findIndex(
+  const originalEngineIdx = effectiveTracks.findIndex(
     (track) =>
       track.lang === "eng" ||
       track.lang === "en" ||
@@ -277,27 +287,32 @@ export function usePlayer({
       const levels = engine.getLevels();
       const currentMedia = mediaRef.current;
 
-      const qualityOptions = [
-        { value: -1, label: "خودکار", detail: "Adaptive HLS" },
-        ...levels.map((level) => ({
-          value: level.index,
-          label: getQualityLabel(level.height),
-          detail: getQualityDetail(level.width, level.height, level.bitrate),
-        })),
-      ];
-
-      if (qualityOptions.length === 1 && variants.length > 0) {
-        qualityOptions.push(
-          ...variants.map((variant, index) => ({
-            value: index,
-            label: variant.profile_key,
-            detail: `${variant.resolution} • ${Math.round(variant.bandwidth / 1000)} kbps`,
+      if (engine.id === "progressive") {
+        actions.setQualityOptions([]);
+        actions.setAutoQualityLabel("فایل واحد");
+      } else {
+        const qualityOptions = [
+          { value: -1, label: "خودکار", detail: "Adaptive HLS" },
+          ...levels.map((level) => ({
+            value: level.index,
+            label: getQualityLabel(level.height),
+            detail: getQualityDetail(level.width, level.height, level.bitrate),
           })),
-        );
-      }
+        ];
 
-      actions.setQualityOptions(qualityOptions);
-      actions.setAutoQualityLabel(engine.getAutoLevelLabel());
+        if (qualityOptions.length === 1 && variants.length > 0) {
+          qualityOptions.push(
+            ...variants.map((variant, index) => ({
+              value: index,
+              label: variant.profile_key,
+              detail: `${variant.resolution} • ${Math.round(variant.bandwidth / 1000)} kbps`,
+            })),
+          );
+        }
+
+        actions.setQualityOptions(qualityOptions);
+        actions.setAutoQualityLabel(engine.getAutoLevelLabel());
+      }
 
       const audioTracks = engine.getAudioTracks();
       if (audioTracks.length > 0) {
@@ -311,6 +326,26 @@ export function usePlayer({
             language: track.lang,
           })),
         );
+      } else if (
+        currentMedia.audioTracks &&
+        currentMedia.audioTracks.length > 0 &&
+        (engine.id === "progressive" ||
+          isProgressiveAudioUrl(currentMedia.dubbedAudioUrl))
+      ) {
+        actions.setAudioOptions(
+          currentMedia.audioTracks.map((track, index) => ({
+            value: index,
+            label: normalizeAudioOptionLabel(track.label, track.language),
+            language: track.language,
+          })),
+        );
+      } else if (isProgressiveAudioUrl(currentMedia.dubbedAudioUrl)) {
+        actions.setAudioOptions([
+          { value: 0, label: "زبان اصلی", language: "und" },
+          { value: 1, label: "دوبله فارسی", language: "fa" },
+        ]);
+      } else if (engine.id === "progressive") {
+        actions.setAudioOptions([]);
       }
 
       const subtitleTracks = engine.getSubtitleTracks();
@@ -381,7 +416,8 @@ export function usePlayer({
       return;
     }
 
-    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    // HAVE_METADATA is enough to call play(); browser buffers while starting.
+    if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
       return;
     }
 
@@ -405,7 +441,8 @@ export function usePlayer({
       return;
     }
 
-    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    // Start as soon as duration/dimensions are known — don't wait for a deep buffer.
+    if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
       return;
     }
 
@@ -416,11 +453,7 @@ export function usePlayer({
       startupFallbackTimerRef.current = null;
     }
 
-    if (startupModeRef.current === "prompt") {
-      return;
-    }
-
-    const resumeAt = initialResumeTimeRef.current;
+    const resumeAt = initialResumeTimeRef.current ?? pendingResumeTimeRef.current;
     if (
       resumeAt != null &&
       resumeAt >= 30 &&
@@ -440,6 +473,47 @@ export function usePlayer({
     }
   }, []);
 
+  // If watchMedia/resume time arrives after first startup (soft-nav race), seek ASAP.
+  useEffect(() => {
+    const resumeAt = initialResumeTime;
+    if (resumeAt == null || resumeAt < 30 || resumeSeekDoneRef.current) {
+      return;
+    }
+
+    const video = videoRef.current;
+    const controller = controllerRef.current;
+    if (!video || !controller || video.readyState < HTMLMediaElement.HAVE_METADATA) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      resumeSeekDoneRef.current = true;
+      controller.seekTo(resumeAt);
+      await waitForSeek(video, resumeAt);
+      if (cancelled) {
+        return;
+      }
+
+      if (!video.paused) {
+        return;
+      }
+
+      autoplayInFlightRef.current = true;
+      try {
+        const started = await controller.play({ silent: true });
+        applySilentAutoplayResult(started, video, autoplayAttemptedRef);
+      } finally {
+        autoplayInFlightRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialResumeTime]);
+
   const confirmResume = useCallback(async () => {
     const controller = controllerRef.current;
     const video = videoRef.current;
@@ -447,7 +521,7 @@ export function usePlayer({
       return;
     }
 
-    const resumeAt = pendingResumeTimeRef.current;
+    const resumeAt = pendingResumeTimeRef.current ?? initialResumeTimeRef.current;
     if (resumeAt != null && resumeAt >= 30) {
       resumeSeekDoneRef.current = true;
       controller.seekTo(resumeAt);
@@ -506,7 +580,9 @@ export function usePlayer({
         });
 
         const ctx = seriesContextRef.current;
-        if (snapshot.duration > 0 && ctx?.nextEpisode?.hlsUrl) {
+        const nextEpisodePrefetchUrl =
+          ctx?.nextEpisode?.hlsUrl || ctx?.nextEpisode?.progressiveUrl || null;
+        if (snapshot.duration > 0 && nextEpisodePrefetchUrl) {
           const remaining = snapshot.duration - snapshot.currentTime;
           if (
             remaining <= DEFAULT_PLAYER_CONFIG.prefetchThresholdSeconds &&
@@ -516,7 +592,7 @@ export function usePlayer({
             prefetchAbortRef.current?.abort();
             prefetchAbortRef.current = new AbortController();
             void mediaResolver.prefetchManifest(
-              ctx.nextEpisode.hlsUrl,
+              nextEpisodePrefetchUrl,
               prefetchAbortRef.current.signal,
             );
           }
@@ -586,6 +662,48 @@ export function usePlayer({
 
     controller.eventBus.on("manifestParsed", () => {
       syncTrackOptions();
+
+      if (!audioTrackInitializedRef.current) {
+        const engine = controller.getEngine();
+        const engineTracks = engine.getAudioTracks();
+        const mediaTracks = mediaRef.current.audioTracks;
+        const canInitExternalAudio =
+          engineTracks.length === 0 &&
+          (engine.id === "progressive" ||
+            isProgressiveAudioUrl(mediaRef.current.dubbedAudioUrl)) &&
+          ((mediaTracks && mediaTracks.length > 0) ||
+            isProgressiveAudioUrl(mediaRef.current.dubbedAudioUrl));
+
+        if (canInitExternalAudio) {
+          audioTrackInitializedRef.current = true;
+          const prefs = loadPlayerPreferences();
+          const userSelected =
+            hasSavedPreference(prefs, "audioTrackIndex") &&
+            prefs.audioTrackUserSelected === true;
+          const syntheticTracks: EngineAudioTrack[] =
+            mediaTracks && mediaTracks.length > 0
+              ? mediaTracks.map((track, index) => ({
+                  id: index,
+                  name: track.label,
+                  lang: track.language,
+                }))
+              : [
+                  { id: 0, name: "زبان اصلی", lang: "und" },
+                  { id: 1, name: "دوبله فارسی", lang: "fa" },
+                ];
+          const trackIndex = resolveInitialAudioTrackIndex(
+            syntheticTracks,
+            mediaTracks,
+            hasSavedPreference(prefs, "audioTrackIndex")
+              ? prefs.audioTrackIndex
+              : undefined,
+            userSelected,
+          );
+
+          controller.setAudioTrack(trackIndex);
+          getActions().setSelectedAudio(trackIndex, { persist: false });
+        }
+      }
 
       if (!subtitleTrackInitializedRef.current) {
         const prefs = loadPlayerPreferences();
@@ -700,12 +818,13 @@ export function usePlayer({
   useEffect(() => {
     const video = videoRef.current;
     const controller = controllerRef.current;
-    if (!video || !controller || !media.src) {
+    const playbackKey = resolveMediaPlaybackKey(media);
+    if (!video || !controller || !playbackKey) {
       return;
     }
 
     const isSourceChange =
-      loadedSrcRef.current !== null && loadedSrcRef.current !== media.src;
+      loadedSrcRef.current !== null && loadedSrcRef.current !== playbackKey;
     const isFirstLoad = loadedSrcRef.current === null;
 
     if (!isFirstLoad && !isSourceChange) {
@@ -721,29 +840,36 @@ export function usePlayer({
     getActions().resetForNewMedia();
 
     const prefs = loadPlayerPreferences();
+    const isProgressiveOnly = Boolean(
+      media.progressiveUrl?.trim() && !media.src?.trim(),
+    );
 
     const scheduleStartupFallback = () => {
       if (startupFallbackTimerRef.current !== null) {
         return;
       }
 
+      // Progressive MP4 should start almost immediately; HLS may need a bit longer.
       startupFallbackTimerRef.current = window.setTimeout(() => {
         void runStartupPlayback();
-      }, 5000);
+      }, isProgressiveOnly ? 1200 : 5000);
     };
 
-    const onCanPlayStartup = () => {
+    const onStartupReady = () => {
       void runStartupPlayback();
     };
 
-    video.addEventListener("canplay", onCanPlayStartup, { once: true });
+    // loadedmetadata fires earlier than canplay — start play ASAP for MP4.
+    video.addEventListener("loadedmetadata", onStartupReady, { once: true });
+    video.addEventListener("loadeddata", onStartupReady, { once: true });
+    video.addEventListener("canplay", onStartupReady, { once: true });
     scheduleStartupFallback();
 
     const loadTask = isSourceChange
       ? controller.reloadSource(mediaRef.current)
       : controller.load(video, mediaRef.current);
 
-    loadedSrcRef.current = media.src;
+    loadedSrcRef.current = playbackKey;
 
     void loadTask.then(() => {
       tracksReadyRef.current = true;
@@ -761,13 +887,15 @@ export function usePlayer({
     });
 
     return () => {
-      video.removeEventListener("canplay", onCanPlayStartup);
+      video.removeEventListener("loadedmetadata", onStartupReady);
+      video.removeEventListener("loadeddata", onStartupReady);
+      video.removeEventListener("canplay", onStartupReady);
       if (startupFallbackTimerRef.current !== null) {
         window.clearTimeout(startupFallbackTimerRef.current);
         startupFallbackTimerRef.current = null;
       }
     };
-  }, [media.src, runStartupPlayback]);
+  }, [media.src, media.progressiveUrl, media.dashUrl, runStartupPlayback]);
 
   useEffect(() => {
     const controller = controllerRef.current;

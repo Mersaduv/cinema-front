@@ -5,6 +5,7 @@ import {
 } from "../../../lib/hls-playlist";
 import { fetchWithPlaybackTimeout } from "../../../lib/playback-fetch";
 import { STREAMING_RESPONSE_HEADERS } from "../../../lib/playback-networking";
+import { isRateLimited } from "../../../lib/simple-rate-limit";
 
 const MANIFEST_HEADERS = {
   ...STREAMING_RESPONSE_HEADERS,
@@ -32,6 +33,12 @@ export async function OPTIONS() {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const src = searchParams.get("src")?.trim();
+
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const ip = forwardedFor ? forwardedFor.split(",")[0]?.trim() : "unknown";
+  if (isRateLimited(`manifest:${ip}`, 60, 60_000)) {
+    return new Response("Too many requests", { status: 429, headers: MANIFEST_HEADERS });
+  }
 
   if (!src || !isHlsManifestUrl(src)) {
     return new Response("Missing or invalid HLS src", {

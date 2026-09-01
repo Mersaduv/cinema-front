@@ -38,6 +38,7 @@ function mapRestSeasons(seasons: PublicSeriesSeason[]): SeasonSummary[] {
         episodeNumber: ep.episode_number,
         title: ep.title,
         hlsUrl: ep.hls_url,
+        progressiveUrl: ep.video_url,
         subtitleUrl: ep.subtitle_url,
         dubbedAudioUrl: ep.dubbed_audio_url,
         durationSeconds: ep.duration_minutes ? ep.duration_minutes * 60 : null,
@@ -266,7 +267,7 @@ function EpisodePanelComponent({
                     const isCurrent =
                       ep.seasonNumber === nav.currentSeason &&
                       ep.episodeNumber === nav.currentEpisode;
-                    const playable = Boolean(ep.hlsUrl);
+                    const playable = Boolean(ep.hlsUrl || ep.progressiveUrl);
                     const durationLabel = formatEpisodeDuration(ep.durationSeconds);
 
                     return (

@@ -1,6 +1,18 @@
-const API_BASE = process.env.NEXT_PUBLIC_CINEMA_API_URL?.replace(/\/$/, "") ?? "";
+import { isRateLimited } from "../../../lib/simple-rate-limit";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_CINEMA_API_URL?.replace(/\/$/, "") ?? "";
 
 export async function GET(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const ip = forwardedFor ? forwardedFor.split(",")[0]?.trim() : "unknown";
+  if (isRateLimited(`playback-session:${ip}`, 40, 60_000)) {
+    return Response.json(
+      { success: false, message: "Too many requests" },
+      { status: 429 },
+    );
+  }
+
   const incoming = new URL(request.url);
   const target = new URL(`${API_BASE}/api/v1/playback/session`);
   incoming.searchParams.forEach((value, key) => {
