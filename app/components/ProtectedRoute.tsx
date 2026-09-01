@@ -10,6 +10,10 @@ interface ProtectedRouteProps {
   requireAuth?: boolean;
   requireRole?: string | string[];
   requirePermission?: string | string[];
+  /** Restrict to viewer accounts (audience features / profile). */
+  requireViewer?: boolean;
+  /** Restrict to staff accounts (panel users). */
+  requireStaff?: boolean;
   redirectTo?: string;
 }
 
@@ -19,9 +23,20 @@ export default function ProtectedRoute({
   requireAuth = true,
   requireRole,
   requirePermission,
+  requireViewer = false,
+  requireStaff = false,
   redirectTo = "/login",
 }: ProtectedRouteProps) {
-  const { loading, isAuthenticated, hasToken, authReady, hasRole, hasPermission } = useAuth();
+  const {
+    loading,
+    isAuthenticated,
+    hasToken,
+    authReady,
+    hasRole,
+    hasPermission,
+    isViewer,
+    isStaff,
+  } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -43,12 +58,22 @@ export default function ProtectedRoute({
       return;
     }
 
+    if (requireViewer && isAuthenticated && !isViewer) {
+      router.push(isStaff ? "/admin" : "/");
+      return;
+    }
+
+    if (requireStaff && isAuthenticated && !isStaff) {
+      router.push("/");
+      return;
+    }
+
     if (requireRole) {
       const roles = Array.isArray(requireRole) ? requireRole : [requireRole];
       const hasRequiredRole = roles.some((role) => hasRole(role));
 
       if (!hasRequiredRole) {
-        router.push("/");
+        router.push(isStaff ? "/adminbod" : "/");
         return;
       }
     }
@@ -71,7 +96,11 @@ export default function ProtectedRoute({
     loading,
     hasToken,
     isAuthenticated,
+    isViewer,
+    isStaff,
     requireAuth,
+    requireViewer,
+    requireStaff,
     requireRole,
     requirePermission,
     hasRole,
@@ -98,6 +127,14 @@ export default function ProtectedRoute({
 
   if (requireAuth && !isAuthenticated) {
     return <>{fallback}</>;
+  }
+
+  if (requireViewer && !isViewer) {
+    return null;
+  }
+
+  if (requireStaff && !isStaff) {
+    return null;
   }
 
   if (requireRole) {

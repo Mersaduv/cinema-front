@@ -1,4 +1,5 @@
 import { localizeGenreLabels } from "../../../../lib/genre-labels";
+import { toManagedImagePublicPath } from "../../../../lib/cinema-image";
 import { resolveEpisodeTitle } from "../../../../lib/episode-title";
 import { filterLatinPersonNameList, resolveLatinPersonName } from "../../../../lib/person-name";
 import {
@@ -434,9 +435,15 @@ function applyTmdbSeriesLevelFields(
         : current.number_of_episodes,
     network: payload.network || current.network,
     provider_name: payload.network || current.provider_name,
-    poster_url: payload.poster_url || current.poster_url,
+    poster_url:
+      toManagedImagePublicPath(current.poster_url) ||
+      payload.poster_url ||
+      current.poster_url,
     poster_source_url: payload.poster_url || current.poster_source_url || "",
-    backdrop_url: payload.backdrop_url || current.backdrop_url,
+    backdrop_url:
+      toManagedImagePublicPath(current.backdrop_url) ||
+      payload.backdrop_url ||
+      current.backdrop_url,
     backdrop_source_url: payload.backdrop_url || current.backdrop_source_url || "",
     trailer_url: payload.trailer_url || current.trailer_url,
     homepage_url: payload.homepage_url || current.homepage_url,

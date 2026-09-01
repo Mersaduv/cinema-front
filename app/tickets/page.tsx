@@ -196,7 +196,7 @@ function TicketsPageContent() {
 
 export default function TicketsPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requireViewer>
       <TicketsPageContent />
     </ProtectedRoute>
   );

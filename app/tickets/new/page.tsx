@@ -213,7 +213,7 @@ function NewTicketPageContent() {
 
 export default function NewTicketPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requireViewer>
       <NewTicketPageContent />
     </ProtectedRoute>
   );

@@ -5,12 +5,15 @@ import {
   HiOutlineViewGrid,
 } from "react-icons/hi";
 import {
+  MdOutlineCollectionsBookmark,
   MdOutlineLocalMovies,
   MdOutlineRateReview,
   MdOutlineRequestPage,
   MdOutlineSubscriptions,
   MdOutlineVideoLibrary,
 } from "react-icons/md";
+import { ADMIN_PERMISSIONS } from "../../lib/admin-permissions";
+import { hasAnyPermission } from "../../lib/admin-permissions";
 
 export interface AdminNavBase {
   id: string;
@@ -19,6 +22,7 @@ export interface AdminNavBase {
   description: string;
   badge: string;
   icon: IconType;
+  permissions?: string[];
 }
 
 export interface AdminNavLink extends AdminNavBase {
@@ -48,15 +52,21 @@ export const adminNavigation: AdminNavItem[] = [
     description: "نمای کلی پنل مدیریت",
     badge: "اصلی",
     icon: HiOutlineViewGrid,
+    permissions: [ADMIN_PERMISSIONS.view_dashboard],
   },
   {
     type: "tree",
     id: "media-management",
     href: "/admin/content-management",
     label: "مدیریت مدیا",
-    description: "مدیریت فیلم و سریال",
+    description: "مدیریت فیلم، سریال و مجموعه",
     badge: "محتوا",
     icon: MdOutlineVideoLibrary,
+    permissions: [
+      ADMIN_PERMISSIONS.view_movies,
+      ADMIN_PERMISSIONS.view_series,
+      ADMIN_PERMISSIONS.view_collections,
+    ],
     children: [
       {
         type: "section",
@@ -71,6 +81,7 @@ export const adminNavigation: AdminNavItem[] = [
             description: "فهرست کامل فیلم‌های ثبت‌شده",
             badge: "فیلم",
             icon: MdOutlineLocalMovies,
+            permissions: [ADMIN_PERMISSIONS.view_movies],
           },
         ],
       },
@@ -87,6 +98,24 @@ export const adminNavigation: AdminNavItem[] = [
             description: "مرور سریال‌ها و وضعیت مجموعه‌ها",
             badge: "سریال",
             icon: MdOutlineSubscriptions,
+            permissions: [ADMIN_PERMISSIONS.view_series],
+          },
+        ],
+      },
+      {
+        type: "section",
+        id: "collections",
+        label: "مجموعه‌های فیلم",
+        items: [
+          {
+            type: "link",
+            id: "all-collections",
+            href: "/admin/content-management/collections",
+            label: "همه مجموعه‌ها",
+            description: "مشاهده فهرست مجموعه‌های فیلم",
+            badge: "نمایش",
+            icon: MdOutlineCollectionsBookmark,
+            permissions: [ADMIN_PERMISSIONS.view_collections],
           },
         ],
       },
@@ -100,6 +129,17 @@ export const adminNavigation: AdminNavItem[] = [
     description: "مدیریت کاربران و حساب‌های پنل",
     badge: "فعال",
     icon: HiOutlineUsers,
+    permissions: [ADMIN_PERMISSIONS.view_users],
+  },
+  {
+    type: "link",
+    id: "viewers",
+    href: "/admin/viewers",
+    label: "بیننده‌ها",
+    description: "مدیریت حساب‌های بیننده و ثبت‌نام عمومی",
+    badge: "مخاطب",
+    icon: HiOutlineUsers,
+    permissions: [ADMIN_PERMISSIONS.view_viewers],
   },
   {
     type: "link",
@@ -109,6 +149,7 @@ export const adminNavigation: AdminNavItem[] = [
     description: "مرور و مدیریت دیدگاه‌های کاربران",
     badge: "ارتباط",
     icon: MdOutlineRateReview,
+    permissions: [ADMIN_PERMISSIONS.view_comments],
   },
   {
     type: "link",
@@ -118,6 +159,7 @@ export const adminNavigation: AdminNavItem[] = [
     description: "پیگیری درخواست‌های ثبت‌شده کاربران",
     badge: "ارتباط",
     icon: MdOutlineRequestPage,
+    permissions: [ADMIN_PERMISSIONS.view_requests],
   },
   {
     type: "link",
@@ -127,6 +169,7 @@ export const adminNavigation: AdminNavItem[] = [
     description: "پاسخ به تیکت‌های پشتیبانی کاربران",
     badge: "ارتباط",
     icon: MdOutlineRateReview,
+    permissions: [ADMIN_PERMISSIONS.view_tickets],
   },
   {
     type: "link",
@@ -156,6 +199,7 @@ function flattenNavigation(items: AdminNavItem[]): AdminNavLink[] {
       description: item.description,
       badge: item.badge,
       icon: item.icon,
+      permissions: item.permissions,
     });
 
     item.children.forEach((child) => {
@@ -181,7 +225,7 @@ function flattenNavigation(items: AdminNavItem[]): AdminNavLink[] {
 export const adminPageLinks = [...flattenNavigation(adminNavigation)];
 
 export const adminPrimaryNavigation = adminNavigation.filter(
-  (item) => item.href !== "/"
+  (item) => item.href !== "/",
 );
 
 export function findAdminPage(pathname: string | null): AdminNavLink {
@@ -217,4 +261,67 @@ export function isAdminPathActive(pathname: string | null, href: string) {
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function canSeeNavItem(
+  item: { permissions?: string[] },
+  hasPermission: (permission: string) => boolean,
+): boolean {
+  if (!item.permissions || item.permissions.length === 0) {
+    return true;
+  }
+
+  return hasAnyPermission(hasPermission, item.permissions);
+}
+
+export function filterAdminNavigation(
+  items: AdminNavItem[],
+  hasPermission: (permission: string) => boolean,
+): AdminNavItem[] {
+  return items
+    .map((item) => {
+      if (item.type === "link") {
+        return canSeeNavItem(item, hasPermission) ? item : null;
+      }
+
+      const children = item.children
+        .map((child) => {
+          if (child.type === "link") {
+            return canSeeNavItem(child, hasPermission) ? child : null;
+          }
+
+          if (child.type === "tree") {
+            const nested = filterAdminNavigation([child], hasPermission)[0];
+            return nested?.type === "tree" ? nested : null;
+          }
+
+          const sectionItems = child.items.filter((leaf) =>
+            canSeeNavItem(leaf, hasPermission),
+          );
+
+          if (sectionItems.length === 0) {
+            return null;
+          }
+
+          return {
+            ...child,
+            items: sectionItems,
+          };
+        })
+        .filter(Boolean) as AdminNavTree["children"];
+
+      if (children.length === 0 && !canSeeNavItem(item, hasPermission)) {
+        return null;
+      }
+
+      if (children.length === 0) {
+        return null;
+      }
+
+      return {
+        ...item,
+        children,
+      };
+    })
+    .filter(Boolean) as AdminNavItem[];
 }

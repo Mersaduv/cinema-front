@@ -203,7 +203,7 @@ function TicketDetailContent() {
 
 export default function TicketDetailPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requireViewer>
       <TicketDetailContent />
     </ProtectedRoute>
   );

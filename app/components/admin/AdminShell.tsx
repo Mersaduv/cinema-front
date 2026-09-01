@@ -16,6 +16,7 @@ import ProtectedRoute from "../ProtectedRoute";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   adminNavigation,
+  filterAdminNavigation,
   findAdminPage,
   isAdminPathActive,
   type AdminNavLink,
@@ -23,6 +24,8 @@ import {
   type AdminNavTree,
 } from "./admin-navigation";
 import AdminSidebarProfileMenu from "./AdminSidebarProfileMenu";
+import { resolveAdminRoutePermissions } from "../../lib/admin-route-permissions";
+import { hasAnyPermission } from "../../lib/admin-permissions";
 
 function SidebarLink({
   link,
@@ -270,8 +273,11 @@ export default function AdminShell({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedTrees, setExpandedTrees] = useState<Record<string, boolean>>({});
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const currentPage = findAdminPage(pathname);
+  const visibleNavigation = filterAdminNavigation(adminNavigation, hasPermission);
+  const routePermissions = resolveAdminRoutePermissions(pathname);
+  const canAccessCurrentRoute = hasAnyPermission(hasPermission, routePermissions);
 
   const closeSidebar = () => setSidebarOpen(false);
   const handleTopLevelNavigate = (href: string) => {
@@ -286,7 +292,12 @@ export default function AdminShell({
   };
 
   return (
-    <ProtectedRoute requireAuth requireRole={["admin"]}>
+    <ProtectedRoute
+      requireAuth
+      requireStaff
+      requireRole={["admin", "media", "support"]}
+      redirectTo="/adminbod"
+    >
       <div className="relative min-h-screen overflow-hidden bg-[#07131b] text-white">
         <style jsx>{`
           .admin-sidebar-scroll {
@@ -359,7 +370,7 @@ export default function AdminShell({
             </div>
 
             <nav className="mt-8 space-y-3">
-              {adminNavigation.map((item) => {
+              {visibleNavigation.map((item) => {
                 if (item.type === "link") {
                   return (
                     <SidebarLink
@@ -428,7 +439,16 @@ export default function AdminShell({
           </header>
 
           <main className="mx-auto max-w-[1600px] px-4 py-6 md:px-6 lg:px-8">
-            {children}
+            {canAccessCurrentRoute ? (
+              children
+            ) : (
+              <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-8 text-center">
+                <h2 className="text-2xl font-bold text-white">دسترسی محدود</h2>
+                <p className="mt-3 text-sm leading-7 text-[#8ea4b3]">
+                  شما مجوز لازم برای مشاهده این بخش از پنل را ندارید.
+                </p>
+              </section>
+            )}
           </main>
         </div>
       </div>

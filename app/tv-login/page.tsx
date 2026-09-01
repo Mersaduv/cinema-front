@@ -9,7 +9,7 @@ import { TV_FOCUS_RING_CLASS } from "../lib/tv/focus";
 
 export default function TvLoginPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requireViewer>
       <TvLoginConfirmForm />
     </ProtectedRoute>
   );

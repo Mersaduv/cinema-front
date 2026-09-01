@@ -24,7 +24,7 @@ const navItems = [
 
 export default function Header({ overlay = false, isTv = false }: { overlay?: boolean; isTv?: boolean }) {
   const pathname = usePathname();
-  const { user, isAuthenticated, hasToken, authReady, loading: authLoading, logout, hasRole } = useAuth();
+  const { user, isAuthenticated, hasToken, authReady, loading: authLoading, logout, hasRole, isViewer, isStaff } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -161,7 +161,7 @@ export default function Header({ overlay = false, isTv = false }: { overlay?: bo
                     <p className="mt-1 text-xs text-white/45">{user.email}</p>
                   </div>
                   <div className="mt-2 space-y-1">
-                    {(hasRole("admin") || hasRole("super-admin")) && (
+                    {isStaff && (hasRole("admin") || hasRole("super-admin")) && (
                       <Link
                         href="/admin"
                         onClick={() => setUserMenuOpen(false)}
@@ -170,13 +170,15 @@ export default function Header({ overlay = false, isTv = false }: { overlay?: bo
                         پنل مدیریت
                       </Link>
                     )}
-                    <Link
-                      href="/profile"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="block rounded-2xl px-4 py-2.5 text-sm text-white/82 transition hover:bg-white/[0.06]"
-                    >
-                      پروفایل
-                    </Link>
+                    {isViewer ? (
+                      <Link
+                        href="/profile"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="block rounded-2xl px-4 py-2.5 text-sm text-white/82 transition hover:bg-white/[0.06]"
+                      >
+                        پروفایل
+                      </Link>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => {

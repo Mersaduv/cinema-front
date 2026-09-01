@@ -15,6 +15,20 @@ export interface AdminRoleOption {
   name: string;
   slug: string;
   description: string | null;
+  permission_slugs?: string[];
+}
+
+export interface AdminPermissionTreeItem {
+  id: number;
+  slug: string;
+  name: string;
+  description: string | null;
+}
+
+export interface AdminPermissionTreeGroup {
+  id: string;
+  label: string;
+  permissions: AdminPermissionTreeItem[];
 }
 
 export interface AdminStatusOption {
@@ -26,6 +40,7 @@ export interface AdminUsersSummary {
   total_users: number;
   active_users: number;
   admins: number;
+  media_users?: number;
   support_users: number;
 }
 
@@ -47,6 +62,7 @@ export interface AdminUsersResponse {
 export interface AdminUserOptionsResponse {
   roles: AdminRoleOption[];
   statuses: AdminStatusOption[];
+  permission_tree: AdminPermissionTreeGroup[];
 }
 
 export interface CreateAdminUserPayload {
@@ -55,6 +71,7 @@ export interface CreateAdminUserPayload {
   password: string;
   password_confirmation: string;
   role_slug: string;
+  permission_slugs: string[];
   status: "active" | "banned";
 }
 

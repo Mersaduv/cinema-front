@@ -28,6 +28,7 @@ import { useTvFocusNavigation } from "../hooks/useTvFocusNavigation";
 import { usePlayerBootPhase } from "../hooks/usePlayerBootPhase";
 import { getEngineLabel } from "../services/capability";
 import { useWatchProgress } from "../hooks/useWatchProgress";
+import { useRecordContentView } from "../hooks/useRecordContentView";
 import { ProgressTracker } from "../services/ProgressTracker";
 import { PROGRESS_CONSTANTS } from "../services/progress.types";
 import { selectIsLoading, usePlayerStore } from "../store/playerStore";
@@ -180,6 +181,13 @@ function PlayerShellComponent({
     duration,
     isPlaying,
     onServerResumeSeek: seekTo,
+  });
+
+  useRecordContentView({
+    media: watchMedia ?? null,
+    currentTime,
+    isPlaying,
+    enabled: progressEnabled,
   });
 
   const canUsePiP = useMemo(

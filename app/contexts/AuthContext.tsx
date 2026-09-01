@@ -9,7 +9,13 @@ import React, {
   useMemo,
 } from "react";
 import { useRouter } from "next/navigation";
-import { authService, tokenStorage, User } from "../lib/auth";
+import {
+  authService,
+  isStaffAccount,
+  isViewerAccount,
+  tokenStorage,
+  User,
+} from "../lib/auth";
 import { migrateAnonymousWatchProgress } from "../lib/watchProgressMigration";
 import {
   fetchCurrentSession,
@@ -27,8 +33,14 @@ interface AuthContextType {
   /** Token presence after client hydration. */
   hasToken: boolean;
   isAuthenticated: boolean;
+  isViewer: boolean;
+  isStaff: boolean;
   isRefreshing: boolean;
   login: (
+    email: string,
+    password: string,
+  ) => Promise<{ success: boolean; message?: string }>;
+  staffLogin: (
     email: string,
     password: string,
   ) => Promise<{ success: boolean; message?: string }>;
@@ -52,8 +64,11 @@ const defaultAuthContext: AuthContextType = {
   authReady: false,
   hasToken: false,
   isAuthenticated: false,
+  isViewer: false,
+  isStaff: false,
   isRefreshing: false,
   login: async () => ({ success: false, message: "Auth unavailable" }),
+  staffLogin: async () => ({ success: false, message: "Auth unavailable" }),
   register: async () => ({ success: false, message: "Auth unavailable" }),
   logout: async () => {},
   hasRole: () => false,
@@ -63,6 +78,12 @@ const defaultAuthContext: AuthContextType = {
 
 function readHasToken(): boolean {
   return Boolean(tokenStorage.getToken());
+}
+
+function maybeMigrateWatchProgress(user: User) {
+  if (isViewerAccount(user)) {
+    void migrateAnonymousWatchProgress(String(user.id));
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -99,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (result.user) {
           setUser(result.user);
-          void migrateAnonymousWatchProgress(String(result.user.id));
+          maybeMigrateWatchProgress(result.user);
         } else if (result.status === 401 || result.status === 403) {
           setUser(null);
           setHasToken(false);
@@ -149,7 +170,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setAuthReady(true);
 
-      const needsPermissions = window.location.pathname.startsWith("/admin");
+      const path = window.location.pathname;
+      const needsPermissions =
+        path === "/admin" ||
+        path.startsWith("/admin/") ||
+        path.startsWith("/adminbod");
       const result = await fetchCurrentSession({
         includePermissions: needsPermissions,
       });
@@ -160,7 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (result.user) {
         setUser(result.user);
-        void migrateAnonymousWatchProgress(String(result.user.id));
+        maybeMigrateWatchProgress(result.user);
       } else if (result.status === 401 || result.status === 403) {
         setUser(null);
         setHasToken(false);
@@ -185,7 +210,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         primeSessionUser(response.data.user);
         setUser(response.data.user);
         setLoading(false);
-        void migrateAnonymousWatchProgress(String(response.data.user.id));
+        maybeMigrateWatchProgress(response.data.user);
+        return { success: true };
+      }
+
+      return {
+        success: false,
+        message:
+          response.message === "Invalid credentials"
+            ? "ایمیل یا رمز عبور اشتباه است."
+            : response.message || "ورود ناموفق بود. لطفا دوباره تلاش کنید.",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Login failed",
+      };
+    }
+  };
+
+  const staffLogin = async (email: string, password: string) => {
+    try {
+      const response = await authService.staffLogin({ email, password });
+      if (response.success && response.data) {
+        tokenStorage.setToken(response.data.token);
+        setHasToken(true);
+        primeSessionUser(response.data.user);
+        setUser(response.data.user);
+        setLoading(false);
         return { success: true };
       }
 
@@ -223,7 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         primeSessionUser(response.data.user);
         setUser(response.data.user);
         setLoading(false);
-        void migrateAnonymousWatchProgress(String(response.data.user.id));
+        maybeMigrateWatchProgress(response.data.user);
         return { success: true };
       }
 
@@ -240,6 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    const wasStaff = isStaffAccount(user);
     try {
       await authService.logout();
     } catch (error) {
@@ -249,7 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setHasToken(false);
       setUser(null);
       setLoading(false);
-      router.push("/login");
+      router.push(wasStaff ? "/adminbod" : "/login");
     }
   };
 
@@ -268,12 +321,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!user) {
         return false;
       }
+
+      if (user.permissions && user.permissions.length > 0) {
+        return user.permissions.some((item) => item.slug === permission);
+      }
+
       return user.roles.some((role) =>
-        role.permissions?.some((p) => p.slug === permission),
+        role.permissions?.some((item) => item.slug === permission),
       );
     },
     [user],
   );
+
+  const isViewer = isViewerAccount(user);
+  const isStaff = isStaffAccount(user);
 
   const value: AuthContextType = useMemo(
     () => ({
@@ -282,8 +343,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authReady,
       hasToken,
       isAuthenticated: Boolean(user),
+      isViewer,
+      isStaff,
       isRefreshing,
       login,
+      staffLogin,
       register,
       logout,
       hasRole,
@@ -295,6 +359,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       authReady,
       hasToken,
+      isViewer,
+      isStaff,
       isRefreshing,
       hasRole,
       hasPermission,

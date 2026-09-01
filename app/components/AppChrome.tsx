@@ -17,12 +17,14 @@ export default function AppChrome({
   const pageRef = useRef<HTMLDivElement>(null);
   const isTvCompat = useIsTvCompat();
   const isTvUi = useIsTvUi();
-  const isAdminRoute = pathname?.startsWith("/admin");
+  const isAdminRoute =
+    pathname === "/admin" || Boolean(pathname?.startsWith("/admin/"));
   const isWatchRoute = pathname?.startsWith("/watch/");
-  const isLoginRoute = pathname === "/login";
+  const isLoginRoute = pathname === "/login" || pathname === "/adminbod";
   const isAuthFullBleedRoute =
     pathname === "/signup" ||
     pathname === "/tv-login" ||
+    pathname === "/adminbod" ||
     pathname?.startsWith("/forgot-password");
   const isHomeRoute = pathname === "/";
   const isPublicDetailRoute =

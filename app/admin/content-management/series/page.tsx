@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
   HiOutlineStar,
+  HiOutlineEye,
   HiOutlinePencilAlt,
   HiOutlinePlus,
   HiOutlineTrash,
@@ -42,6 +43,8 @@ import {
   type AdminSeriesPagination,
   type AdminSeriesSummary,
 } from "../../../lib/admin-series";
+import AdminPermissionGate from "../../../components/admin/AdminPermissionGate";
+import { ADMIN_PERMISSIONS } from "../../../lib/admin-permissions";
 
 const emptySummary: AdminSeriesSummary = {
   total: 0,
@@ -376,15 +379,17 @@ export default function AllSeriesPage() {
             <p className="mt-2 text-sm text-[#8ea4b3]">مدیریت فهرست سریال‌ها</p>
           </div>
 
-          <Link
-            href="/admin/content-management/series/add"
-            prefetch={false}
-            onClick={handleCreateSeriesClick}
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
-          >
-            <HiOutlinePlus className="h-4 w-4" />
-            افزودن سریال
-          </Link>
+          <AdminPermissionGate permission={ADMIN_PERMISSIONS.create_series}>
+            <Link
+              href="/admin/content-management/series/add"
+              prefetch={false}
+              onClick={handleCreateSeriesClick}
+              className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
+            >
+              <HiOutlinePlus className="h-4 w-4" />
+              افزودن سریال
+            </Link>
+          </AdminPermissionGate>
         </div>
       </section>
 
@@ -456,15 +461,17 @@ export default function AllSeriesPage() {
             <p className="mt-3 text-sm leading-7 text-[#8ea4b3]">
               اولین سریال را ثبت کن تا ساختار فصل و قسمت ها در پنل فعال شود.
             </p>
-            <Link
-              href="/admin/content-management/series/add"
-              prefetch={false}
-              onClick={handleCreateSeriesClick}
-              className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
-            >
-              <HiOutlinePlus className="h-4 w-4" />
-              افزودن اولین سریال
-            </Link>
+            <AdminPermissionGate permission={ADMIN_PERMISSIONS.create_series}>
+              <Link
+                href="/admin/content-management/series/add"
+                prefetch={false}
+                onClick={handleCreateSeriesClick}
+                className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
+              >
+                <HiOutlinePlus className="h-4 w-4" />
+                افزودن اولین سریال
+              </Link>
+            </AdminPermissionGate>
           </div>
         ) : (
           <>
@@ -474,8 +481,16 @@ export default function AllSeriesPage() {
                 return (
                   <article
                     key={series.id}
-                    className="group rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.18)] transition hover:border-white/16 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))]"
+                    className="relative group rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.18)] transition hover:border-white/16 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))]"
                   >
+                    <div
+                      className="absolute bottom-4 left-4 inline-flex h-9 w-9 items-center justify-center gap-0.5 rounded-full text-[#7dd3fc] opacity-85"
+                      title={`${series.views_count ?? 0} بیننده`}
+                      aria-label={`${series.views_count ?? 0} بیننده`}
+                    >
+                      <HiOutlineEye className="h-4 w-4" />
+                      <span className="text-xs font-bold text-[#7dd3fc]">{series.views_count ?? 0} </span>
+                    </div>
                     <div className="flex gap-5">
                       <SeriesPoster series={series} />
 
@@ -552,22 +567,26 @@ export default function AllSeriesPage() {
 
                         <div className="mt-auto pt-5">
                           <div className="flex flex-wrap gap-3">
-                            <Link
-                              href={`/admin/content-management/series/${series.id}`}
-                              className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
-                            >
-                              <HiOutlinePencilAlt className="h-4 w-4" />
-                              ویرایش
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(series)}
-                              disabled={isDeleting}
-                              className="inline-flex items-center gap-2 rounded-2xl border border-[#fb7185]/20 bg-[#fb7185]/10 px-4 py-2.5 text-sm text-[#fecdd3] transition hover:border-[#fb7185]/35 hover:bg-[#fb7185]/16 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <HiOutlineTrash className="h-4 w-4" />
-                              حذف
-                            </button>
+                            <AdminPermissionGate permission={ADMIN_PERMISSIONS.edit_series}>
+                              <Link
+                                href={`/admin/content-management/series/${series.id}`}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
+                              >
+                                <HiOutlinePencilAlt className="h-4 w-4" />
+                                ویرایش
+                              </Link>
+                            </AdminPermissionGate>
+                            <AdminPermissionGate permission={ADMIN_PERMISSIONS.delete_series}>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(series)}
+                                disabled={isDeleting}
+                                className="inline-flex items-center gap-2 rounded-2xl border border-[#fb7185]/20 bg-[#fb7185]/10 px-4 py-2.5 text-sm text-[#fecdd3] transition hover:border-[#fb7185]/35 hover:bg-[#fb7185]/16 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <HiOutlineTrash className="h-4 w-4" />
+                                حذف
+                              </button>
+                            </AdminPermissionGate>
                           </div>
                         </div>
                       </div>

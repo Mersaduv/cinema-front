@@ -118,6 +118,7 @@ export interface AdminSeries {
   catalog_visibility: string;
   is_featured: boolean;
   exclude_from_slider?: boolean;
+  views_count?: number;
   publish_status: SeriesPublishStatus;
   pipeline_status?: SeriesPipelineStatus;
   episode_sync_status?: SeriesEpisodeSyncStatus;

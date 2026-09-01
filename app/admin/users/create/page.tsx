@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   HiOutlineArrowLeft,
   HiOutlineCheckCircle,
+  HiOutlineMinus,
+  HiOutlinePlus,
   HiOutlineSparkles,
 } from "react-icons/hi";
 import {
   adminUsersService,
+  type AdminPermissionTreeGroup,
   type AdminRoleOption,
   type AdminStatusOption,
 } from "../../../lib/admin-users";
@@ -20,30 +23,25 @@ const initialForm = {
   email: "",
   password: "",
   password_confirmation: "",
-  role_slug: "user",
+  role_slug: "",
   status: "active" as "active" | "banned",
 };
 
 const rolePresentation: Record<
   string,
-  { label: string; hint: string; badgeClassName: string }
+  { label: string; hint: string }
 > = {
   admin: {
-    label: "مدیر پنل",
+    label: "مدیر",
     hint: "دسترسی کامل به داشبورد، کاربران و عملیات مدیریتی",
-    badgeClassName:
-      "border-[#f5c518]/25 bg-[#f5c518]/12 text-[#f8d977]",
+  },
+  media: {
+    label: "مدیا",
+    hint: "مدیریت مدیا و عملیات ساخت/ویرایش/انتشار فیلم/سریال",
   },
   support: {
-    label: "پشتیبان",
-    hint: "برای پیگیری، بررسی و دسترسی محدود مدیریتی",
-    badgeClassName:
-      "border-[#38bdf8]/25 bg-[#38bdf8]/12 text-[#7dd3fc]",
-  },
-  user: {
-    label: "کاربر عادی",
-    hint: "دسترسی کاربری معمول و استفاده از بخش تماشا",
-    badgeClassName: "border-white/10 bg-white/[0.05] text-white",
+    label: "پشتیبانی",
+    hint: "پیگیری، بررسی و دسترسی محدود مدیریتی",
   },
 };
 
@@ -53,7 +51,7 @@ const statusPresentation: Record<
 > = {
   active: {
     label: "فعال",
-    hint: "کاربر بعد از ساخت، امکان ورود و استفاده از سیستم را دارد.",
+    hint: "",
     badgeClassName:
       "border-[#34d399]/25 bg-[#34d399]/12 text-[#86efac]",
   },
@@ -65,11 +63,23 @@ const statusPresentation: Record<
   },
 };
 
+function getRoleDefaultPermissions(
+  roles: AdminRoleOption[],
+  roleSlug: string,
+): string[] {
+  const role = roles.find((item) => item.slug === roleSlug);
+  return role?.permission_slugs ? [...role.permission_slugs] : [];
+}
+
 export default function CreateAdminUserPage() {
   const router = useRouter();
   const [form, setForm] = useState(initialForm);
   const [roles, setRoles] = useState<AdminRoleOption[]>([]);
   const [statuses, setStatuses] = useState<AdminStatusOption[]>([]);
+  const [permissionTree, setPermissionTree] = useState<AdminPermissionTreeGroup[]>(
+    [],
+  );
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -80,8 +90,23 @@ export default function CreateAdminUserPage() {
       const response = await adminUsersService.options();
 
       if (response.success && response.data) {
-        setRoles(response.data.roles);
+        const loadedRoles = response.data.roles;
+        const defaultRole =
+          loadedRoles.find((role) => role.slug === "media") ?? loadedRoles[0];
+
+        setRoles(loadedRoles);
         setStatuses(response.data.statuses);
+        setPermissionTree(response.data.permission_tree ?? []);
+
+        if (defaultRole) {
+          setForm((current) => ({
+            ...current,
+            role_slug: defaultRole.slug,
+          }));
+          setSelectedPermissions(
+            getRoleDefaultPermissions(loadedRoles, defaultRole.slug),
+          );
+        }
       } else {
         setError(response.message || "دریافت اطلاعات فرم با خطا روبه‌رو شد.");
       }
@@ -92,12 +117,15 @@ export default function CreateAdminUserPage() {
     void loadOptions();
   }, []);
 
-  const selectedRole = roles.find((role) => role.slug === form.role_slug);
   const selectedRolePresentation =
-    rolePresentation[form.role_slug] ?? rolePresentation.user;
+    rolePresentation[form.role_slug] ?? null;
   const selectedStatusPresentation = statusPresentation[form.status];
+
   const roleOptions = roles.map((role) => {
-    const copy = rolePresentation[role.slug] ?? rolePresentation.user;
+    const copy = rolePresentation[role.slug] ?? {
+      label: role.name,
+      hint: role.description || "نقش پنل",
+    };
 
     return {
       value: role.slug,
@@ -106,6 +134,7 @@ export default function CreateAdminUserPage() {
       meta: role.slug,
     };
   });
+
   const statusOptions = statuses.map((status) => {
     const copy = statusPresentation[status.value];
 
@@ -117,24 +146,69 @@ export default function CreateAdminUserPage() {
     };
   });
 
-  const handleChange = (field: keyof typeof initialForm, value: string) => {
+  const enabledPermissionCount = useMemo(
+    () => selectedPermissions.length,
+    [selectedPermissions],
+  );
+
+  const totalPermissionCount = useMemo(
+    () =>
+      permissionTree.reduce(
+        (count, group) => count + group.permissions.length,
+        0,
+      ),
+    [permissionTree],
+  );
+
+  const handleChange = (
+    field: keyof typeof initialForm,
+    value: (typeof initialForm)[keyof typeof initialForm],
+  ) => {
     setForm((current) => ({
       ...current,
       [field]: value,
     }));
   };
 
+  const handleRoleChange = (roleSlug: string) => {
+    handleChange("role_slug", roleSlug);
+    setSelectedPermissions(getRoleDefaultPermissions(roles, roleSlug));
+  };
+
+  const togglePermission = (permissionSlug: string) => {
+    setSelectedPermissions((current) =>
+      current.includes(permissionSlug)
+        ? current.filter((slug) => slug !== permissionSlug)
+        : [...current, permissionSlug],
+    );
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
     setSuccessMessage("");
+
+    if (!form.role_slug) {
+      setError("لطفاً یک نقش انتخاب کنید.");
+      return;
+    }
+
+    if (selectedPermissions.length === 0) {
+      setError("حداقل یک دسترسی باید فعال باشد.");
+      return;
+    }
+
     setSubmitting(true);
 
-    const response = await adminUsersService.create(form);
+    const response = await adminUsersService.create({
+      ...form,
+      permission_slugs: selectedPermissions,
+    });
 
     if (response.success) {
       setSuccessMessage("کاربر با موفقیت ایجاد شد.");
       setForm(initialForm);
+      setSelectedPermissions([]);
       window.setTimeout(() => {
         router.push("/admin/users");
       }, 1200);
@@ -158,24 +232,9 @@ export default function CreateAdminUserPage() {
               <HiOutlineSparkles className="h-4 w-4" />
               فرم ایجاد کاربر
             </span>
-            <h2 className="mt-5 text-3xl font-black tracking-tight text-white md:text-5xl">
-              کاربر جدید را با نقش ثابت و مجوزهای از قبل تعیین‌شده بساز
+            <h2 className="mt-5 text-3xl font-black tracking-tight text-white md:text-4xl">
+              ساخت کاربر پنل
             </h2>
-            <p className="mt-5 text-base leading-8 text-[#dce8ef] md:text-lg">
-              این فرم فقط از نقش‌های ثابت
-              {" "}
-              <span className="text-[#f8d977]">admin</span>
-              ،
-              {" "}
-              <span className="text-[#7dd3fc]">support</span>
-              {" "}
-              و
-              {" "}
-              <span className="text-white">user</span>
-              {" "}
-              استفاده می‌کند و مجوزها به‌صورت مستقیم از backend به همان نقش متصل
-              هستند.
-            </p>
           </div>
 
           <Link
@@ -188,206 +247,246 @@ export default function CreateAdminUserPage() {
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.85fr]">
-        <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-6">
-          <h3 className="text-xl font-bold text-white">اطلاعات کاربر</h3>
-          <p className="mt-2 text-sm leading-7 text-[#8ea4b3]">
-            فیلدها را کامل کن؛ پس از ساخت، نقش انتخابی به کاربر متصل می‌شود.
-          </p>
+      <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-6">
+        <h3 className="text-xl font-bold text-white">اطلاعات کاربر</h3>
+        <p className="mt-2 text-sm leading-7 text-[#8ea4b3]">
+          فیلدها را کامل کن؛ نقش فقط یک‌بار انتخاب می‌شود و دسترسی‌ها از همان
+          نقش به‌صورت پیش‌فرض بارگذاری می‌شوند.
+        </p>
 
-          {error && (
-            <div className="mt-5 rounded-2xl border border-[#fb7185]/25 bg-[#fb7185]/10 px-4 py-3 text-sm text-[#fecdd3]">
-              {error}
-            </div>
-          )}
+        {error ? (
+          <div className="mt-5 rounded-2xl border border-[#fb7185]/25 bg-[#fb7185]/10 px-4 py-3 text-sm text-[#fecdd3]">
+            {error}
+          </div>
+        ) : null}
 
-          {successMessage && (
-            <div className="mt-5 flex items-center gap-2 rounded-2xl border border-[#34d399]/25 bg-[#34d399]/10 px-4 py-3 text-sm text-[#86efac]">
-              <HiOutlineCheckCircle className="h-5 w-5" />
-              {successMessage}
-            </div>
-          )}
+        {successMessage ? (
+          <div className="mt-5 flex items-center gap-2 rounded-2xl border border-[#34d399]/25 bg-[#34d399]/10 px-4 py-3 text-sm text-[#86efac]">
+            <HiOutlineCheckCircle className="h-5 w-5" />
+            {successMessage}
+          </div>
+        ) : null}
 
-          <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-2 block text-sm text-[#8ea4b3]">نام</span>
-                <input
-                  value={form.name}
-                  onChange={(event) => handleChange("name", event.target.value)}
-                  placeholder="مثلاً محمد احمدی"
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#f5c518]/45"
-                  required
-                />
-              </label>
+        <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
+          <div className="grid gap-5 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm text-[#8ea4b3]">نام</span>
+              <input
+                value={form.name}
+                onChange={(event) => handleChange("name", event.target.value)}
+                placeholder="مثلاً محمد احمدی"
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#f5c518]/45"
+                required
+              />
+            </label>
 
-              <label className="block">
-                <span className="mb-2 block text-sm text-[#8ea4b3]">ایمیل</span>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => handleChange("email", event.target.value)}
-                  placeholder="user@cinema.local"
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#f5c518]/45"
-                  required
-                />
-              </label>
-            </div>
+            <label className="block">
+              <span className="mb-2 block text-sm text-[#8ea4b3]">ایمیل</span>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(event) => handleChange("email", event.target.value)}
+                placeholder="user@cinema.local"
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#f5c518]/45"
+                required
+              />
+            </label>
+          </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-2 block text-sm text-[#8ea4b3]">رمز عبور</span>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(event) => handleChange("password", event.target.value)}
-                  placeholder="حداقل ۸ کاراکتر"
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#f5c518]/45"
-                  required
-                />
-              </label>
+          <div className="grid gap-5 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm text-[#8ea4b3]">رمز عبور</span>
+              <input
+                type="password"
+                value={form.password}
+                onChange={(event) => handleChange("password", event.target.value)}
+                placeholder="حداقل ۸ کاراکتر"
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#f5c518]/45"
+                required
+              />
+            </label>
 
-              <label className="block">
-                <span className="mb-2 block text-sm text-[#8ea4b3]">تکرار رمز عبور</span>
-                <input
-                  type="password"
-                  value={form.password_confirmation}
-                  onChange={(event) =>
-                    handleChange("password_confirmation", event.target.value)
-                  }
-                  placeholder="رمز عبور را دوباره وارد کن"
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#f5c518]/45"
-                  required
-                />
-              </label>
-            </div>
+            <label className="block">
+              <span className="mb-2 block text-sm text-[#8ea4b3]">تکرار رمز عبور</span>
+              <input
+                type="password"
+                value={form.password_confirmation}
+                onChange={(event) =>
+                  handleChange("password_confirmation", event.target.value)
+                }
+                placeholder="رمز عبور را دوباره وارد کن"
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#f5c518]/45"
+                required
+              />
+            </label>
+          </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-2 block text-sm text-[#8ea4b3]">نقش</span>
-                <AdminSelect
-                  value={form.role_slug}
-                  onChange={(value) => handleChange("role_slug", value)}
-                  options={roleOptions}
-                  disabled={loading}
-                />
+          <div className="grid gap-5 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm text-[#8ea4b3]">نقش</span>
+              <AdminSelect
+                value={form.role_slug}
+                onChange={handleRoleChange}
+                options={roleOptions}
+                placeholder="انتخاب نقش"
+                disabled={loading}
+              />
+              {selectedRolePresentation ? (
                 <p className="mt-2 text-xs leading-6 text-[#7f94a2]">
-                  نقش‌ها از backend می‌آیند اما در این بخش فقط همین سه گزینه قابل
-                  انتخاب هستند.
+                  {selectedRolePresentation.hint}
                 </p>
-              </label>
+              ) : null}
+            </label>
 
-              <label className="block">
-                <span className="mb-2 block text-sm text-[#8ea4b3]">وضعیت حساب</span>
-                <AdminSelect
-                  value={form.status}
-                  onChange={(value) =>
-                    handleChange("status", value as "active" | "banned")
-                  }
-                  options={statusOptions}
-                  disabled={loading}
-                />
-                <p className="mt-2 text-xs leading-6 text-[#7f94a2]">
-                  وضعیت حساب از همین فرم مشخص می‌شود و بعداً هم از پنل قابل توسعه
-                  خواهد بود.
-                </p>
-              </label>
-            </div>
-
-            <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={submitting || loading}
-                className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting ? "در حال ایجاد..." : "ایجاد کاربر"}
-              </button>
-              <Link
-                href="/admin/users"
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm text-white transition hover:border-white/20 hover:bg-white/[0.08]"
-              >
-                انصراف
-              </Link>
-            </div>
-          </form>
-        </section>
-
-        <aside className="space-y-6">
-          <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-6">
-            <h3 className="text-xl font-bold text-white">پیش‌نمایش نقش انتخابی</h3>
-            <p className="mt-3 text-sm leading-7 text-[#8ea4b3]">
-              نقش‌ها قابل ساخت از پنل نیستند و فقط از backend می‌آیند.
-            </p>
-
-            <div className="mt-5 rounded-[28px] border border-white/10 bg-[#09141c] p-5">
-              <p className="text-xs text-[#7c93a0]">نقش انتخابی</p>
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <p className="text-2xl font-bold text-white">
-                  {selectedRolePresentation.label}
-                </p>
-                <span
-                  className={`rounded-full border px-3 py-1 text-xs ${selectedRolePresentation.badgeClassName}`}
-                >
-                  {form.role_slug}
-                </span>
-              </div>
-              <p className="mt-3 text-sm leading-7 text-[#b6c6d0]">
-                {selectedRolePresentation.hint}
-              </p>
-              <p className="mt-3 text-xs leading-6 text-[#7f94a2]">
-                {selectedRole?.description || "نقش پیش‌فرض برای کاربر جدید"}
-              </p>
-            </div>
-          </section>
-
-          <section className="rounded-[32px] border border-white/10 bg-[#0b1720] p-6">
-            <h3 className="text-xl font-bold text-white">وضعیت انتخابی</h3>
-            <div className="mt-5 rounded-[28px] border border-white/10 bg-[#09141c] p-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-2xl font-bold text-white">
-                  {selectedStatusPresentation.label}
-                </p>
-                <span
-                  className={`rounded-full border px-3 py-1 text-xs ${selectedStatusPresentation.badgeClassName}`}
-                >
-                  {form.status}
-                </span>
-              </div>
-              <p className="mt-3 text-sm leading-7 text-[#b6c6d0]">
+            <label className="block">
+              <span className="mb-2 block text-sm text-[#8ea4b3]">وضعیت حساب</span>
+              <AdminSelect
+                value={form.status}
+                onChange={(value) =>
+                  handleChange("status", value as "active" | "banned")
+                }
+                options={statusOptions}
+                disabled={loading}
+              />
+              <p className="mt-2 text-xs leading-6 text-[#7f94a2]">
                 {selectedStatusPresentation.hint}
               </p>
-            </div>
-          </section>
+            </label>
+          </div>
 
-          <section className="rounded-[32px] border border-[#38bdf8]/18 bg-[#08121a] p-6">
-            <h3 className="text-xl font-bold text-white">قانون این مرحله</h3>
-            <div className="mt-5 space-y-3">
-              <div className="rounded-3xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-[#d3dee5]">
-                فقط سه نقش
-                {" "}
-                <span className="text-[#f8d977]">admin</span>
-                ،
-                {" "}
-                <span className="text-[#7dd3fc]">support</span>
-                {" "}
-                و
-                {" "}
-                <span className="text-white">user</span>
-                {" "}
-                قابل انتخاب هستند.
+          {form.role_slug ? (
+            <section className="rounded-[28px] border border-[#38bdf8]/20 bg-[#08121a] p-5 md:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-lg font-bold text-white"> دسترسی‌ها</h4>
+                  <p className="mt-2 text-sm leading-7 text-[#8ea4b3]">
+                    دسترسی‌های پیش‌فرض نقش
+                    {" "}
+                    <span className="text-[#7dd3fc]">
+                      {selectedRolePresentation?.label ?? form.role_slug}
+                    </span>
+                    {" "}
+                    بارگذاری شده‌اند. با دکمه‌های کم/زیاد، هر permission را
+                    جداگانه فعال یا غیرفعال کنید.
+                  </p>
+                </div>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-[#b6c5cf]">
+                  {enabledPermissionCount}/{totalPermissionCount} فعال
+                </span>
               </div>
-              <div className="rounded-3xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-[#d3dee5]">
-                مجوزها از قبل در backend به نقش‌ها متصل شده‌اند و از این فرم
-                قابل تغییر نیستند.
+
+              <div className="relative mt-6 mr-3 space-y-4 border-r-2 border-[#38bdf8]/25 pr-8">
+                {permissionTree.map((group) => {
+                  const groupEnabledCount = group.permissions.filter((item) =>
+                    selectedPermissions.includes(item.slug),
+                  ).length;
+
+                  return (
+                    <div key={group.id} className="relative">
+                      <span className="absolute -right-[41px] top-5 h-3.5 w-3.5 rounded-full border-2 border-[#07131b] bg-[#38bdf8]" />
+
+                      <details open className="group">
+                        <summary className="cursor-pointer list-none rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-semibold text-white">
+                              {group.label}
+                            </span>
+                            <span className="text-xs text-[#8ea4b3]">
+                              {groupEnabledCount}/{group.permissions.length}
+                            </span>
+                          </div>
+                        </summary>
+
+                        <div className="relative mt-3 mr-3 space-y-2 border-r border-white/10 pr-5">
+                          {group.permissions.map((permission) => {
+                            const enabled = selectedPermissions.includes(
+                              permission.slug,
+                            );
+
+                            return (
+                              <div
+                                key={permission.slug}
+                                className={`relative flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 transition ${
+                                  enabled
+                                    ? "border-[#34d399]/25 bg-[#34d399]/10"
+                                    : "border-white/10 bg-white/[0.02]"
+                                }`}
+                              >
+                                <span className="absolute -right-[26px] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-white/25" />
+
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-white">
+                                    {permission.name}
+                                  </p>
+                                  {permission.description ? (
+                                    <p className="mt-1 text-xs leading-5 text-[#8ea4b3]">
+                                      {permission.description}
+                                    </p>
+                                  ) : null}
+                                </div>
+
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <span
+                                    className={`text-xs ${
+                                      enabled
+                                        ? "text-[#86efac]"
+                                        : "text-[#7f94a2]"
+                                    }`}
+                                  >
+                                    {enabled ? "فعال" : "غیرفعال"}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      togglePermission(permission.slug)
+                                    }
+                                    className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border transition ${
+                                      enabled
+                                        ? "border-[#fb7185]/25 bg-[#fb7185]/10 text-[#fecdd3] hover:bg-[#fb7185]/16"
+                                        : "border-[#34d399]/25 bg-[#34d399]/10 text-[#86efac] hover:bg-[#34d399]/16"
+                                    }`}
+                                    aria-label={
+                                      enabled
+                                        ? `غیرفعال کردن ${permission.name}`
+                                        : `فعال کردن ${permission.name}`
+                                    }
+                                  >
+                                    {enabled ? (
+                                      <HiOutlineMinus className="h-4 w-4" />
+                                    ) : (
+                                      <HiOutlinePlus className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="rounded-3xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-[#d3dee5]">
-                اگر ایمیل تکراری باشد یا رمز عبور با تکرارش یکی نباشد، خطا از
-                API دریافت و در همین فرم نمایش داده می‌شود.
-              </div>
-            </div>
-          </section>
-        </aside>
-      </div>
+            </section>
+          ) : null}
+
+          <div className="flex flex-wrap gap-3 pt-2">
+            <button
+              type="submit"
+              disabled={submitting || loading || !form.role_slug}
+              className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? "در حال ایجاد..." : "ایجاد کاربر"}
+            </button>
+            <Link
+              href="/admin/users"
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm text-white transition hover:border-white/20 hover:bg-white/[0.08]"
+            >
+              انصراف
+            </Link>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }

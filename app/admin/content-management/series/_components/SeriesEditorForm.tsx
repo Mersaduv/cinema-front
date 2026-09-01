@@ -82,6 +82,7 @@ import {
   buildSeriesTmdbImageIngestPayload,
   finalizeTmdbImageIngestMessage,
   mergeIngestedActorProfiles,
+  preserveIngestedPrimaryImages,
   withTmdbImageProcessingMessage,
   type IngestTmdbImagesResult,
 } from "../../../../lib/admin-tmdb-image-ingest";
@@ -1846,11 +1847,16 @@ export default function SeriesEditorForm({
         })),
       }));
 
-      const seasonResults = await Promise.allSettled(
+      const seasonFetchPromise = Promise.allSettled(
         seasonNumbers.map((seasonNumber) =>
           adminSeriesService.fetchTmdbSeason(tmdbId, seasonNumber, { signal }),
         ),
       );
+
+      const [seasonResults] = await Promise.all([
+        seasonFetchPromise,
+        primaryIngestPromise ?? Promise.resolve(),
+      ]);
 
       if (signal.aborted) {
         imageSession.abort();
@@ -1865,9 +1871,12 @@ export default function SeriesEditorForm({
         const result = seasonResults[index];
 
         if (result.status === "fulfilled" && result.value.success && result.value.data?.season) {
-          latestForm = applyTmdbSeasonToForm(latestForm, result.value.data.season, {
-            fullSeasonResync: true,
-          });
+          latestForm = preserveIngestedPrimaryImages(
+            applyTmdbSeasonToForm(latestForm, result.value.data.season, {
+              fullSeasonResync: true,
+            }),
+            formRef.current,
+          );
           setForm(latestForm);
 
           const mergedSeason = latestForm.seasons.find(
@@ -1919,7 +1928,11 @@ export default function SeriesEditorForm({
 
       const { nextForm: formWithHls, filled: filledHlsTargets } =
         await discoverAndFillEmptyEpisodeHls(finalizedForm);
-      setForm(formWithHls);
+      const formWithPreservedPrimaryImages = preserveIngestedPrimaryImages(
+        formWithHls,
+        formRef.current,
+      );
+      setForm(formWithPreservedPrimaryImages);
 
       if (discoveryGroups.length > 0) {
         const filledKeys = new Set(
@@ -1945,21 +1958,19 @@ export default function SeriesEditorForm({
         }
       }
 
-      if (primaryIngestPromise) {
-        await primaryIngestPromise;
-      }
-
       await runSeriesImageIngestPipeline(
-        formWithHls,
+        formWithPreservedPrimaryImages,
         imageSession.signal,
         "seasons-only",
-        formWithHls.seasons,
+        formWithPreservedPrimaryImages.seasons,
         { announceStart: false, announceComplete: true },
       );
 
       setExpandedEpisodeKeys([]);
-      episodeHlsComparableMapRef.current = buildEpisodeHlsComparableMap(formWithHls);
-      lastHlsFingerprintRef.current = buildHlsSyncFingerprint(formWithHls);
+      episodeHlsComparableMapRef.current = buildEpisodeHlsComparableMap(
+        formWithPreservedPrimaryImages,
+      );
+      lastHlsFingerprintRef.current = buildHlsSyncFingerprint(formWithPreservedPrimaryImages);
       hlsAutoSyncBootstrappedRef.current = true;
 
       if (filledHlsTargets.length > 0) {

@@ -190,6 +190,41 @@ export function buildSeriesTmdbImageIngestPayload(input: {
   };
 }
 
+/** Keep processed /images/ paths when merging TMDB season data over form state. */
+export function preserveIngestedPrimaryImages<
+  T extends {
+    poster_url: string;
+    backdrop_url: string;
+    poster_source_url?: string;
+    backdrop_source_url?: string;
+  },
+>(next: T, current: T): T {
+  const managedPoster = toManagedImagePublicPath(current.poster_url);
+  const managedBackdrop = toManagedImagePublicPath(current.backdrop_url);
+
+  if (!managedPoster && !managedBackdrop) {
+    return next;
+  }
+
+  return {
+    ...next,
+    ...(managedPoster
+      ? {
+          poster_url: managedPoster,
+          poster_source_url:
+            current.poster_source_url?.trim() || next.poster_source_url || "",
+        }
+      : {}),
+    ...(managedBackdrop
+      ? {
+          backdrop_url: managedBackdrop,
+          backdrop_source_url:
+            current.backdrop_source_url?.trim() || next.backdrop_source_url || "",
+        }
+      : {}),
+  };
+}
+
 export function applyIngestedPrimaryImages<
   T extends { poster_url: string; backdrop_url: string },
 >(

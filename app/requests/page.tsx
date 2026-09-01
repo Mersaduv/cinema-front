@@ -202,7 +202,7 @@ function RequestsPageContent() {
 
 export default function RequestsPage() {
   return (
-    <ProtectedRoute fallback={<RequestsShellSkeleton variant="list" />}>
+    <ProtectedRoute requireViewer fallback={<RequestsShellSkeleton variant="list" />}>
       <RequestsPageContent />
     </ProtectedRoute>
   );

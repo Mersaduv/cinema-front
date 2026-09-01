@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { HiOutlineSearch } from "react-icons/hi";
 import AdminPagination from "../../components/admin/AdminPagination";
+import AdminPermissionGate from "../../components/admin/AdminPermissionGate";
 import AdminSelect from "../../components/admin/AdminSelect";
+import { ADMIN_PERMISSIONS } from "../../lib/admin-permissions";
 import { adminApiErrorMessage } from "../../lib/admin-api";
 import {
   fetchAdminContentRequests,
@@ -182,25 +184,35 @@ export default function AdminRequestsPage() {
                   </td>
                   <td className="px-4 py-4 text-white/75">{request.genre_name}</td>
                   <td className="px-4 py-4">
-                    <select
-                      value={request.status}
-                      disabled={actionId === request.id}
-                      onChange={(event) =>
-                        void handleStatusChange(
-                          request,
-                          event.target.value as ContentRequestStatus,
-                        )
+                    <AdminPermissionGate
+                      permission={ADMIN_PERMISSIONS.manage_requests}
+                      fallback={
+                        <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70">
+                          {statusOptions.find((option) => option.value === request.status)?.label ??
+                            request.status}
+                        </span>
                       }
-                      className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none"
                     >
-                      {statusOptions
-                        .filter((option) => option.value !== "")
-                        .map((option) => (
-                          <option key={option.value} value={option.value} className="bg-[#121212]">
-                            {option.label}
-                          </option>
-                        ))}
-                    </select>
+                      <select
+                        value={request.status}
+                        disabled={actionId === request.id}
+                        onChange={(event) =>
+                          void handleStatusChange(
+                            request,
+                            event.target.value as ContentRequestStatus,
+                          )
+                        }
+                        className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none"
+                      >
+                        {statusOptions
+                          .filter((option) => option.value !== "")
+                          .map((option) => (
+                            <option key={option.value} value={option.value} className="bg-[#121212]">
+                              {option.label}
+                            </option>
+                          ))}
+                      </select>
+                    </AdminPermissionGate>
                   </td>
                   <td className="px-4 py-4 text-white/55">
                     {formatAfghanShamsiDateTime(request.created_at)}

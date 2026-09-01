@@ -3,12 +3,16 @@ import { tokenStorage } from './token-storage';
 
 export { tokenStorage };
 
+export type AccountType = 'viewer' | 'staff';
+
 export interface User {
   id: number;
   name: string;
   email: string;
   status: 'active' | 'banned';
+  account_type?: AccountType;
   roles: Role[];
+  permissions?: Permission[];
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +49,43 @@ export interface LoginData {
   password: string;
 }
 
+export function isViewerAccount(user: User | null | undefined): boolean {
+  if (!user) {
+    return false;
+  }
+
+  if (user.account_type === 'viewer') {
+    return true;
+  }
+
+  if (user.account_type === 'staff') {
+    return false;
+  }
+
+  // Legacy tokens without account_type: treat role-bearing users as staff.
+  return !user.roles?.some((role) =>
+    ['admin', 'support', 'super-admin'].includes(role.slug),
+  );
+}
+
+export function isStaffAccount(user: User | null | undefined): boolean {
+  if (!user) {
+    return false;
+  }
+
+  if (user.account_type === 'staff') {
+    return true;
+  }
+
+  if (user.account_type === 'viewer') {
+    return false;
+  }
+
+  return user.roles?.some((role) =>
+    ['admin', 'support', 'super-admin'].includes(role.slug),
+  );
+}
+
 export const authService = {
   async register(data: RegisterData) {
     return apiClient.post<LoginResponse>('/register', data);
@@ -52,6 +93,10 @@ export const authService = {
 
   async login(data: LoginData) {
     return apiClient.post<LoginResponse>('/login', data);
+  },
+
+  async staffLogin(data: LoginData) {
+    return apiClient.post<LoginResponse>('/staff/login', data);
   },
 
   async logout() {
@@ -64,4 +109,3 @@ export const authService = {
     return apiClient.get<{ user: User }>(`/me${query}`);
   },
 };
-

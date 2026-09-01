@@ -23,11 +23,14 @@ import { formatAfghanShamsiDate } from "../../lib/date-format";
 import AdminPagination from "../../components/admin/AdminPagination";
 import AdminStatCard from "../../components/admin/AdminStatCard";
 import AdminSelect from "../../components/admin/AdminSelect";
+import AdminPermissionGate from "../../components/admin/AdminPermissionGate";
+import { ADMIN_PERMISSIONS } from "../../lib/admin-permissions";
 
 const defaultSummary: AdminUsersSummary = {
   total_users: 0,
   active_users: 0,
   admins: 0,
+  media_users: 0,
   support_users: 0,
 };
 
@@ -40,8 +43,8 @@ const defaultPagination: AdminUsersPagination = {
 
 const rolePresentation: Record<string, string> = {
   admin: "مدیر پنل",
+  media: "مدیا",
   support: "پشتیبان",
-  user: "کاربر عادی",
 };
 
 const statusPresentation: Record<"active" | "banned", string> = {
@@ -53,6 +56,8 @@ function getRoleBadge(roleSlug: string) {
   switch (roleSlug) {
     case "admin":
       return "border-[#f5c518]/25 bg-[#f5c518]/15 text-[#f8d977]";
+    case "media":
+      return "border-[#38bdf8]/25 bg-[#38bdf8]/10 text-[#7dd3fc]";
     case "support":
       return "border-[#38bdf8]/25 bg-[#38bdf8]/10 text-[#7dd3fc]";
     default:
@@ -184,6 +189,12 @@ export default function AdminUsersPage() {
       accent: "border-[#38bdf8]/18 bg-[#38bdf8]/10 text-[#7dd3fc]",
     },
     {
+      label: "مدیاها",
+      value: summary.media_users ?? 0,
+      icon: HiOutlineShieldCheck,
+      accent: "border-[#38bdf8]/18 bg-[#38bdf8]/10 text-[#7dd3fc]",
+    },
+    {
       label: "پشتیبان‌ها",
       value: summary.support_users,
       icon: HiOutlineMail,
@@ -201,13 +212,15 @@ export default function AdminUsersPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
-              href="/admin/users/create"
-              className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
-            >
-              <HiOutlinePlus className="h-4 w-4" />
-              ایجاد کاربر
-            </Link>
+            <AdminPermissionGate permission={ADMIN_PERMISSIONS.create_users}>
+              <Link
+                href="/admin/users/create"
+                className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
+              >
+                <HiOutlinePlus className="h-4 w-4" />
+                ایجاد کاربر
+              </Link>
+            </AdminPermissionGate>
           </div>
         </div>
       </section>
@@ -278,8 +291,9 @@ export default function AdminUsersPage() {
           <div>
             <h3 className="text-xl font-bold text-white">لیست کاربران</h3>
             <p className="mt-2 text-sm leading-7 text-[#8ea4b3]">
-              نقش هر کاربر در همین بخش دیده می‌شود و هنگام ساخت، نقش از بین سه
-              نقش ثابت سیستم تعیین می‌شود.
+              نقش هر کاربر از بین نقش‌های پنل (مدیر / مدیا / پشتیبان) تعیین
+              می‌شود.
+              بیننده‌ها در بخش جداگانه مدیریت می‌شوند.
             </p>
           </div>
           <p className="rounded-full border border-white/10 bg-white/3 px-3 py-1 text-xs text-[#b6c5cf]">
@@ -326,13 +340,15 @@ export default function AdminUsersPage() {
             <p className="mt-3 text-sm leading-7 text-[#8ea4b3]">
               فیلترها را تغییر بده یا اولین کاربر جدید را از همین پنل ایجاد کن.
             </p>
-            <Link
-              href="/admin/users/create"
-              className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
-            >
-              <HiOutlinePlus className="h-4 w-4" />
-              ایجاد اولین کاربر
-            </Link>
+            <AdminPermissionGate permission={ADMIN_PERMISSIONS.create_users}>
+              <Link
+                href="/admin/users/create"
+                className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
+              >
+                <HiOutlinePlus className="h-4 w-4" />
+                ایجاد اولین کاربر
+              </Link>
+            </AdminPermissionGate>
           </div>
         ) : (
           <>

@@ -11,9 +11,11 @@ import {
   HiOutlineX,
 } from "react-icons/hi";
 import AdminDeleteConfirmModal from "../../components/admin/AdminDeleteConfirmModal";
+import AdminPermissionGate from "../../components/admin/AdminPermissionGate";
 import AdminPagination from "../../components/admin/AdminPagination";
 import AdminSelect from "../../components/admin/AdminSelect";
 import AdminStatCard from "../../components/admin/AdminStatCard";
+import { ADMIN_PERMISSIONS } from "../../lib/admin-permissions";
 import { adminApiErrorMessage } from "../../lib/admin-api";
 import {
   approveAdminReview,
@@ -322,54 +324,58 @@ export default function AdminCommentsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {review.status === "pending" ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={actionId === review.id}
-                        onClick={() => void handleApprove(review)}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-[#34d399]/25 bg-[#34d399]/10 px-4 py-2.5 text-sm font-semibold text-[#86efac] transition hover:bg-[#34d399]/16 disabled:opacity-60"
-                      >
-                        <HiOutlineCheck className="h-4 w-4" />
-                        تایید
-                      </button>
-                      <button
-                        type="button"
-                        disabled={actionId === review.id}
-                        onClick={() => void handleReject(review)}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-[#f87171]/25 bg-[#f87171]/10 px-4 py-2.5 text-sm font-semibold text-[#fca5a5] transition hover:bg-[#f87171]/16 disabled:opacity-60"
-                      >
-                        <HiOutlineX className="h-4 w-4" />
-                        رد
-                      </button>
-                    </>
-                  ) : null}
+                  <AdminPermissionGate permission={ADMIN_PERMISSIONS.moderate_comments}>
+                    {review.status === "pending" ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={actionId === review.id}
+                          onClick={() => void handleApprove(review)}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-[#34d399]/25 bg-[#34d399]/10 px-4 py-2.5 text-sm font-semibold text-[#86efac] transition hover:bg-[#34d399]/16 disabled:opacity-60"
+                        >
+                          <HiOutlineCheck className="h-4 w-4" />
+                          تایید
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionId === review.id}
+                          onClick={() => void handleReject(review)}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-[#f87171]/25 bg-[#f87171]/10 px-4 py-2.5 text-sm font-semibold text-[#fca5a5] transition hover:bg-[#f87171]/16 disabled:opacity-60"
+                        >
+                          <HiOutlineX className="h-4 w-4" />
+                          رد
+                        </button>
+                      </>
+                    ) : null}
 
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(review, "edit")}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/[0.06]"
-                  >
-                    <HiOutlinePencilAlt className="h-4 w-4" />
-                    ویرایش
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(review, "edit")}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/[0.06]"
+                    >
+                      <HiOutlinePencilAlt className="h-4 w-4" />
+                      ویرایش
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(review, "censor")}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-[#f5c518]/25 bg-[#f5c518]/10 px-4 py-2.5 text-sm font-semibold text-[#f8d977] transition hover:bg-[#f5c518]/16"
-                  >
-                    سانسور
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(review, "censor")}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-[#f5c518]/25 bg-[#f5c518]/10 px-4 py-2.5 text-sm font-semibold text-[#f8d977] transition hover:bg-[#f5c518]/16"
+                    >
+                      سانسور
+                    </button>
+                  </AdminPermissionGate>
 
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(review)}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-[#f87171]/20 px-4 py-2.5 text-sm font-semibold text-[#fca5a5] transition hover:bg-[#f87171]/10"
-                  >
-                    <HiOutlineTrash className="h-4 w-4" />
-                    حذف
-                  </button>
+                  <AdminPermissionGate permission={ADMIN_PERMISSIONS.delete_comments}>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(review)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-[#f87171]/20 px-4 py-2.5 text-sm font-semibold text-[#fca5a5] transition hover:bg-[#f87171]/10"
+                    >
+                      <HiOutlineTrash className="h-4 w-4" />
+                      حذف
+                    </button>
+                  </AdminPermissionGate>
                 </div>
               </div>
 

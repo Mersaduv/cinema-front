@@ -59,7 +59,7 @@ function ProfilePageContent() {
   }
 
   return (
-    <ProtectedRoute requireAuth>
+    <ProtectedRoute requireAuth requireViewer>
       <ProfileShell
         active={activeNav}
         ticketWaitingCount={summary.ticketWaiting}

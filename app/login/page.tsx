@@ -24,7 +24,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { login, isAuthenticated, authReady, loading: authLoading } = useAuth();
+  const { login, isAuthenticated, isViewer, isStaff, authReady, loading: authLoading } = useAuth();
   const router = useRouter();
   const isTvCompat = useIsTvCompat();
 
@@ -35,15 +35,26 @@ export default function LoginPage() {
 
     const next = new URLSearchParams(window.location.search).get("redirect") || "/";
 
-    return next.startsWith("/") ? next : "/";
+    return next.startsWith("/") && !(next === "/admin" || next.startsWith("/admin/") || next === "/adminbod")
+      ? next
+      : "/";
   };
 
   // Redirect if already authenticated (using useEffect to avoid render error)
   useEffect(() => {
-    if (authReady && !authLoading && isAuthenticated) {
+    if (!authReady || authLoading || !isAuthenticated) {
+      return;
+    }
+
+    if (isStaff) {
+      router.replace("/admin");
+      return;
+    }
+
+    if (isViewer) {
       router.replace(resolveRedirect());
     }
-  }, [authReady, authLoading, isAuthenticated, router]);
+  }, [authReady, authLoading, isAuthenticated, isViewer, isStaff, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,10 +116,10 @@ export default function LoginPage() {
             {/* Header */}
             <div className="mb-6 sm:mb-8">
               <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-                ورود به حساب کاربری
+                ورود بینندگان
               </h1>
               <p className="text-sm text-gray-400">
-                ایمیل و رمز عبور خود را وارد کنید
+                برای تماشا، دیدگاه و درخواست محتوا وارد شوید
               </p>
             </div>
 

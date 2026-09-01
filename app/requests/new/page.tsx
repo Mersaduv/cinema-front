@@ -220,7 +220,7 @@ function NewRequestPageContent() {
 
 export default function NewRequestPage() {
   return (
-    <ProtectedRoute fallback={<RequestsShellSkeleton variant="form" />}>
+    <ProtectedRoute requireViewer fallback={<RequestsShellSkeleton variant="form" />}>
       <NewRequestPageContent />
     </ProtectedRoute>
   );

@@ -46,6 +46,7 @@ const SORT_OPTIONS: AdminCatalogFilterOption[] = [
   { value: "imdb_desc", label: "امتیاز IMDb" },
   { value: "popular", label: "محبوبیت" },
   { value: "featured", label: "محتوای ویژه" },
+  { value: "views_desc", label: "پر بیننده ترین" },
 ];
 
 function renderSingleSelect(

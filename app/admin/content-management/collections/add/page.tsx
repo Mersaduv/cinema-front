@@ -1,5 +1,5 @@
-import CollectionEditorForm from "../_components/CollectionEditorForm";
+import { redirect } from "next/navigation";
 
 export default function AddCollectionPage() {
-  return <CollectionEditorForm mode="create" />;
+  redirect("/admin/content-management/collections");
 }

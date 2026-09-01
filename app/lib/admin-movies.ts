@@ -183,6 +183,7 @@ export interface AdminMovie {
   admin_notes?: string | null;
   has_admin_notes?: boolean;
   publish_completion_pending?: boolean;
+  views_count?: number;
   media_asset: AdminMovieMediaAsset | null;
   /** Loaded on detail when credits are synced */
   cast?: MovieCastApiRow[];

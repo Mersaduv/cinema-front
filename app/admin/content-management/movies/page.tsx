@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
   HiOutlineDocumentText,
+  HiOutlineEye,
   HiOutlinePencilAlt,
   HiOutlinePlus,
   HiOutlineStar,
@@ -41,6 +42,8 @@ import type { ContentProcessingUpdate } from "../../../lib/broadcast/content-pro
 import { adminCreateMovieHref } from "../../../lib/admin-create-links";
 import { formatGregorianDate } from "../../../lib/date-format";
 import { useRouter } from "next/navigation";
+import AdminPermissionGate from "../../../components/admin/AdminPermissionGate";
+import { ADMIN_PERMISSIONS } from "../../../lib/admin-permissions";
 
 const emptySummary: AdminMoviesSummary = {
   total: 0,
@@ -362,15 +365,17 @@ export default function AllMoviesPage() {
             <p className="mt-2 text-sm text-[#8ea4b3]">مدیریت فهرست فیلم‌ها</p>
           </div>
 
-          <Link
-            href="/admin/content-management/movies/add"
-            prefetch={false}
-            onClick={handleCreateMovieClick}
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
-          >
-            <HiOutlinePlus className="h-4 w-4" />
-            ثبت فیلم جدید
-          </Link>
+          <AdminPermissionGate permission={ADMIN_PERMISSIONS.create_movies}>
+            <Link
+              href="/admin/content-management/movies/add"
+              prefetch={false}
+              onClick={handleCreateMovieClick}
+              className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
+            >
+              <HiOutlinePlus className="h-4 w-4" />
+              ثبت فیلم جدید
+            </Link>
+          </AdminPermissionGate>
         </div>
       </section>
 
@@ -443,15 +448,17 @@ export default function AllMoviesPage() {
             <p className="mt-3 text-sm leading-7 text-[#8ea4b3]">
               اولین فیلم را ثبت کن تا جریان مدیریت محتوا شروع شود.
             </p>
-            <Link
-              href="/admin/content-management/movies/add"
-              prefetch={false}
-              onClick={handleCreateMovieClick}
-              className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
-            >
-              <HiOutlinePlus className="h-4 w-4" />
-              ثبت اولین فیلم
-            </Link>
+            <AdminPermissionGate permission={ADMIN_PERMISSIONS.create_movies}>
+              <Link
+                href="/admin/content-management/movies/add"
+                prefetch={false}
+                onClick={handleCreateMovieClick}
+                className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
+              >
+                <HiOutlinePlus className="h-4 w-4" />
+                ثبت اولین فیلم
+              </Link>
+            </AdminPermissionGate>
           </div>
         ) : (
           <>
@@ -462,8 +469,16 @@ export default function AllMoviesPage() {
                 return (
                   <article
                     key={movie.id}
-                    className="group rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.18)] transition hover:border-white/16 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))]"
+                    className="relative group rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.18)] transition hover:border-white/16 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))]"
                   >
+                    <div
+                      className="absolute bottom-4 left-4 inline-flex h-9 w-9 items-center justify-center gap-0.5 rounded-full text-[#7dd3fc] opacity-85"
+                      title={`${movie.views_count ?? 0} بیننده`}
+                      aria-label={`${movie.views_count ?? 0} بیننده`}
+                    >
+                      <HiOutlineEye className="h-4 w-4" />
+                   <span className="text-xs font-bold text-[#7dd3fc]">{movie.views_count ?? 0} </span>
+                    </div>
                     <div className="flex gap-5">
                       <PosterPreview movie={movie} />
 
@@ -540,22 +555,26 @@ export default function AllMoviesPage() {
 
                         <div className="mt-auto pt-5">
                           <div className="flex flex-wrap gap-3">
-                            <Link
-                              href={`/admin/content-management/movies/${movie.id}/publication`}
-                              className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
-                            >
-                              <HiOutlinePencilAlt className="h-4 w-4" />
-                              ویرایش
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(movie)}
-                              disabled={isDeleting}
-                              className="inline-flex items-center gap-2 rounded-2xl border border-[#fb7185]/20 bg-[#fb7185]/10 px-4 py-2.5 text-sm text-[#fecdd3] transition hover:border-[#fb7185]/35 hover:bg-[#fb7185]/16 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <HiOutlineTrash className="h-4 w-4" />
-                              حذف
-                            </button>
+                            <AdminPermissionGate permission={ADMIN_PERMISSIONS.edit_movies}>
+                              <Link
+                                href={`/admin/content-management/movies/${movie.id}/publication`}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-[#f5c518] px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-[#e1b400]"
+                              >
+                                <HiOutlinePencilAlt className="h-4 w-4" />
+                                ویرایش
+                              </Link>
+                            </AdminPermissionGate>
+                            <AdminPermissionGate permission={ADMIN_PERMISSIONS.delete_movies}>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(movie)}
+                                disabled={isDeleting}
+                                className="inline-flex items-center gap-2 rounded-2xl border border-[#fb7185]/20 bg-[#fb7185]/10 px-4 py-2.5 text-sm text-[#fecdd3] transition hover:border-[#fb7185]/35 hover:bg-[#fb7185]/16 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <HiOutlineTrash className="h-4 w-4" />
+                                حذف
+                              </button>
+                            </AdminPermissionGate>
                           </div>
                         </div>
                       </div>

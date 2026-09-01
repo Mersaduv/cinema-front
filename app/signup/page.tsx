@@ -104,10 +104,10 @@ export default function SignUpPage() {
             {/* Header */}
             <div className="mb-6 sm:mb-8">
               <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-                ثبت نام
+                ثبت‌نام بینندگان
               </h1>
               <p className="text-sm text-gray-400">
-                اطلاعات خود را وارد کنید و حساب کاربری ایجاد کنید
+                حساب بیننده بسازید تا بتوانید تماشا، دیدگاه و درخواست ثبت کنید
               </p>
             </div>
 

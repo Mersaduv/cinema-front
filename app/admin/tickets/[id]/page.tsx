@@ -22,6 +22,8 @@ import {
   ticketStatusLabels,
   type TicketStatus,
 } from "../../../lib/tickets";
+import AdminPermissionGate from "../../../components/admin/AdminPermissionGate";
+import { ADMIN_PERMISSIONS } from "../../../lib/admin-permissions";
 
 const ticketStatusChangeOptions: Array<{ value: TicketStatus; label: string }> = [
   { value: "waiting", label: ticketStatusLabels.waiting },
@@ -178,18 +180,20 @@ function TicketChatPanel({
           >
             {ticketStatusLabels[ticket.status]}
           </span>
-          <select
-            value={ticket.status}
-            disabled={actionLoading}
-            onChange={(event) => void onStatusChange(event.target.value as TicketStatus)}
-            className="rounded-xl border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-white outline-none"
-          >
-            {ticketStatusChangeOptions.map((option) => (
-              <option key={option.value} value={option.value} className="bg-[#121212]">
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <AdminPermissionGate permission={ADMIN_PERMISSIONS.manage_tickets}>
+            <select
+              value={ticket.status}
+              disabled={actionLoading}
+              onChange={(event) => void onStatusChange(event.target.value as TicketStatus)}
+              className="rounded-xl border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-white outline-none"
+            >
+              {ticketStatusChangeOptions.map((option) => (
+                <option key={option.value} value={option.value} className="bg-[#121212]">
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </AdminPermissionGate>
         </div>
       </div>
 
@@ -197,22 +201,26 @@ function TicketChatPanel({
 
       {!isClosed ? (
         <div className="space-y-3">
-          <TicketMessageComposer
-            disabled={actionLoading}
-            placeholder="پاسخ پشتیبانی..."
-            submitLabel="ارسال پاسخ"
-            secondaryLabel="ثبت پاسخ و بستن"
-            onSubmit={(payload) => onAdminMessage(payload, false)}
-            onSecondarySubmit={(payload) => onAdminMessage(payload, true)}
-          />
-          <button
-            type="button"
-            disabled={actionLoading}
-            onClick={() => void onStatusChange("closed")}
-            className="rounded-2xl border border-slate-400/30 bg-slate-500/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-500/20 disabled:opacity-60"
-          >
-            بستن تیکت
-          </button>
+          <AdminPermissionGate permission={ADMIN_PERMISSIONS.reply_tickets}>
+            <TicketMessageComposer
+              disabled={actionLoading}
+              placeholder="پاسخ پشتیبانی..."
+              submitLabel="ارسال پاسخ"
+              secondaryLabel="ثبت پاسخ و بستن"
+              onSubmit={(payload) => onAdminMessage(payload, false)}
+              onSecondarySubmit={(payload) => onAdminMessage(payload, true)}
+            />
+          </AdminPermissionGate>
+          <AdminPermissionGate permission={ADMIN_PERMISSIONS.manage_tickets}>
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={() => void onStatusChange("closed")}
+              className="rounded-2xl border border-slate-400/30 bg-slate-500/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-500/20 disabled:opacity-60"
+            >
+              بستن تیکت
+            </button>
+          </AdminPermissionGate>
         </div>
       ) : (
         <p className="mt-4 border-t border-white/10 pt-4 text-sm text-white/45">

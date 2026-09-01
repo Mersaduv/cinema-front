@@ -1,24 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import {
-  HiOutlinePencilAlt,
-  HiOutlinePlus,
-  HiOutlineSearch,
-  HiOutlineTrash,
-} from "react-icons/hi";
-import { HiOutlineCollection } from "react-icons/hi";
-import AdminDeleteConfirmModal from "../../../components/admin/AdminDeleteConfirmModal";
+import { HiOutlineCollection, HiOutlineSearch } from "react-icons/hi";
 import AdminPagination from "../../../components/admin/AdminPagination";
 import AdminSelect from "../../../components/admin/AdminSelect";
 import { PosterImage } from "../../../components/images";
 import { apiClient } from "../../../lib/api";
 import { adminApiErrorMessage, unwrapAdminListPayload } from "../../../lib/admin-api";
 import {
-  adminCollectionsService,
-  type AdminCollection,
   type AdminCollectionsListResponse,
   type AdminCollectionsPagination,
 } from "../../../lib/admin-collections";
@@ -35,8 +25,6 @@ export default function CollectionsListPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [visibility, setVisibility] = useState("");
   const [page, setPage] = useState(1);
-  const [deleteTarget, setDeleteTarget] = useState<AdminCollection | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState("");
 
   const listKey = useMemo(() => {
@@ -47,7 +35,7 @@ export default function CollectionsListPage() {
     return `/admin/collections?${query.toString()}`;
   }, [page, debouncedSearch, visibility]);
 
-  const { data, isLoading, mutate } = useSWR(
+  const { data, isLoading, error: swrError } = useSWR(
     listKey,
     async (url: string) => {
       const response = await apiClient.get<AdminCollectionsListResponse>(url);
@@ -76,43 +64,25 @@ export default function CollectionsListPage() {
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setIsDeleting(true);
-    setError("");
-    try {
-      const response = await adminCollectionsService.remove(deleteTarget.id);
-      if (!response.success) {
-        setError(adminApiErrorMessage(response, "حذف مجموعه انجام نشد."));
-        return;
-      }
-      setDeleteTarget(null);
-      await mutate();
-    } finally {
-      setIsDeleting(false);
+  useEffect(() => {
+    if (swrError instanceof Error) {
+      setError(swrError.message);
+      return;
     }
-  };
+    setError("");
+  }, [swrError]);
 
   return (
     <div className="space-y-8" dir="rtl">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-[#f5c518]/20 bg-[#f5c518]/10 px-3 py-1 text-xs text-[#f8d977]">
-            <HiOutlineCollection className="h-4 w-4" />
-            Collections
-          </span>
-          <h1 className="mt-4 text-3xl font-black text-white">مجموعه‌های فیلم</h1>
-          <p className="mt-2 text-sm text-white/55">
-            مدیریت کالکشن‌ها، لینک خودکار از TMDB و چیدمان فیلم‌ها
-          </p>
-        </div>
-        <Link
-          href="/admin/content-management/collections/add"
-          className="inline-flex items-center gap-2 rounded-2xl bg-[#ef4444] px-5 py-3 text-sm font-bold text-white hover:bg-[#dc2626]"
-        >
-          <HiOutlinePlus className="h-5 w-5" />
-          افزودن مجموعه
-        </Link>
+      <div>
+        <span className="inline-flex items-center gap-2 rounded-full border border-[#f5c518]/20 bg-[#f5c518]/10 px-3 py-1 text-xs text-[#f8d977]">
+          <HiOutlineCollection className="h-4 w-4" />
+          فقط مشاهده
+        </span>
+        <h1 className="mt-4 text-3xl font-black text-white">مجموعه‌های فیلم</h1>
+        <p className="mt-2 text-sm text-white/55">
+          این بخش فعلاً فقط برای نمایش است و امکان ایجاد یا ویرایش ندارد.
+        </p>
       </div>
 
       <div className="grid gap-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-4 md:grid-cols-[1fr_220px]">
@@ -150,19 +120,18 @@ export default function CollectionsListPage() {
               <th className="px-4 py-4 font-medium">فیلم‌ها</th>
               <th className="px-4 py-4 font-medium">TMDB</th>
               <th className="px-4 py-4 font-medium">نمایش</th>
-              <th className="px-4 py-4 font-medium">عملیات</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-16 text-center text-white/45">
+                <td colSpan={4} className="px-4 py-16 text-center text-white/45">
                   در حال بارگذاری...
                 </td>
               </tr>
             ) : collections.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-16 text-center text-white/45">
+                <td colSpan={4} className="px-4 py-16 text-center text-white/45">
                   مجموعه‌ای ثبت نشده است.
                 </td>
               </tr>
@@ -202,23 +171,6 @@ export default function CollectionsListPage() {
                       {collection.is_visible ? "فعال" : "مخفی"}
                     </span>
                   </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={`/admin/content-management/collections/${collection.id}`}
-                        className="rounded-xl border border-white/10 p-2 text-white/70 hover:bg-white/5"
-                      >
-                        <HiOutlinePencilAlt className="h-4 w-4" />
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(collection)}
-                        className="rounded-xl border border-[#fb7185]/20 p-2 text-[#fda4af] hover:bg-[#fb7185]/10"
-                      >
-                        <HiOutlineTrash className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               ))
             )}
@@ -230,15 +182,6 @@ export default function CollectionsListPage() {
         pagination={pagination}
         disabled={loading}
         onPageChange={setPage}
-      />
-
-      <AdminDeleteConfirmModal
-        open={deleteTarget !== null}
-        kind="collection"
-        title={deleteTarget?.name ?? ""}
-        loading={isDeleting}
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={() => void handleDelete()}
       />
     </div>
   );
