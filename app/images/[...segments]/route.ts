@@ -119,7 +119,7 @@ async function createOptimizedResponse(
     headers: {
       "Content-Type": transformed.contentType,
       "Content-Length": String(transformed.buffer.byteLength),
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": "public, max-age=31536000, immutable, stale-while-revalidate=86400",
       Vary: "Accept",
       "X-Cinema-Image-Optimized": "1",
       "X-Cinema-Image-Cache": transformed.cacheHit ? "HIT" : "MISS",

@@ -15,7 +15,7 @@ export type AdminCatalogImageUploadResult = {
 export type AdminCatalogImageUploadOptions = {
   entityType?: "movie" | "series";
   entityId?: number | string | null;
-  imageRole?: "poster" | "backdrop";
+  imageRole?: "poster" | "backdrop" | "still";
 };
 
 const MAX_ADMIN_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;

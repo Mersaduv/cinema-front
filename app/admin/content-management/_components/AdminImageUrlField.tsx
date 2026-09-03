@@ -15,7 +15,7 @@ type AdminImageUrlFieldProps = {
   onUploaded?: (result: AdminCatalogImageUploadResult) => void;
   entityType?: "movie" | "series";
   entityId?: number | string | null;
-  imageRole?: "poster" | "backdrop";
+  imageRole?: "poster" | "backdrop" | "still";
   dir?: "rtl" | "ltr";
   className?: string;
   disabled?: boolean;

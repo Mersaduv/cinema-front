@@ -14,6 +14,10 @@ import {
   defaultReviewSummary,
 } from "../../lib/reviews";
 import { seriesService, type PublicSeries } from "../../lib/series";
+import {
+  fetchSeriesPlaybackBootstrap,
+  prefetchPlaybackManifest,
+} from "../../lib/watch-bootstrap";
 import { useSeriesEpisodes } from "../../lib/useSeriesEpisodes";
 
 export default function SeriesDetailClient({
@@ -94,6 +98,31 @@ export default function SeriesDetailClient({
       if (timeoutId !== undefined) {
         window.clearTimeout(timeoutId);
       }
+    };
+  }, [initialSeries.slug]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetchSeriesPlaybackBootstrap(initialSeries.slug, 1, 1)
+      .then((playback) => {
+        if (cancelled) {
+          return;
+        }
+
+        const manifestUrl =
+          playback.hls_url?.trim() ||
+          playback.progressive_url?.trim() ||
+          playback.video_url?.trim() ||
+          null;
+        prefetchPlaybackManifest(manifestUrl);
+      })
+      .catch(() => {
+        // Playback may require auth — ignore prefetch errors on detail page.
+      });
+
+    return () => {
+      cancelled = true;
     };
   }, [initialSeries.slug]);
 

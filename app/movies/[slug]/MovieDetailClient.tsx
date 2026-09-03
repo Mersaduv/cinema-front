@@ -14,6 +14,7 @@ import {
   defaultReviewSummary,
 } from "../../lib/reviews";
 import { moviesService, type PublicMovie, type PublicMovieListItem } from "../../lib/movies";
+import { prefetchPlaybackManifest } from "../../lib/watch-bootstrap";
 
 export default function MovieDetailClient({
   movie: initialMovie,
@@ -87,6 +88,17 @@ export default function MovieDetailClient({
       }
     };
   }, [initialMovie.slug]);
+
+  useEffect(() => {
+    const manifestUrl =
+      movieWithPeople.playback?.master_playlist_url?.trim() ||
+      movieWithPeople.playback?.progressive_url?.trim() ||
+      null;
+    prefetchPlaybackManifest(manifestUrl);
+  }, [
+    movieWithPeople.playback?.master_playlist_url,
+    movieWithPeople.playback?.progressive_url,
+  ]);
 
   const loadSimilar = useCallback(async () => {
     if (similarRequestedRef.current) {

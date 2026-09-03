@@ -405,14 +405,14 @@ export const DETAIL_POSTER_SIZES = IMAGE_SIZES["detail-poster"];
 
 /** Hero/backdrop variant widths — matches production hero srcset pattern. */
 export const HERO_BACKDROP_WIDTHS = [
-  640, 750, 828, 1080, 1200, 1920, 2048, 3840,
+  640, 750, 828, 1080, 1200, 1920,
 ] as const;
 
 export const HERO_BACKDROP_QUALITY = 85;
 export const HERO_BACKDROP_SHARPEN = 60;
 export const HERO_BACKDROP_BLUR_QUALITY = 10;
 export const HERO_BACKDROP_BLUR_SHARPEN = 0;
-export const HERO_BACKDROP_FALLBACK_WIDTH = 3840;
+export const HERO_BACKDROP_FALLBACK_WIDTH = 1920;
 
 export function stripImageQueryParams(url: string): string {
   const trimmed = url.trim();

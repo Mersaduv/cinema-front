@@ -86,7 +86,9 @@ export async function transformCinemaImage(
   let pipeline = sharp(absolutePath, {
     failOn: "none",
     sequentialRead: true,
-  }).rotate();
+  })
+    .rotate()
+    .toColorspace("srgb");
 
   pipeline = pipeline.resize({
     width,

@@ -107,6 +107,9 @@ export function useCatalogInfinite({
   const isInitialQuery = filterSignature === initialSignature.current;
 
   const abortRef = useRef<AbortController | null>(null);
+  const cursorCacheRef = useRef(
+    new Map<string, { items: CatalogListItem[]; meta: CarouselMeta }>(),
+  );
   const [extraItems, setExtraItems] = useState<CatalogListItem[]>([]);
   const [tailMeta, setTailMeta] = useState<CarouselMeta | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -123,6 +126,7 @@ export function useCatalogInfinite({
     setTailMeta(null);
     setLoadMoreError("");
     setIsLoadingMore(false);
+    cursorCacheRef.current.clear();
   }, [filterSignature]);
 
   const { data, isLoading, isValidating, error: swrError } = useSWR(
@@ -186,6 +190,14 @@ export function useCatalogInfinite({
       return;
     }
 
+    const cacheKey = `${filterSignature}:${cursor}`;
+    const cached = cursorCacheRef.current.get(cacheKey);
+    if (cached) {
+      setExtraItems((current) => mergeUniqueItems(current, cached.items, itemKey));
+      setTailMeta(cached.meta);
+      return;
+    }
+
     setIsLoadingMore(true);
     setLoadMoreError("");
 
@@ -201,7 +213,12 @@ export function useCatalogInfinite({
         }
 
         setExtraItems((current) => mergeUniqueItems(current, result.items, itemKey));
-        setTailMeta(result.meta as CarouselMeta);
+        const nextMeta = result.meta as CarouselMeta;
+        cursorCacheRef.current.set(cacheKey, {
+          items: result.items,
+          meta: nextMeta,
+        });
+        setTailMeta(nextMeta);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") {

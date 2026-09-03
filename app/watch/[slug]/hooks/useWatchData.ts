@@ -5,6 +5,10 @@ import { gql, useQuery } from "urql";
 import useSWR from "swr";
 import { moviesService, type PublicMovie } from "../../../lib/movies";
 import { seriesService, type PublicSeries } from "../../../lib/series";
+import {
+  fetchMoviePlaybackBootstrap,
+  fetchSeriesPlaybackBootstrap,
+} from "../../../lib/watch-bootstrap";
 import type { SeriesPlaybackContext } from "../../../features/player/types/player.types";
 
 const WatchMovieDocument = gql`
@@ -134,7 +138,7 @@ export function useWatchData(
       query: WatchMovieDocument,
       variables: { slug },
       pause: isSeriesPlayback || !slug,
-      requestPolicy: "cache-and-network",
+      requestPolicy: "cache-first",
     });
 
   const [{ data: watchEpisodeData, error: watchEpisodeError, fetching: watchEpisodeFetching }] =
@@ -146,19 +150,41 @@ export function useWatchData(
         episode: episodeNumber,
       },
       pause: !isSeriesPlayback || !slug,
-      requestPolicy: "cache-and-network",
+      requestPolicy: "cache-first",
     });
+
+  const { data: movieBootstrap } = useSWR(
+    !isSeriesPlayback && slug ? `watch-bootstrap:movie:${slug}` : null,
+    () => fetchMoviePlaybackBootstrap(slug),
+    { revalidateOnFocus: false, dedupingInterval: 120_000 },
+  );
+
+  const { data: episodeBootstrap } = useSWR(
+    isSeriesPlayback && slug
+      ? `watch-bootstrap:series:${slug}:${seasonNumber}:${episodeNumber}`
+      : null,
+    () => fetchSeriesPlaybackBootstrap(slug, seasonNumber, episodeNumber),
+    { revalidateOnFocus: false, dedupingInterval: 120_000 },
+  );
+
+  const bootstrapMovieHls = movieBootstrap?.hls_url?.trim() || null;
+  const bootstrapMovieProgressive = movieBootstrap?.progressive_url?.trim() || null;
+  const bootstrapEpisodeHls = episodeBootstrap?.hls_url?.trim() || null;
+  const bootstrapEpisodeProgressive =
+    episodeBootstrap?.video_url?.trim() || episodeBootstrap?.progressive_url?.trim() || null;
 
   const graphqlMovieHls = watchMovieData?.watchMovie?.hls_url?.trim() || null;
   const graphqlMovieProgressive =
     watchMovieData?.watchMovie?.progressive_url?.trim() || null;
+  const bootstrapHasMovieSource = Boolean(bootstrapMovieHls || bootstrapMovieProgressive);
   const graphqlHasMovieSource = Boolean(graphqlMovieHls || graphqlMovieProgressive);
 
-  // REST is only a fallback when GraphQL finished without a playable URL.
+  // REST is only a fallback when bootstrap and GraphQL finished without a playable URL.
   const shouldFetchRestMovie =
     !isSeriesPlayback &&
     Boolean(slug) &&
     !watchMovieFetching &&
+    !bootstrapHasMovieSource &&
     !graphqlHasMovieSource &&
     !watchMovieError;
 
@@ -228,19 +254,28 @@ export function useWatchData(
 
   const hlsUrl = useMemo(() => {
     if (isSeriesPlayback) {
-      return graphqlEpisodeHls;
+      return bootstrapEpisodeHls || graphqlEpisodeHls;
     }
 
-    return graphqlMovieHls || restMovieHls;
-  }, [graphqlEpisodeHls, graphqlMovieHls, isSeriesPlayback, restMovieHls]);
+    return bootstrapMovieHls || graphqlMovieHls || restMovieHls;
+  }, [
+    bootstrapEpisodeHls,
+    bootstrapMovieHls,
+    graphqlEpisodeHls,
+    graphqlMovieHls,
+    isSeriesPlayback,
+    restMovieHls,
+  ]);
 
   const progressiveUrl = useMemo(() => {
     if (isSeriesPlayback) {
-      return graphqlEpisodeProgressive;
+      return bootstrapEpisodeProgressive || graphqlEpisodeProgressive;
     }
 
-    return graphqlMovieProgressive || restMovieProgressive;
+    return bootstrapMovieProgressive || graphqlMovieProgressive || restMovieProgressive;
   }, [
+    bootstrapEpisodeProgressive,
+    bootstrapMovieProgressive,
     graphqlEpisodeProgressive,
     graphqlMovieProgressive,
     isSeriesPlayback,

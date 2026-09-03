@@ -16,7 +16,17 @@ function nullableString(value: string) {
 function nullableNumber(value: string) {
   const trimmed = value.trim();
 
-  return trimmed === "" ? null : Number(trimmed);
+  if (trimmed === "") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
 }
 
 function downloadMapFromEpisode(episode: EpisodeDraft): Record<string, string> | undefined {

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 import { HiMiniPlay, HiOutlineXMark } from "react-icons/hi2";
 import { useAuth } from "../contexts/AuthContext";
 import { tokenStorage } from "../lib/token-storage";
@@ -220,6 +221,44 @@ function progressRowKey(record: WatchProgressRecord): string {
   return `${record.mediaId}:${record.episodeId ?? "movie"}`;
 }
 
+async function fetchWatchProgress(
+  mediaType: "movie" | "series" | "all",
+  limit: number,
+  showCompleted: boolean,
+): Promise<WatchProgressRecord[]> {
+  const token = tokenStorage.getToken();
+  if (!token) {
+    throw new Error("missing token");
+  }
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005/api";
+  const params = new URLSearchParams({
+    limit: String(limit),
+  });
+  if (mediaType !== "all") {
+    params.set("media_type", mediaType);
+  }
+  if (showCompleted) {
+    params.set("include_completed", "1");
+  }
+
+  const response = await fetch(`${apiBase}/v1/watch-progress?${params.toString()}`, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("watch-progress fetch failed");
+  }
+
+  const payload = (await response.json()) as {
+    data?: { items?: WatchProgressRecord[] };
+  };
+  return payload?.data?.items ?? [];
+}
+
 function mergeProgressRows(
   serverRows: WatchProgressRecord[],
   localRows: WatchProgressRecord[],
@@ -392,6 +431,21 @@ export default function ContinueWatching({
 
   const userId = user?.id != null ? String(user.id) : null;
 
+  const watchProgressKey =
+    hasToken && isViewer
+      ? `watch-progress:${userId ?? "anon"}:${mediaType}:${limit}:${showCompleted ? 1 : 0}`
+      : null;
+
+  const { data: serverItems, error: serverItemsError } = useSWR(
+    watchProgressKey,
+    () => fetchWatchProgress(mediaType, limit, showCompleted),
+    {
+      revalidateOnFocus: true,
+      dedupingInterval: 60_000,
+      refreshInterval: 120_000,
+    },
+  );
+
   const loadLocal = useCallback(() => {
     const tracker = ProgressTracker.getInstance();
     tracker.init(
@@ -486,65 +540,44 @@ export default function ContinueWatching({
   }, [hasToken, isViewer, loadLocal]);
 
   useEffect(() => {
-    if (!hasToken || !isViewer) {
+    if (!hasToken || !isViewer || !serverItemsError) {
       return;
     }
 
-    const token = tokenStorage.getToken();
-    if (!token) {
+    loadLocal();
+  }, [hasToken, isViewer, loadLocal, serverItemsError]);
+
+  useEffect(() => {
+    if (!hasToken || !isViewer || !serverItems) {
       return;
     }
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005/api";
-    const params = new URLSearchParams({
-      limit: String(limit),
-    });
-    if (mediaType !== "all") {
-      params.set("media_type", mediaType);
-    }
-
-    if (showCompleted) {
-      params.set("include_completed", "1");
-    }
-
-    const controller = new AbortController();
-
-    void fetch(`${apiBase}/v1/watch-progress?${params.toString()}`, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { data?: { items?: WatchProgressRecord[] } } | null) => {
-        const serverItems = payload?.data?.items ?? [];
-        const tracker = ProgressTracker.getInstance();
-        tracker.init(
-          createDefaultTrackerConfig({
-            userId,
-            isAuthenticated,
-            getAuthToken: () => tokenStorage.getToken(),
-          }),
-        );
-        tracker.reconcileWithServerRecords(
-          serverItems,
-          mediaType === "all" ? undefined : { mediaType },
-        );
-        const localItems = tracker.getAllHistory(showCompleted);
-        const mergedItems = mergeProgressRows(serverItems, localItems);
-        setItems(normalizeItems(mergedItems, mediaType, showCompleted, limit));
-        setReady(true);
-      })
-      .catch(() => {
-        loadLocal();
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [hasToken, isAuthenticated, isViewer, limit, loadLocal, mediaType, showCompleted, userId]);
+    const tracker = ProgressTracker.getInstance();
+    tracker.init(
+      createDefaultTrackerConfig({
+        userId,
+        isAuthenticated,
+        getAuthToken: () => tokenStorage.getToken(),
+      }),
+    );
+    tracker.reconcileWithServerRecords(
+      serverItems,
+      mediaType === "all" ? undefined : { mediaType },
+    );
+    const localItems = tracker.getAllHistory(showCompleted);
+    const mergedItems = mergeProgressRows(serverItems, localItems);
+    setItems(normalizeItems(mergedItems, mediaType, showCompleted, limit));
+    setReady(true);
+  }, [
+    hasToken,
+    isAuthenticated,
+    isViewer,
+    limit,
+    mediaType,
+    serverItems,
+    showCompleted,
+    userId,
+  ]);
 
   const playableItems = items.filter((record) => buildWatchHref(record) !== null);
   const hasItems = playableItems.length > 0;

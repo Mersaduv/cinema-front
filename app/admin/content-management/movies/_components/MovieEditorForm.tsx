@@ -1595,9 +1595,7 @@ export default function MovieEditorForm({
     if (form.original_language.trim()) {
       formData.append("original_language", form.original_language.trim());
     }
-    if (form.runtime_minutes.trim()) {
-      formData.append("runtime_minutes", form.runtime_minutes.trim());
-    }
+    formData.append("runtime_minutes", form.runtime_minutes.trim());
     if (form.provider_name.trim()) {
       formData.append("provider_name", form.provider_name.trim());
     }
@@ -2269,11 +2267,19 @@ export default function MovieEditorForm({
                   </label>
 
                   <label className="block">
-                    <span className="mb-2 block text-sm text-[#8ea4b3]">مدت زمان (دقیقه)</span>
+                    <span className="mb-2 block text-sm text-[#8ea4b3]">
+                      مدت زمان (دقیقه){" "}
+                      <span className="font-normal text-[#607684]">(اختیاری)</span>
+                    </span>
                     <input
                       inputMode="numeric"
                       value={form.runtime_minutes}
-                      onChange={(event) => handleChange("runtime_minutes", event.target.value)}
+                      onChange={(event) =>
+                        handleChange(
+                          "runtime_minutes",
+                          event.target.value.replace(/[^\d]/g, ""),
+                        )
+                      }
                       className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45"
                     />
                   </label>

@@ -830,7 +830,17 @@ function extractActorNames(actors: AdminSeriesActor[]) {
 function nullableNumber(value: string) {
   const trimmed = value.trim();
 
-  return trimmed === "" ? null : Number(trimmed);
+  if (trimmed === "") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
 }
 
 function nullableString(value: string) {
@@ -4702,7 +4712,9 @@ export default function SeriesEditorForm({
                                           ? formatGregorianDate(episode.air_date)
                                           : "تاریخ نامشخص"}{" "}
                                         •{" "}
-                                        {episode.duration_minutes || "0"} دقیقه
+                                        {episode.duration_minutes
+                                          ? `${episode.duration_minutes} دقیقه`
+                                          : "مدت نامشخص"}
                                       </p>
                                       <EpisodeHlsSyncStatus
                                         checking={episodeHlsSyncPending[episodeKey]}
@@ -4759,7 +4771,16 @@ export default function SeriesEditorForm({
                                     <TextField label="شماره قسمت" value={episode.episode_number} onChange={(value) => updateEpisode(season.id, episode.id, { episode_number: value.replace(/[^\d]/g, "") })} dir="ltr" fieldKey={`episode:${season.id}:${episode.id}:number`} error={tabFieldErrors[`episode:${season.id}:${episode.id}:number`]} />
                                     <TextField label="عنوان قسمت" value={episode.title} onChange={(value) => updateEpisode(season.id, episode.id, { title: value })} />
                                     <TextField label="تاریخ پخش" type="date" value={episode.air_date} onChange={(value) => updateEpisode(season.id, episode.id, { air_date: value })} />
-                                    <TextField label="مدت قسمت" value={episode.duration_minutes} onChange={(value) => updateEpisode(season.id, episode.id, { duration_minutes: value.replace(/[^\d]/g, "") })} dir="ltr" />
+                                    <TextField
+                                      label="مدت قسمت (اختیاری)"
+                                      value={episode.duration_minutes}
+                                      onChange={(value) =>
+                                        updateEpisode(season.id, episode.id, {
+                                          duration_minutes: value.replace(/[^\d]/g, ""),
+                                        })
+                                      }
+                                      dir="ltr"
+                                    />
                                     <div className="md:col-span-2 space-y-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
                                       {form.playback_protocol === "hls" ? (
                                         <>
@@ -4844,7 +4865,21 @@ export default function SeriesEditorForm({
                                         }
                                       />
                                     </div>
-                                    <TextField label="Background / Still image" value={episode.still_url} onChange={(value) => updateEpisode(season.id, episode.id, { still_url: value })} dir="ltr" className={ltrInputClass} />
+                                    <div className="md:col-span-2">
+                                      <AdminImageUrlField
+                                        label="Background / Still image"
+                                        value={episode.still_url}
+                                        onChange={(value) =>
+                                          updateEpisode(season.id, episode.id, {
+                                            still_url: value,
+                                          })
+                                        }
+                                        entityType="series"
+                                        entityId={series?.id ?? seriesId ?? null}
+                                        imageRole="still"
+                                        className={ltrInputClass}
+                                      />
+                                    </div>
                                     <div className="md:col-span-2">
                                       <TextAreaField
                                         label="خلاصه قسمت"

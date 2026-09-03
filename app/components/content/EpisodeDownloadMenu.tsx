@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { HiOutlineDownload } from "react-icons/hi";
 
 function sortQualities(entries: [string, string][]): [string, string][] {
@@ -9,6 +9,10 @@ function sortQualities(entries: [string, string][]): [string, string][] {
       Number.parseInt(right.replace(/\D/g, ""), 10) -
       Number.parseInt(left.replace(/\D/g, ""), 10),
   );
+}
+
+function stopPropagation(event: ReactMouseEvent) {
+  event.stopPropagation();
 }
 
 export default function EpisodeDownloadMenu({
@@ -31,7 +35,7 @@ export default function EpisodeDownloadMenu({
       return;
     }
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: globalThis.MouseEvent) => {
       if (!containerRef.current?.contains(event.target as Node)) {
         setOpen(false);
       }
@@ -47,10 +51,18 @@ export default function EpisodeDownloadMenu({
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div
+      ref={containerRef}
+      className="relative"
+      onClick={stopPropagation}
+      onMouseDown={stopPropagation}
+    >
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={(event) => {
+          stopPropagation(event);
+          setOpen((current) => !current);
+        }}
         className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] text-white/80 transition hover:border-[#f5c518]/35 hover:bg-[#f5c518]/10 hover:text-[#f8d977]"
         title="دانلود مستقیم"
         aria-expanded={open}
@@ -62,6 +74,8 @@ export default function EpisodeDownloadMenu({
       {open ? (
         <div
           role="menu"
+          onClick={stopPropagation}
+          onMouseDown={stopPropagation}
           className={`absolute bottom-[calc(100%+0.65rem)] z-30 min-w-[13.5rem] overflow-hidden rounded-[20px] border border-white/12 bg-[#0b1720]/95 shadow-[0_24px_48px_rgba(0,0,0,0.45)] backdrop-blur-xl ${
             align === "right" ? "left-0" : "right-0"
           }`}
@@ -77,7 +91,10 @@ export default function EpisodeDownloadMenu({
                 target="_blank"
                 rel="noopener noreferrer"
                 role="menuitem"
-                onClick={() => setOpen(false)}
+                onClick={(event) => {
+                  stopPropagation(event);
+                  setOpen(false);
+                }}
                 className="flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-sm text-white/85 transition hover:bg-white/[0.08]"
               >
                 <span className="font-bold">{quality}</span>

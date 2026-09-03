@@ -276,7 +276,9 @@ export function mergeEpisodeDraftFromTmdb(
     air_date: episode.air_date || currentEpisode?.air_date || "",
     duration_minutes: episode.duration_minutes
       ? String(episode.duration_minutes)
-      : currentEpisode?.duration_minutes || current.episode_runtime_minutes,
+      : currentEpisode?.duration_minutes
+        ? String(currentEpisode.duration_minutes)
+        : "",
     still_url: episode.still_url || currentEpisode?.still_url || "",
     source_method:
       currentEpisode?.source_method ||
