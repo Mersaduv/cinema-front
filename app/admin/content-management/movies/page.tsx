@@ -219,8 +219,8 @@ export default function AllMoviesPage() {
       (item) =>
         item.pipeline_status === "pending" ||
         item.pipeline_status === "running" ||
-        (item.processing_status &&
-          !["ready", "failed"].includes(item.processing_status)),
+        item.processing_status === "queued" ||
+        item.processing_status === "processing",
     );
 
     if (!hasProcessingItems) {

@@ -129,6 +129,7 @@ export interface AdminSeries {
   scheduled_for: string | null;
   published_at: string | null;
   metadata: {
+    content_source?: "tmdb" | "manual" | null;
     tmdb: {
       query: string | null;
       tmdb_id: number | null;
@@ -293,6 +294,7 @@ export interface AdminSeriesPayload {
   exclude_from_slider?: boolean;
   publish_status?: SeriesPublishStatus;
   scheduled_for?: string | null;
+  content_source?: "tmdb" | "manual";
   tmdb_query?: string;
   tmdb_id?: number | null;
   imdb_id?: string;
@@ -411,6 +413,26 @@ export const adminSeriesService = {
     return apiClient.get<{ available: boolean; suggestion?: string | null }>(
       `/admin/series/check-slug?${params.toString()}`,
     );
+  },
+
+  async checkTmdbId(tmdbId: string | number, excludeId?: string | number) {
+    const params = new URLSearchParams({ tmdb_id: String(tmdbId) });
+
+    if (excludeId !== undefined && excludeId !== "") {
+      params.set("exclude_id", String(excludeId));
+    }
+
+    return apiClient.get<{
+      available: boolean;
+      existing?: {
+        id: number;
+        title: string;
+        slug: string;
+        original_title?: string | null;
+        publish_status?: string | null;
+        tmdb_id?: number | null;
+      } | null;
+    }>(`/admin/series/check-tmdb?${params.toString()}`);
   },
 
   async fetchTmdb(

@@ -6,10 +6,12 @@ export type PlayerBootPhase = "stream" | "controls" | "progress";
 
 /**
  * Staged player boot — stream first, then controls, then progress/memory.
+ * Do not unlock controls on isPlaying alone: autoplay can flip playing
+ * before the first frame, which briefly shows Pause instead of loading.
  */
 export function usePlayerBootPhase(
   isReady: boolean,
-  isPlaying: boolean,
+  _isPlaying: boolean,
   videoRef?: React.RefObject<HTMLVideoElement | null>,
 ) {
   const [phase, setPhase] = useState<PlayerBootPhase>("stream");
@@ -19,10 +21,10 @@ export function usePlayerBootPhase(
       return;
     }
 
-    if (isReady || isPlaying) {
+    if (isReady) {
       setPhase("controls");
     }
-  }, [isReady, isPlaying, phase]);
+  }, [isReady, phase]);
 
   useEffect(() => {
     if (phase !== "controls") {

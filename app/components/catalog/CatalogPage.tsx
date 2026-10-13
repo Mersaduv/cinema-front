@@ -7,7 +7,6 @@ import CatalogPosterCardSkeleton from "./CatalogPosterCardSkeleton";
 import { getCatalogItemHref } from "../../lib/catalog/animation";
 import type { CatalogListItem } from "../../lib/catalog/rest";
 import type { CarouselMeta } from "../../types/carousel";
-import { TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
 import { useTvGridColumns } from "../../hooks/useTvGridColumns";
 import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 import { useInfiniteScrollSentinel } from "../../hooks/useInfiniteScrollSentinel";
@@ -65,6 +64,11 @@ export default function CatalogPage({
       onLoadMore?.();
     },
     Boolean(hasMore && onLoadMore && !loading && !isLoadingMore),
+    {
+      root: null,
+      rootMargin: "1400px 0px",
+      threshold: 0,
+    },
   );
 
   const showStatus = meta.total > 0;
@@ -144,9 +148,19 @@ export default function CatalogPage({
                   />
                   );
                 })}
+                {hasMore ? (
+                  <div
+                    ref={sentinelRef}
+                    className="col-span-full h-px w-full"
+                    aria-hidden
+                  />
+                ) : null}
                 {isLoadingMore
                   ? Array.from({ length: Math.min(7, gridCols || 7) }).map((_, index) => (
-                      <CatalogPosterCardSkeleton key={`catalog-more-skel-${index}`} />
+                      <CatalogPosterCardSkeleton
+                        key={`catalog-more-skel-${index}`}
+                        isSeries={kind === "series"}
+                      />
                     ))
                   : null}
               </div>
@@ -154,24 +168,7 @@ export default function CatalogPage({
           </div>
         </div>
 
-        {hasMore ? (
-          <div
-            className="mt-8 flex flex-col items-center gap-4"
-            data-tv-focus-group="pagination"
-          >
-            <div ref={sentinelRef} className="h-1 w-full" aria-hidden />
-            <button
-              type="button"
-              data-tv-focusable
-              data-tv-pagination="next"
-              disabled={loading || isLoadingMore}
-              onClick={() => onLoadMore?.()}
-              className={`rounded-xl border border-white/10 bg-white/[0.04] px-6 py-3 text-sm font-medium text-white/80 transition hover:bg-white/[0.08] disabled:opacity-50 ${TV_FOCUS_RING_CLASS}`}
-            >
-              {isLoadingMore ? "در حال بارگذاری..." : "بارگذاری بیشتر"}
-            </button>
-          </div>
-        ) : items.length > 0 && !loading ? (
+        {!hasMore && items.length > 0 && !loading ? (
           <p className="mt-8 text-center text-sm text-white/40">همه موارد بارگذاری شد.</p>
         ) : null}
       </section>

@@ -72,13 +72,14 @@ export function isProgressiveAudioUrl(url?: string | null): boolean {
   return /\.(mp3|aac|m4a|wav|ogg|opus|flac)(\?.*)?$/i.test(url.trim());
 }
 
-/** Progressive video files playable via native <video src>. */
+/** Progressive video files (direct URL playback / CDN sources). */
 export function isProgressiveVideoUrl(url?: string | null): boolean {
   if (!url || isHlsPlaylistUrl(url)) {
     return false;
   }
 
-  return /\.(mp4|m4v|webm|mov)(\?.*)?$/i.test(url.trim());
+  // cinema.af CDN commonly serves .mkv as progressive sources alongside .mp4.
+  return /\.(mp4|m4v|webm|mov|mkv|avi|ts)(\?.*)?$/i.test(url.trim());
 }
 
 /** Build proxied subtitle URL for external sources. */

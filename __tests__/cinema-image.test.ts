@@ -41,8 +41,11 @@ const sampleImage = {
 describe("cinema-image utilities", () => {
   it("normalizes relative and absolute URLs safely", () => {
     expect(normalizeImageUrl("/images/2026/file.jpg")).toBe("/images/2026/file.jpg");
-    expect(normalizeImageUrl("https://cdn.example.com/images/a.jpg")).toBe(
-      "https://cdn.example.com/images/a.jpg",
+    expect(normalizeImageUrl("http://cinema.af/images/2026/file.jpg?width=640")).toBe(
+      "/images/2026/file.jpg?width=640",
+    );
+    expect(normalizeImageUrl("https://cdn.example.com/other/a.jpg")).toBe(
+      "https://cdn.example.com/other/a.jpg",
     );
     expect(normalizeImageUrl(null)).toBeNull();
     expect(normalizeImageUrl("")).toBeNull();
@@ -137,9 +140,10 @@ describe("cinema-image utilities", () => {
     const srcset = buildHeroBackdropSrcSetString(base);
 
     expect(srcset).toContain(`${base}?width=640&quality=${HERO_BACKDROP_QUALITY}&sharpen=${HERO_BACKDROP_SHARPEN} 640w`);
-    expect(srcset).toContain(`${base}?width=3840&quality=${HERO_BACKDROP_QUALITY}&sharpen=${HERO_BACKDROP_SHARPEN} 3840w`);
+    expect(srcset).toContain(`${base}?width=1920&quality=${HERO_BACKDROP_QUALITY}&sharpen=${HERO_BACKDROP_SHARPEN} 1920w`);
+    expect(srcset).not.toContain("3840w");
     expect(buildHeroBackdropSrc(base)).toBe(
-      `${base}?width=3840&quality=${HERO_BACKDROP_QUALITY}&sharpen=${HERO_BACKDROP_SHARPEN}`,
+      `${base}?width=1920&quality=${HERO_BACKDROP_QUALITY}&sharpen=${HERO_BACKDROP_SHARPEN}`,
     );
   });
 
@@ -160,10 +164,11 @@ describe("cinema-image utilities", () => {
     });
 
     expect(resolved.baseUrl).toBe("/images/2026/file.jpg");
-    expect(resolved.src).toContain("width=3840");
+    expect(resolved.src).toContain("width=1920");
     expect(resolved.src).toContain("quality=85");
     expect(resolved.srcSet).toContain("640w");
-    expect(resolved.srcSet).toContain("3840w");
+    expect(resolved.srcSet).toContain("1920w");
+    expect(resolved.srcSet).not.toContain("3840w");
     expect(resolved.blur).toContain("width=20");
   });
 });

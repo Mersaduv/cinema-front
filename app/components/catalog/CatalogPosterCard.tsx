@@ -6,6 +6,10 @@ import { PosterImage } from "../images";
 import type { CatalogListItem } from "../../lib/catalog/rest";
 import type { ResponsiveImageAsset } from "../../lib/cinema-image";
 import { TV_CARD_FOCUS_CLASS, TV_FOCUS_RING_CLASS } from "../../lib/tv/focus";
+import {
+  SeriesStackShell,
+  isSeriesCatalogHref,
+} from "./SeriesPosterStack";
 
 function formatRating(value: number | null | undefined): string | null {
   if (value == null || Number.isNaN(value)) {
@@ -33,7 +37,7 @@ function resolvePosterImage(item: CatalogListItem): ResponsiveImageAsset | null 
 }
 
 const catalogBadgeFeature =
-  "inline-flex items-center rounded-md border border-[#f5c518]/35 bg-black/75 px-2 py-2 text-[12px] font-semibold leading-none text-[#f8d977] backdrop-blur-sm";
+  "inline-flex items-center rounded-md border border-white/25 bg-white/18 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] backdrop-blur-md";
 
 export default function CatalogPosterCard({
   item,
@@ -42,6 +46,7 @@ export default function CatalogPosterCard({
   carouselItem = false,
   imageLoading,
   imageFetchPriority,
+  forceSeries,
 }: {
   item: CatalogListItem;
   href: string;
@@ -49,6 +54,7 @@ export default function CatalogPosterCard({
   carouselItem?: boolean;
   imageLoading?: "eager" | "lazy";
   imageFetchPriority?: "high" | "low" | "auto";
+  forceSeries?: boolean;
 }) {
   const rating = formatRating(item.rating ?? item.details.rating);
   const genres = item.details.genres.slice(0, 3);
@@ -57,6 +63,57 @@ export default function CatalogPosterCard({
   const resolvedLoading = imageLoading ?? "lazy";
   const resolvedFetchPriority = imageFetchPriority ?? "auto";
   const posterImage = resolvePosterImage(item);
+  const isSeries =
+    forceSeries === true ||
+    (forceSeries !== false && isSeriesCatalogHref(href, item.catalogKind));
+
+  const posterShell = (
+    <div
+      data-tv-poster-shell
+      className={`relative aspect-[2/3] overflow-hidden rounded-xl bg-[#12161f] shadow-[0_12px_28px_rgba(0,0,0,0.35)] ${
+        isSeries ? "z-[1]" : ""
+      }`}
+    >
+      <PosterImage
+        title={item.title}
+        image={posterImage}
+        src={item.poster_url}
+        fallbackUrl={item.backdrop_url ?? item.details.backdrop_url}
+        usage="poster-grid"
+        loading={resolvedLoading}
+        fetchPriority={resolvedFetchPriority}
+        wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
+      />
+
+      {dubbed || hasSubtitle ? (
+        <div
+          data-tv-poster-badge
+          className="absolute top-2 right-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap items-center justify-end gap-1.5"
+        >
+          {dubbed ? <span className={catalogBadgeFeature}>دوبله فارسی</span> : null}
+          {hasSubtitle ? <span className={catalogBadgeFeature}>زیرنویس</span> : null}
+        </div>
+      ) : null}
+
+      {genres.length > 0 ? (
+        <div
+          className={`pointer-events-none absolute inset-x-0 bottom-0 z-10 p-2.5 opacity-0 transition duration-300 group-hover:opacity-100 group-focus-within:opacity-100 ${TV_CARD_FOCUS_CLASS}`}
+        >
+          <p className="text-right text-xs font-medium leading-5 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] sm:text-sm sm:leading-6">
+            {genres.join("، ")}
+          </p>
+        </div>
+      ) : null}
+
+      <div
+        className={`absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 ${TV_CARD_FOCUS_CLASS}`}
+      >
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md">
+          <HiMiniPlay className="h-7 w-7" />
+        </span>
+      </div>
+    </div>
+  );
 
   return (
     <Link
@@ -65,56 +122,11 @@ export default function CatalogPosterCard({
       data-tv-focusable
       data-tv-grid-item={carouselItem ? undefined : true}
       data-tv-carousel-item={carouselItem ? true : undefined}
+      data-content-kind={isSeries ? "series" : "movie"}
       tabIndex={0}
       className={`group block w-full min-w-0 rounded-xl ${TV_FOCUS_RING_CLASS}`}
     >
-      <div
-        data-tv-poster-shell
-        className="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#12161f]"
-      >
-        <PosterImage
-          title={item.title}
-          image={posterImage}
-          src={item.poster_url}
-          fallbackUrl={item.backdrop_url ?? item.details.backdrop_url}
-          usage="poster-grid"
-          loading={resolvedLoading}
-          fetchPriority={resolvedFetchPriority}
-          wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
-        />
-
-        {dubbed || hasSubtitle ? (
-          <div
-            data-tv-poster-badge
-            className="absolute top-2 right-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap items-center justify-end gap-1.5"
-          >
-            {dubbed ? (
-              <span className={catalogBadgeFeature}>دوبله فارسی</span>
-            ) : null}
-            {hasSubtitle ? (
-              <span className={catalogBadgeFeature}>زیرنویس</span>
-            ) : null}
-          </div>
-        ) : null}
-
-        {genres.length > 0 ? (
-          <div
-            className={`pointer-events-none absolute inset-x-0 bottom-0 z-10 p-2.5 opacity-0 transition duration-300 group-hover:opacity-100 group-focus-within:opacity-100 ${TV_CARD_FOCUS_CLASS}`}
-          >
-            <p className="text-right text-xs font-medium leading-5 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] sm:text-sm sm:leading-6">
-              {genres.join("، ")}
-            </p>
-          </div>
-        ) : null}
-
-        <div
-          className={`absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 ${TV_CARD_FOCUS_CLASS}`}
-        >
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md">
-            <HiMiniPlay className="h-7 w-7" />
-          </span>
-        </div>
-      </div>
+      {isSeries ? <SeriesStackShell>{posterShell}</SeriesStackShell> : posterShell}
 
       <div className="mt-2.5 space-y-1.5 text-right">
         <p className="line-clamp-2 text-sm font-semibold leading-6 text-white">

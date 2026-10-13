@@ -41,36 +41,51 @@ export function normalizeSeasonEpisodeSynopsis(
   }
 
   if (raw) {
-    return { synopsis: "", synopsis_en: en || raw };
+    // Keep non-Persian admin text visible in the editable primary field.
+    return { synopsis: raw, synopsis_en: en || raw };
   }
 
-  return { synopsis: "", synopsis_en: en };
+  if (en) {
+    return { synopsis: en, synopsis_en: en };
+  }
+
+  return { synopsis: "", synopsis_en: "" };
 }
 
-/** Merge TMDB season/episode synopsis into form drafts. */
+/** Merge TMDB season/episode/movie synopsis into form drafts. */
 export function mergeSeasonEpisodeSynopsisFromTmdb(
   tmdbSynopsis: string | null | undefined,
   tmdbSynopsisEn: string | null | undefined,
   currentSynopsis?: string,
   currentSynopsisEn?: string,
 ): SeasonEpisodeSynopsisFields {
-  const fromTmdb = normalizeSeasonEpisodeSynopsis(tmdbSynopsis, tmdbSynopsisEn);
+  const raw = typeof tmdbSynopsis === "string" ? tmdbSynopsis.trim() : "";
+  const en = typeof tmdbSynopsisEn === "string" ? tmdbSynopsisEn.trim() : "";
 
-  if (fromTmdb.synopsis) {
-    return fromTmdb;
-  }
-
-  const current = normalizeSeasonEpisodeSynopsis(currentSynopsis, currentSynopsisEn);
-
-  if (current.synopsis) {
+  if (hasPersianSynopsisScript(raw)) {
     return {
-      synopsis: current.synopsis,
-      synopsis_en: fromTmdb.synopsis_en || current.synopsis_en,
+      synopsis: raw,
+      synopsis_en: en || "",
     };
   }
 
-  return {
-    synopsis: "",
-    synopsis_en: fromTmdb.synopsis_en || current.synopsis_en,
-  };
+  // English-only TMDB text belongs in the reference note until a Persian
+  // translation is available — never pretend it is the Persian synopsis.
+  const englishOnly = en || raw;
+  if (englishOnly) {
+    const current = normalizeSeasonEpisodeSynopsis(currentSynopsis, currentSynopsisEn);
+    if (hasPersianSynopsisScript(current.synopsis)) {
+      return {
+        synopsis: current.synopsis,
+        synopsis_en: englishOnly || current.synopsis_en,
+      };
+    }
+
+    return {
+      synopsis: "",
+      synopsis_en: englishOnly,
+    };
+  }
+
+  return normalizeSeasonEpisodeSynopsis(currentSynopsis, currentSynopsisEn);
 }

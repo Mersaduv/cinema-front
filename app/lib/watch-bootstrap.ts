@@ -47,7 +47,13 @@ export async function fetchSeriesPlaybackBootstrap(
   );
 
   if (!response.success || !response.data?.playback) {
-    throw new Error(response.message || "دریافت اطلاعات پخش انجام نشد.");
+    // Soft-empty: missing play links must not throw/retry and hang the watch skeleton.
+    return {
+      hls_url: null,
+      video_url: null,
+      progressive_url: null,
+      dash_url: null,
+    } satisfies WatchPlaybackBootstrap;
   }
 
   return response.data.playback;

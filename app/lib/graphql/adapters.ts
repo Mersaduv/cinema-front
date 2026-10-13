@@ -4,6 +4,7 @@ import {
   pickProfileImageSrc,
   type ResponsiveImageAsset,
 } from "../cinema-image";
+import { normalizeAgeRating } from "../age-rating";
 import type { PublicMovie } from "../movies";
 import type { PublicSeries, PublicSeriesSeason } from "../series";
 import type { Review, ReviewsPayload } from "../reviews";
@@ -311,7 +312,7 @@ export function graphqlMovieToPublic(movie: GraphqlMovieDetail): PublicMovie {
     audio_tracks: [],
     has_subtitle: movie.has_subtitle,
     subtitle_source_url: null,
-    age_rating: movie.age_rating ?? null,
+    age_rating: normalizeAgeRating(movie.age_rating) ?? null,
     meta_title: movie.meta_title ?? null,
     meta_description: movie.meta_description ?? null,
     content_warnings: movie.content_warnings ?? [],
@@ -510,7 +511,7 @@ export function graphqlSeriesOverviewToPublic(
       series.backdrop_url ??
       null,
     trailer_url: series.trailer_url ?? null,
-    age_rating: series.age_rating ?? null,
+    age_rating: normalizeAgeRating(series.age_rating) ?? null,
     meta_title: series.meta_title ?? null,
     meta_description: series.meta_description ?? null,
     content_warnings: series.content_warnings ?? [],

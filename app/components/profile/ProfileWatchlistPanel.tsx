@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { HiOutlineBookmark, HiOutlineTrash, HiMiniPlay } from "react-icons/hi2";
 import { PosterImage } from "../images";
+import { SeriesStackShell } from "../catalog/SeriesPosterStack";
 import {
   listWatchlist,
   removeFromWatchlist,
@@ -94,24 +95,45 @@ export default function ProfileWatchlistPanel({
           const href = `/${item.kind === "movie" ? "movies" : "series"}/${item.slug}`;
           const yearLabel =
             item.release_year != null ? String(item.release_year) : null;
+          const isSeries = item.kind === "series";
 
           return (
             <article
               key={`${item.kind}-${item.id}`}
               className="overflow-hidden rounded-xl border border-[#2f2f2f] bg-[#1f1f1f]"
             >
-              <div className="relative aspect-[2/3] bg-[#12161f]">
-                <Link href={href} className="block h-full">
-                  <PosterImage
-                    title={item.title}
-                    src={item.poster_url}
-                    usage="poster-card"
-                    loading="lazy"
-                  />
-                </Link>
-                <span className="absolute top-2 right-2 rounded-md bg-black/75 px-2 py-1 text-xs font-semibold text-white">
-                  {item.kind === "movie" ? "فیلم" : "سریال"}
-                </span>
+              <div className="relative">
+                {isSeries ? (
+                  <SeriesStackShell>
+                    <div className="relative z-[1] aspect-[2/3] overflow-hidden rounded-xl bg-[#12161f] shadow-[0_12px_28px_rgba(0,0,0,0.35)]">
+                      <Link href={href} className="block h-full">
+                        <PosterImage
+                          title={item.title}
+                          src={item.poster_url}
+                          usage="poster-card"
+                          loading="lazy"
+                        />
+                      </Link>
+                      <span className="absolute top-2 right-2 rounded-md bg-black/75 px-2 py-1 text-xs font-semibold text-white">
+                        سریال
+                      </span>
+                    </div>
+                  </SeriesStackShell>
+                ) : (
+                  <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-[#12161f]">
+                    <Link href={href} className="block h-full">
+                      <PosterImage
+                        title={item.title}
+                        src={item.poster_url}
+                        usage="poster-card"
+                        loading="lazy"
+                      />
+                    </Link>
+                    <span className="absolute top-2 right-2 rounded-md bg-black/75 px-2 py-1 text-xs font-semibold text-white">
+                      فیلم
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3 p-4">

@@ -269,7 +269,8 @@ export default function ContentListSlider({
   );
 
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) {
+    // Touch: native overflow scrolling only — JS drag hangs on mobile.
+    if (event.pointerType === "touch" || event.button !== 0) {
       return;
     }
 
@@ -305,7 +306,8 @@ export default function ContentListSlider({
         return;
       }
 
-      if (Math.abs(deltaY) > Math.abs(deltaX)) {
+      // Vertical intent → let the page scroll; do not capture the pointer.
+      if (Math.abs(deltaY) >= Math.abs(deltaX) * 0.85) {
         dragRef.current = null;
         return;
       }
@@ -350,11 +352,12 @@ export default function ContentListSlider({
         onPointerCancel={resetDrag}
         onClickCapture={handleClickCapture}
         className={[
-          "flex gap-4 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] snap-x snap-mandatory [&::-webkit-scrollbar]:hidden",
+          "flex gap-4 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] snap-x snap-mandatory [&::-webkit-scrollbar]:hidden",
+          "[-webkit-overflow-scrolling:touch] [scroll-behavior:auto] md:[scroll-behavior:smooth]",
           "[&_a]:touch-manipulation [&_img]:pointer-events-none [&_img]:select-none [&_img]:[-webkit-user-drag:none]",
           isDragging ? "cursor-grabbing select-none" : "cursor-grab",
         ].join(" ")}
-        style={{ touchAction: "pan-x pinch-zoom" }}
+        style={{ touchAction: "pan-x pan-y pinch-zoom" }}
       >
         {children}
       </div>

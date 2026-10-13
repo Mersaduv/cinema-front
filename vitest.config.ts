@@ -14,6 +14,7 @@ export default defineConfig({
       "app/components/catalog/**/*.test.{ts,tsx}",
       "app/components/content/**/*.test.{ts,tsx}",
       "app/components/reviews/**/*.test.{ts,tsx}",
+      "app/admin/content-management/**/__tests__/**/*.test.ts",
     ],
   },
   resolve: {

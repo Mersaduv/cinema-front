@@ -14,6 +14,9 @@ type AdminTaxonomyMultiSelectProps = {
   loading?: boolean;
   hint?: string;
   columns?: 1 | 2;
+  required?: boolean;
+  error?: string;
+  fieldKey?: string;
 };
 
 /**
@@ -30,11 +33,22 @@ export default function AdminTaxonomyMultiSelect({
   loading = false,
   hint = "فقط آیتم‌های فیلتر کنترل قابل انتخاب هستند",
   columns = 1,
+  required = false,
+  error,
+  fieldKey,
 }: AdminTaxonomyMultiSelectProps) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+    <div
+      data-form-field={fieldKey}
+      className={`rounded-[24px] border bg-white/[0.03] p-4 ${
+        error ? "border-red-400/45 ring-1 ring-red-400/45" : "border-white/10"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs text-[#8ea4b3]">{label}</p>
+        <p className="text-xs text-[#8ea4b3]">
+          {label}
+          {required ? <span className="text-[#f5c518]"> *</span> : null}
+        </p>
         {loading ? (
           <span className="text-[10px] text-[#7f94a1]">در حال بارگذاری...</span>
         ) : (
@@ -57,7 +71,13 @@ export default function AdminTaxonomyMultiSelect({
         />
       </div>
 
-      <p className="mt-2 text-[10px] leading-5 text-[#6f8493]">{hint}</p>
+      {error ? (
+        <p className="mt-2 text-xs font-medium text-red-300" role="alert">
+          {error}
+        </p>
+      ) : (
+        <p className="mt-2 text-[10px] leading-5 text-[#6f8493]">{hint}</p>
+      )}
     </div>
   );
 }

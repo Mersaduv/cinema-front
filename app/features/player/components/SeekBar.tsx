@@ -81,7 +81,11 @@ function SeekBarComponent({
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       event.preventDefault();
+      event.stopPropagation();
       handleDragStart(event.clientX);
+
+      const target = event.currentTarget;
+      target.setPointerCapture(event.pointerId);
 
       const handlePointerMove = (moveEvent: PointerEvent) => {
         handleDragMove(moveEvent.clientX);
@@ -90,6 +94,9 @@ function SeekBarComponent({
       const handlePointerUp = (upEvent: PointerEvent) => {
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", handlePointerUp);
+        if (target.hasPointerCapture(upEvent.pointerId)) {
+          target.releasePointerCapture(upEvent.pointerId);
+        }
         handleDragEnd(upEvent.clientX);
       };
 
@@ -141,8 +148,8 @@ function SeekBarComponent({
           setHoverPosition(getTimeFromClientX(event.clientX));
         }}
         onMouseLeave={() => setHoverPosition(null)}
-        className={`relative cursor-pointer rounded-full bg-[#3a3a3a] transition-all duration-150 ${
-          isDragging ? "h-2.5" : "h-1.5 group-hover:h-2.5"
+        className={`relative touch-none cursor-pointer rounded-full bg-[#3a3a3a] transition-all duration-150 ${
+          isDragging ? "h-3.5" : "h-2.5 group-hover:h-3 md:h-1.5 md:group-hover:h-2.5"
         }`}
       >
         <div

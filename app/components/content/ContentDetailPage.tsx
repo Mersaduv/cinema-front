@@ -13,7 +13,6 @@ import {
   HiBookmark,
   HiOutlineBookmark,
   HiOutlineCollection,
-  HiOutlineFilm,
 } from "react-icons/hi";
 import HeroTrailerBackground from "./HeroTrailerBackground";
 import ContentMetadataPills from "./ContentMetadataPills";
@@ -32,6 +31,7 @@ import type {
 import { episodeHasDubbed, episodeHasSubtitle } from "../../lib/series";
 import AuthRequiredDialog from "../auth/AuthRequiredDialog";
 import RelatedContentSlider from "../catalog/RelatedContentSlider";
+import { SeriesStackShell } from "../catalog/SeriesPosterStack";
 import CastSlider from "./CastSlider";
 import SaveFeedbackToast from "./SaveFeedbackToast";
 import {
@@ -43,6 +43,7 @@ import {
   pickPosterFromItem,
   type ResponsiveImageAsset,
 } from "../../lib/cinema-image";
+import { formatAgeRatingLabel } from "../../lib/age-rating";
 import ReviewsSection, {
   defaultReviewPaginator,
   defaultReviewSummary,
@@ -108,8 +109,8 @@ function formatDuration(seconds: number | null, runtimeMinutes: number | null) {
 function buildTabs(kind: ContentKind) {
   if (kind === "series") {
     return [
-      { key: "details" as const, label: "اطلاعات سریال" },
       { key: "episodes" as const, label: "قسمت های سریال" },
+      { key: "details" as const, label: "اطلاعات سریال" },
       { key: "similar" as const, label: "سریال های مشابه" },
       { key: "comments" as const, label: "دیدگاه ها" },
     ];
@@ -207,7 +208,9 @@ export default function ContentDetailPage({
   const pageRef = useRef<HTMLDivElement>(null);
   const playButtonRef = useRef<HTMLAnchorElement>(null);
   const { user, isAuthenticated, loading: authLoading } = useOptionalAuth();
-  const [activeTab, setActiveTab] = useState<DetailTabKey>("details");
+  const [activeTab, setActiveTab] = useState<DetailTabKey>(
+    kind === "series" ? "episodes" : "details",
+  );
   const [watchlistVersion, setWatchlistVersion] = useState(0);
   const [showAuthRequiredModal, setShowAuthRequiredModal] = useState(false);
   const [saveToast, setSaveToast] = useState<{ message: string; saved: boolean } | null>(
@@ -513,22 +516,32 @@ export default function ContentDetailPage({
     return () => window.clearTimeout(timer);
   }, [activeTab, activeSeasonNumber, episodesLoading, isTvCompat, kind, seasons.length, series?.slug]);
 
+  const firstPlayableEpisode =
+    kind === "series"
+      ? activeSeason?.episodes.find((episode) => episodeIsPlayable(episode)) ??
+        seasons
+          .flatMap((season) => season.episodes || [])
+          .find((episode) => episodeIsPlayable(episode))
+      : undefined;
+
   const primaryWatchHref =
     kind === "movie" && movie
       ? `/watch/${movie.slug}`
-      : kind === "series" && series
-        ? (() => {
-            const firstPlayable =
-              activeSeason?.episodes.find((episode) => episodeIsPlayable(episode)) ??
-              seasons
-                .flatMap((season) => season.episodes || [])
-                .find((episode) => episodeIsPlayable(episode));
+      : kind === "series" && series && firstPlayableEpisode
+        ? episodeWatchHref(series.slug, firstPlayableEpisode)
+        : "#details-tabs";
 
-            return firstPlayable
-              ? episodeWatchHref(series.slug, firstPlayable)
-              : `/watch/${series.slug}?season=${activeSeason?.season_number ?? 1}&episode=1`;
-          })()
-        : "#";
+  const handlePrimaryPlayClick = (
+    event: React.MouseEvent<HTMLAnchorElement>,
+  ) => {
+    if (kind === "series" && !firstPlayableEpisode) {
+      event.preventDefault();
+      setActiveTab("episodes");
+      return;
+    }
+
+    handlePlayNavigate();
+  };
 
   const durationLabel =
     kind === "movie" && movie
@@ -606,7 +619,7 @@ export default function ContentDetailPage({
 
   const releaseYearLabel =
     releaseYear != null ? String(releaseYear) : null;
-  const ageRatingLabel = ageRating?.trim() || null;
+  const ageRatingLabel = formatAgeRatingLabel(ageRating);
 
   if (!title || !slug) {
     return null;
@@ -623,51 +636,68 @@ export default function ContentDetailPage({
           trailerUrl={trailerUrl ?? null}
           alt={title}
         />
-        <div className="absolute inset-0 bg-[linear-gradient(270deg,rgba(5,7,11,0.15)_0%,rgba(5,7,11,0.55)_42%,rgba(5,7,11,0.94)_72%,rgba(5,7,11,0.98)_100%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,7,11,0.15)_0%,rgba(5,7,11,0.35)_55%,rgba(5,7,11,0.96)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(270deg,transparent_0%,transparent_48%,rgba(5,7,11,0.28)_78%,rgba(5,7,11,0.55)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,transparent_52%,rgba(5,7,11,0.22)_78%,rgba(5,7,11,0.72)_100%)]" />
 
         <div className="relative z-10 flex min-h-screen flex-col">
           <div className="mx-auto grid w-full max-w-[1820px] flex-1 items-end gap-8 px-4 pb-16 pt-28 md:px-7 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] lg:gap-12">
             {posterResolved.src ? (
               <div className="mx-auto w-full max-w-[280px] lg:mx-0">
-                <div className="relative aspect-[2/3] overflow-hidden rounded-[32px] border border-white/10 bg-white/5 shadow-[0_30px_70px_rgba(0,0,0,0.45)]">
-                  <PosterImage
-                    title={title}
-                    image={
-                      kind === "movie" ? movie?.poster_image : series?.poster_image
-                    }
-                    src={posterResolved.src}
-                    fallbackUrl={posterInput.backdrop_url}
-                    usage="detail-poster"
-                    loading="eager"
-                    fetchPriority="high"
-                  />
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={toggleSave}
-                    disabled={authLoading}
-                    className="inline-flex items-center justify-center gap-2 rounded-[24px] border border-white/8 bg-white/8 px-4 text-sm font-semibold text-white transition hover:bg-white/12 disabled:cursor-wait disabled:opacity-60"
-                    aria-label={isSaved ? "حذف از لیست ذخیره" : "ذخیره محتوا"}
-                  >
-                    {isSaved ? (
-                      <HiBookmark className="h-8 w-8 text-[#f5c518]" />
-                    ) : (
-                      <HiOutlineBookmark className="h-8 w-8" />
-                    )}
-                    <span>{isSaved ? "ذخیره شده" : "ذخیره"}</span>
-                  </button>
-                  <InfoPill
-                    icon={<HiOutlineFilm className="h-5 w-5" />}
-                    label={kind === "series" ? "فصل‌ها" : "مدت زمان"}
-                    value={
-                      kind === "series"
-                        ? `${series?.number_of_seasons || seasons.length || 0} فصل`
-                        : durationLabel
-                    }
-                  />
-                </div>
+                {kind === "series" ? (
+                  <SeriesStackShell size="detail">
+                    <div className="relative z-[1] aspect-[2/3] overflow-hidden rounded-[32px] border border-white/10 bg-white/5 shadow-[0_30px_70px_rgba(0,0,0,0.45)]">
+                      <PosterImage
+                        title={title}
+                        image={series?.poster_image}
+                        src={posterResolved.src}
+                        fallbackUrl={posterInput.backdrop_url}
+                        usage="detail-poster"
+                        loading="eager"
+                        fetchPriority="high"
+                      />
+                      <button
+                        type="button"
+                        onClick={toggleSave}
+                        disabled={authLoading}
+                        className="absolute end-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/55 text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md transition hover:bg-black/70 disabled:cursor-wait disabled:opacity-60"
+                        aria-label={isSaved ? "حذف از لیست ذخیره" : "ذخیره محتوا"}
+                        title={isSaved ? "ذخیره شده" : "ذخیره"}
+                      >
+                        {isSaved ? (
+                          <HiBookmark className="h-5 w-5 text-[#f5c518]" />
+                        ) : (
+                          <HiOutlineBookmark className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+                  </SeriesStackShell>
+                ) : (
+                  <div className="relative aspect-[2/3] overflow-hidden rounded-[32px] border border-white/10 bg-white/5 shadow-[0_30px_70px_rgba(0,0,0,0.45)]">
+                    <PosterImage
+                      title={title}
+                      image={movie?.poster_image}
+                      src={posterResolved.src}
+                      fallbackUrl={posterInput.backdrop_url}
+                      usage="detail-poster"
+                      loading="eager"
+                      fetchPriority="high"
+                    />
+                    <button
+                      type="button"
+                      onClick={toggleSave}
+                      disabled={authLoading}
+                      className="absolute end-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/55 text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md transition hover:bg-black/70 disabled:cursor-wait disabled:opacity-60"
+                      aria-label={isSaved ? "حذف از لیست ذخیره" : "ذخیره محتوا"}
+                      title={isSaved ? "ذخیره شده" : "ذخیره"}
+                    >
+                      {isSaved ? (
+                        <HiBookmark className="h-5 w-5 text-[#f5c518]" />
+                      ) : (
+                        <HiOutlineBookmark className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             ) : null}
 
@@ -735,6 +765,11 @@ export default function ContentDetailPage({
                     IMDb {rating.toFixed(1)}
                   </span>
                 ) : null}
+                {kind === "movie" && durationLabel !== "نامشخص" ? (
+                  <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-sm text-white/90 backdrop-blur">
+                    {durationLabel}
+                  </span>
+                ) : null}
                 {kind === "movie" && movieProducerLabel ? (
                   <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-sm text-white/90 backdrop-blur">
                     سازنده: {movieProducerLabel}
@@ -767,12 +802,16 @@ export default function ContentDetailPage({
                 <Link
                   ref={playButtonRef}
                   href={primaryWatchHref}
-                  prefetch
+                  prefetch={Boolean(firstPlayableEpisode) || kind === "movie"}
                   data-tv-focusable
-                  onClick={handlePlayNavigate}
+                  onClick={handlePrimaryPlayClick}
                   className={`inline-flex items-center gap-3 rounded-2xl bg-[#f5c518] px-8 py-4 text-lg font-black text-[#12100a] shadow-[0_24px_50px_rgba(245,197,24,0.22)] transition hover:bg-[#e8bb0d] ${TV_FOCUS_RING_CLASS}`}
                 >
-                  {kind === "series" ? "تماشای قسمت ۱" : "تماشا کنید"}
+                  {kind === "series"
+                    ? firstPlayableEpisode
+                      ? "تماشای قسمت"
+                      : "مشاهده قسمت‌ها"
+                    : "تماشا کنید"}
                   <HiMiniPlay className="h-6 w-6" />
                 </Link>
 
@@ -1195,26 +1234,6 @@ function SectionTitle({
         {icon}
       </span> */}
       <h2 className="text-2xl font-black text-white md:text-[2rem]">{children}</h2>
-    </div>
-  );
-}
-
-function InfoPill({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm text-white/45">{label}</span>
-        <span className="text-white/38">{icon}</span>
-      </div>
-      <p className="mt-3 text-base font-bold text-white">{value}</p>
     </div>
   );
 }

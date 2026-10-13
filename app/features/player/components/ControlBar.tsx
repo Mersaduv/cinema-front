@@ -491,8 +491,13 @@ function ControlBarComponent({
             type="button"
             data-player-controls
             tabIndex={0}
-            onClick={onToggleFullscreen}
-            aria-label="تمام‌صفحه"
+            {...tvFocus}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onToggleFullscreen();
+            }}
+            aria-label="تمام‌صفحه افقی"
             className={iconButtonClass}
           >
             <HiOutlineArrowsExpand className={smallIconClass} />

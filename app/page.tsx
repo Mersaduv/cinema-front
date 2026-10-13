@@ -27,7 +27,7 @@ export default async function Home() {
 
         <div
           className={`relative z-10 space-y-8 px-4 pb-16 md:px-7 md:pb-20 ${
-            hasHero ? "-mt-16 md:-mt-20" : "pt-[138px] xl:pt-[81px]"
+            hasHero ? "-mt-24 md:-mt-28" : "pt-[138px] xl:pt-[81px]"
           }`}
         >
           <ContinueWatching mediaType="all" limit={16} layout="landscape" />

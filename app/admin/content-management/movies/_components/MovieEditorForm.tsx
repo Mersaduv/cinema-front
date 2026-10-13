@@ -32,6 +32,11 @@ import {
   validateMovieMediaTab,
   validateMovieTab,
 } from "../../_lib/movie-tab-validation";
+import {
+  resolveContentEntryMode,
+  type ContentEntryMode,
+} from "../../_lib/content-entry-mode";
+import ContentEntryModeToggle from "../../_components/ContentEntryModeToggle";
 import SeoFieldsPanel from "../../../../components/admin/SeoFieldsPanel";
 import {
   ContentWarningsField,
@@ -99,6 +104,10 @@ import {
   SlugAvailabilityHint,
   useSlugAvailability,
 } from "../../../../hooks/useSlugAvailability";
+import {
+  TmdbIdAvailabilityHint,
+  useTmdbIdAvailability,
+} from "../../../../hooks/useTmdbIdAvailability";
 import { fingerprintMovie } from "../../../../lib/form-fingerprint";
 import {
   clearPendingMoviePublish,
@@ -123,17 +132,15 @@ import {
   toLanguageSelectOptions,
 } from "../../../../lib/admin-taxonomy-options";
 
+import {
+  movieAgeRatingOptions,
+  normalizeAgeRating,
+} from "../../../../lib/age-rating";
+
 type Mode = "create" | "edit";
 type EditorTab = "details" | "media" | "seo" | "publish";
 
-const ageRatingOptions = [
-  { value: "", label: "بدون درجه سنی", description: "در صورت نیاز بعداً تعیین می‌شود" },
-  { value: "G", label: "G", description: "مناسب همه سنین" },
-  { value: "PG", label: "PG", description: "تماشا با راهنمایی والدین" },
-  { value: "PG-13", label: "PG-13", description: "مناسب 13 سال به بالا" },
-  { value: "R", label: "R", description: "نیازمند محدودیت سنی" },
-  { value: "18+", label: "18+", description: "ویژه بزرگسالان" },
-];
+const ageRatingOptions = movieAgeRatingOptions(true);
 
 const tabs: Array<{ key: EditorTab; label: string }> = [
   { key: "details", label: "جزئیات" },
@@ -223,6 +230,8 @@ type MovieEditorFormState = {
   vote_count: string;
   poster_url: string;
   backdrop_url: string;
+  poster_source_url: string;
+  backdrop_source_url: string;
   trailer_url: string;
   playback_protocol: "hls" | "mp4";
   hls_url: string;
@@ -280,7 +289,7 @@ type MovieEditorFreeArrayField = Extract<
 
 const freeArrayFieldLabels: Record<MovieEditorFreeArrayField, string> = {
   directors: "کارگردان‌ها",
-  writers: "نویسنده‌ها",
+  writers: "نویسنده‌ها (اختیاری)",
   tags: "برچسب‌ها",
 };
 
@@ -321,6 +330,8 @@ function createInitialFormState(): MovieEditorFormState {
     vote_count: "",
     poster_url: "",
     backdrop_url: "",
+    poster_source_url: "",
+    backdrop_source_url: "",
     trailer_url: "",
     playback_protocol: "hls",
     hls_url: "",
@@ -479,6 +490,7 @@ export default function MovieEditorForm({
   const hlsPreviewGenerationRef = useRef(0);
   const lastHlsPreviewComparableRef = useRef("");
   const [form, setForm] = useState<MovieEditorFormState>(createInitialFormState);
+  const [entryMode, setEntryMode] = useState<ContentEntryMode>("tmdb");
   const formRef = useRef(form);
   formRef.current = form;
   const [hlsSyncMessage, setHlsSyncMessage] = useState("");
@@ -504,6 +516,7 @@ export default function MovieEditorForm({
   const resetCreateEditorState = () => {
     setMovie(null);
     setForm(createInitialFormState());
+    setEntryMode("tmdb");
     setActiveTab("details");
     setPublishOutcomeOpen(false);
     setPublishOutcomeStatus("draft");
@@ -616,7 +629,7 @@ export default function MovieEditorForm({
           slug: nextMovie.slug || "",
           synopsis: synopsisFields.synopsis,
           synopsis_en: synopsisFields.synopsis_en,
-          age_rating: nextMovie.age_rating || "",
+          age_rating: normalizeAgeRating(nextMovie.age_rating) || "",
           release_year: nextMovie.release_year ? String(nextMovie.release_year) : "",
           tmdb_id: nextMovie.metadata?.tmdb?.tmdb_id
             ? String(nextMovie.metadata.tmdb.tmdb_id)
@@ -650,6 +663,14 @@ export default function MovieEditorForm({
             toManagedImagePublicPath(nextMovie.backdrop_url) ||
             nextMovie.metadata?.tmdb?.backdrop_url ||
             "",
+          poster_source_url:
+            nextMovie.metadata?.tmdb?.poster_source_url ||
+            nextMovie.metadata?.tmdb?.poster_url ||
+            "",
+          backdrop_source_url:
+            nextMovie.metadata?.tmdb?.backdrop_source_url ||
+            nextMovie.metadata?.tmdb?.backdrop_url ||
+            "",
           trailer_url:
             nextMovie.metadata?.tmdb?.trailer_url || nextMovie.trailer_url || "",
           playback_protocol: (
@@ -680,9 +701,10 @@ export default function MovieEditorForm({
             nextMovie.metadata?.tmdb?.original_language || "",
             nextLanguages,
           ),
-          runtime_minutes: nextMovie.metadata?.tmdb?.runtime_minutes
-            ? String(nextMovie.metadata.tmdb.runtime_minutes)
-            : "",
+          runtime_minutes:
+            nextMovie.metadata?.tmdb?.runtime_minutes != null
+              ? String(nextMovie.metadata.tmdb.runtime_minutes)
+              : "",
           provider_name: nextMovie.provider_name || "",
           production_status: nextMovie.metadata?.tmdb?.production_status || "",
           budget:
@@ -720,6 +742,16 @@ export default function MovieEditorForm({
             "",
         };
         setForm(loadedForm);
+        setEntryMode(
+          resolveContentEntryMode({
+            savedSource: nextMovie.metadata?.content_source,
+            tmdbId:
+              nextMovie.tmdb_id ??
+              nextMovie.metadata?.tmdb?.tmdb_id ??
+              loadedForm.tmdb_id,
+            isCreate: false,
+          }),
+        );
         setPendingPublishVisible(
           Boolean(nextMovie.publish_completion_pending) ||
             Boolean(loadPendingMoviePublish(nextMovie.id)),
@@ -741,7 +773,7 @@ export default function MovieEditorForm({
   }, [mode, movieId, createInstanceKey]);
 
   useEffect(() => {
-    if (mode !== "create" || loading) {
+    if (mode !== "create" || loading || entryMode !== "tmdb") {
       return;
     }
 
@@ -758,7 +790,7 @@ export default function MovieEditorForm({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [form.tmdb_query, mode, loading, lastFetchedTmdbCode]);
+  }, [form.tmdb_query, mode, loading, lastFetchedTmdbCode, entryMode]);
 
   const handleChange = (field: MovieEditorTextField, value: string) => {
     setForm((current) => ({
@@ -837,7 +869,11 @@ export default function MovieEditorForm({
     value: string,
   ) => {
     const nextValue =
-      field === "name" ? sanitizeLatinPersonName(value) || null : value || null;
+      field === "name"
+        ? isManualMode
+          ? value
+          : sanitizeLatinPersonName(value) || null
+        : value || null;
 
     setForm((current) => ({
       ...current,
@@ -858,12 +894,12 @@ export default function MovieEditorForm({
       actors: [
         ...current.actors,
         {
-          name: null,
-          character: null,
+          name: "",
+          character: "",
           profile_url: null,
           tmdb_person_id: null,
           credit_id: null,
-          order: null,
+          order: current.actors.length,
           known_for_department: null,
         },
       ],
@@ -1038,29 +1074,42 @@ export default function MovieEditorForm({
     });
   };
 
-  const isDetailsTabComplete =
-    form.tmdb_id.trim() !== "" &&
-    form.title.trim() !== "" &&
-    buildSlug(
-      form.slug,
-      form.original_title,
-      form.title,
-      form.tmdb_id ? `movie-${form.tmdb_id}` : null,
-    ) !== "" &&
-    form.synopsis.trim() !== "" &&
-    form.release_year.trim() !== "" &&
-    form.age_rating.trim() !== "" &&
-    form.directors.length > 0 &&
-    form.writers.length > 0 &&
-    normalizeActors(form.actors).length > 0;
+  const isManualMode = entryMode === "manual";
 
-  const isMediaTabComplete =
-    form.poster_url.trim() !== "" &&
-    form.backdrop_url.trim() !== "" &&
-    form.trailer_url.trim() !== "" &&
-    (form.playback_protocol === "mp4"
-      ? isProgressiveVideoUrl(form.progressive_url)
-      : form.hls_url.trim() !== "");
+  const isDetailsTabComplete = isManualMode
+    ? form.title.trim() !== "" &&
+      form.original_title.trim() !== "" &&
+      form.slug.trim() !== "" &&
+      form.synopsis.trim() !== "" &&
+      form.age_rating.trim() !== "" &&
+      form.genres.length > 0 &&
+      form.countries.length > 0 &&
+      form.languages.length > 0
+    : form.tmdb_id.trim() !== "" &&
+      form.title.trim() !== "" &&
+      buildSlug(
+        form.slug,
+        form.original_title,
+        form.title,
+        form.tmdb_id ? `movie-${form.tmdb_id}` : null,
+      ) !== "" &&
+      form.synopsis.trim() !== "" &&
+      form.release_year.trim() !== "" &&
+      form.age_rating.trim() !== "" &&
+      form.directors.length > 0 &&
+      normalizeActors(form.actors).length > 0;
+
+  const isMediaTabComplete = isManualMode
+    ? form.poster_url.trim() !== "" &&
+      form.backdrop_url.trim() !== "" &&
+      (form.playback_protocol !== "mp4" ||
+        !form.progressive_url.trim() ||
+        isProgressiveVideoUrl(form.progressive_url))
+    : form.poster_url.trim() !== "" &&
+      form.backdrop_url.trim() !== "" &&
+      (form.playback_protocol === "mp4"
+        ? !form.progressive_url.trim() || isProgressiveVideoUrl(form.progressive_url)
+        : form.hls_url.trim() !== "");
 
   const canProceedToNextTab =
     activeTab === "details"
@@ -1077,11 +1126,65 @@ export default function MovieEditorForm({
     check: adminMoviesService.checkSlug,
   });
 
+  const tmdbCodeForAvailability = normalizeTmdbCodeInput(
+    form.tmdb_query || form.tmdb_id,
+  );
+
+  const tmdbAvailability = useTmdbIdAvailability({
+    tmdbId: tmdbCodeForAvailability,
+    excludeId: movie?.id ?? movieId,
+    check: adminMoviesService.checkTmdbId,
+    enabled: !isManualMode,
+  });
+
+  useEffect(() => {
+    if (isManualMode) {
+      setTabFieldErrors((current) => {
+        if (!current.tmdb_id) {
+          return current;
+        }
+        const next = { ...current };
+        delete next.tmdb_id;
+        return next;
+      });
+      return;
+    }
+
+    if (tmdbAvailability.isTaken) {
+      const existingTitle = tmdbAvailability.existing?.title;
+      setTabFieldErrors((current) => ({
+        ...current,
+        tmdb_id: existingTitle
+          ? `این کد TMDb قبلاً برای «${existingTitle}» ثبت شده است.`
+          : "این کد TMDb قبلاً ثبت شده است.",
+      }));
+      return;
+    }
+
+    if (tmdbAvailability.isAvailable || tmdbAvailability.status === "idle") {
+      setTabFieldErrors((current) => {
+        if (!current.tmdb_id) {
+          return current;
+        }
+        const next = { ...current };
+        delete next.tmdb_id;
+        return next;
+      });
+    }
+  }, [
+    isManualMode,
+    tmdbAvailability.isTaken,
+    tmdbAvailability.isAvailable,
+    tmdbAvailability.status,
+    tmdbAvailability.existing?.title,
+  ]);
+
   const canSubmitForm =
     isDetailsTabComplete &&
     isMediaTabComplete &&
     !slugAvailability.isChecking &&
-    !slugAvailability.isTaken;
+    !slugAvailability.isTaken &&
+    (isManualMode || (!tmdbAvailability.isChecking && !tmdbAvailability.isTaken));
 
   useEffect(() => {
     if (searchParams.get("tab") === "publish") {
@@ -1117,7 +1220,7 @@ export default function MovieEditorForm({
 
   const goToTab = (target: EditorTab) => {
     if (target !== "details") {
-      const detailsIssues = validateMovieDetailsTab(form, buildSlug);
+      const detailsIssues = validateMovieDetailsTab(form, buildSlug, entryMode);
 
       if (detailsIssues.length > 0) {
         if (activeTab !== "details") {
@@ -1130,7 +1233,7 @@ export default function MovieEditorForm({
     }
 
     if (target === "seo" || target === "publish") {
-      const mediaIssues = validateMovieMediaTab(form);
+      const mediaIssues = validateMovieMediaTab(form, entryMode);
 
       if (mediaIssues.length > 0) {
         if (activeTab !== "media") {
@@ -1178,15 +1281,24 @@ export default function MovieEditorForm({
       return;
     }
 
-    const issues = validateMovieTab(activeTab, form, buildSlug);
+    const issues = validateMovieTab(activeTab, form, buildSlug, entryMode);
 
-    if (applyTabFieldIssues(issues)) {
+    if (applyTabFieldIssues(issues) || !canProceedToNextTab) {
+      if (!issues.length && !canProceedToNextTab) {
+        setError("ابتدا فیلدهای اجباری این تب را کامل کنید.");
+      }
+      return;
+    }
+
+    const nextTab = tabOrder[currentIndex + 1];
+    if (!canAccessTab(nextTab)) {
+      setError("ابتدا فیلدهای اجباری این تب را کامل کنید.");
       return;
     }
 
     setTabFieldErrors({});
     setError("");
-    setActiveTab(tabOrder[currentIndex + 1]);
+    setActiveTab(nextTab);
     window.requestAnimationFrame(() => {
       formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -1268,7 +1380,7 @@ export default function MovieEditorForm({
         current_backdrop_url: current.backdrop_url,
       }),
       trailer_url: payload.trailer_url || current.trailer_url,
-      age_rating: payload.age_rating || current.age_rating,
+      age_rating: normalizeAgeRating(payload.age_rating) || current.age_rating,
       original_language: normalizeOriginalLanguageToIso(
         payload.original_language || current.original_language,
         taxonomyLanguages,
@@ -1395,12 +1507,31 @@ export default function MovieEditorForm({
   }
 
   async function fetchAndApplyTmdb(tmdbId: string, nextMessage?: string) {
-    const requestKey = String(tmdbId);
+    const requestKey = normalizeTmdbCodeInput(String(tmdbId));
+    if (!requestKey) {
+      setError("کد TMDb معتبر نیست.");
+      return;
+    }
+
+    const excludeId = movie?.id ?? movieId;
+    const uniqueness = await adminMoviesService.checkTmdbId(requestKey, excludeId);
+    if (uniqueness.success && uniqueness.data && !uniqueness.data.available) {
+      const existing = uniqueness.data.existing;
+      const message = existing?.title
+        ? `این کد TMDb قبلاً برای «${existing.title}» (#${existing.id}) ثبت شده است. از ویرایش همان فیلم استفاده کنید.`
+        : "این کد TMDb قبلاً ثبت شده است.";
+      setError(message);
+      setTabFieldErrors((current) => ({ ...current, tmdb_id: message }));
+      setActiveTab("details");
+      setFetchingTmdb(false);
+      return;
+    }
+
     latestTmdbRequestRef.current = requestKey;
     setFetchingTmdb(true);
     setError("");
 
-    const response = await adminMoviesService.fetchTmdb(tmdbId);
+    const response = await adminMoviesService.fetchTmdb(requestKey);
 
     if (latestTmdbRequestRef.current !== requestKey) {
       setFetchingTmdb(false);
@@ -1548,6 +1679,7 @@ export default function MovieEditorForm({
 
     formData.append("title", form.title.trim());
     formData.append("slug", resolvedSlug);
+    formData.append("content_source", entryMode);
 
     if (form.original_title.trim()) {
       formData.append("original_title", form.original_title.trim());
@@ -1555,13 +1687,16 @@ export default function MovieEditorForm({
     if (form.synopsis.trim()) {
       formData.append("synopsis", form.synopsis.trim());
     }
+    if (form.synopsis_en.trim()) {
+      formData.append("synopsis_en", form.synopsis_en.trim());
+    }
     if (form.age_rating) {
-      formData.append("age_rating", form.age_rating);
+      formData.append("age_rating", normalizeAgeRating(form.age_rating) || form.age_rating);
     }
     if (form.release_year) {
       formData.append("release_year", form.release_year);
     }
-    if (form.tmdb_id) {
+    if (entryMode === "tmdb" && form.tmdb_id) {
       formData.append("tmdb_id", form.tmdb_id);
     }
     if (form.imdb_id.trim()) {
@@ -1580,7 +1715,7 @@ export default function MovieEditorForm({
       formData.append("dash_url", form.dash_url.trim());
     }
     form.content_warnings.forEach((value) => formData.append("content_warnings[]", value));
-    if (form.tmdb_query.trim()) {
+    if (entryMode === "tmdb" && form.tmdb_query.trim()) {
       formData.append("tmdb_query", form.tmdb_query.trim());
     }
     if (form.rating) {
@@ -1595,7 +1730,9 @@ export default function MovieEditorForm({
     if (form.original_language.trim()) {
       formData.append("original_language", form.original_language.trim());
     }
-    formData.append("runtime_minutes", form.runtime_minutes.trim());
+    if (form.runtime_minutes.trim() !== "") {
+      formData.append("runtime_minutes", form.runtime_minutes.trim());
+    }
     if (form.provider_name.trim()) {
       formData.append("provider_name", form.provider_name.trim());
     }
@@ -1697,7 +1834,7 @@ export default function MovieEditorForm({
       formData.append("scheduled_for", scheduledFor);
     }
 
-    if (form.belongs_to_collection?.tmdb_collection_id) {
+    if (entryMode === "tmdb" && form.belongs_to_collection?.tmdb_collection_id) {
       formData.append(
         "belongs_to_collection[tmdb_collection_id]",
         String(form.belongs_to_collection.tmdb_collection_id),
@@ -1849,8 +1986,21 @@ export default function MovieEditorForm({
         form.tmdb_id ? `movie-${form.tmdb_id}` : null
       );
 
-    if (!form.tmdb_query.trim()) {
+    if (entryMode === "tmdb" && !form.tmdb_query.trim()) {
       setError("ابتدا کد TMDB را وارد کن.");
+      setActiveTab("details");
+      return;
+    }
+
+    if (entryMode === "tmdb" && (tmdbAvailability.isTaken || tmdbAvailability.isChecking)) {
+      const existingTitle = tmdbAvailability.existing?.title;
+      setError(
+        tmdbAvailability.isChecking
+          ? "لطفاً تا پایان بررسی یکتایی کد TMDb صبر کنید."
+          : existingTitle
+            ? `این کد TMDb قبلاً برای «${existingTitle}» ثبت شده است.`
+            : "این کد TMDb قبلاً ثبت شده است.",
+      );
       setActiveTab("details");
       return;
     }
@@ -1861,6 +2011,20 @@ export default function MovieEditorForm({
       return;
     }
 
+    const detailsIssues = validateMovieDetailsTab(form, buildSlug, entryMode);
+    if (detailsIssues.length > 0) {
+      setActiveTab("details");
+      applyTabFieldIssues(detailsIssues);
+      return;
+    }
+
+    const mediaIssues = validateMovieMediaTab(form, entryMode);
+    if (mediaIssues.length > 0) {
+      setActiveTab("media");
+      applyTabFieldIssues(mediaIssues);
+      return;
+    }
+
     if (!resolvedSlug) {
       setError("slug باید مشخص باشد.");
       setActiveTab("details");
@@ -1868,18 +2032,25 @@ export default function MovieEditorForm({
     }
 
     if (form.playback_protocol === "mp4") {
-      if (!isProgressiveVideoUrl(form.progressive_url)) {
-        setError("آدرس ویدیو MP4 معتبر الزامی است.");
+      if (
+        form.progressive_url.trim() &&
+        !isProgressiveVideoUrl(form.progressive_url)
+      ) {
+        setError("آدرس ویدیو مستقیم معتبر (MP4/MKV) را وارد کنید.");
         setActiveTab("media");
+        setTabFieldErrors({
+          progressive_url: "آدرس ویدیو مستقیم معتبر (MP4/MKV) را وارد کنید.",
+        });
         return;
       }
-    } else if (!form.hls_url.trim()) {
+    } else if (entryMode === "tmdb" && !form.hls_url.trim()) {
       setError("مسیر HLS اجباری است.");
       setActiveTab("media");
+      setTabFieldErrors({ hls_url: "مسیر HLS را وارد کنید." });
       return;
     }
 
-    if (!form.age_rating.trim()) {
+    if (entryMode === "tmdb" && !form.age_rating.trim()) {
       setError("درجه سنی اجباری است.");
       setActiveTab("details");
       return;
@@ -1906,6 +2077,7 @@ export default function MovieEditorForm({
     setSuccessMessage("");
 
     let targetMovieId = movie?.id;
+    let createdMovieIdInThisSubmit: number | null = null;
 
     try {
       if (mode === "create") {
@@ -1928,6 +2100,7 @@ export default function MovieEditorForm({
         }
 
         targetMovieId = createResponse.data.movie.id;
+        createdMovieIdInThisSubmit = Number(targetMovieId);
         setMovie((current) => mergeMovieFromSaveResponse(current, createResponse.data!.movie));
       }
 
@@ -1945,6 +2118,15 @@ export default function MovieEditorForm({
       console.timeEnd("movie:publication-form");
 
       if (!(saveResponse.success && saveResponse.data)) {
+        if (createdMovieIdInThisSubmit != null) {
+          try {
+            await adminMoviesService.remove(createdMovieIdInThisSubmit);
+          } catch {
+            // Best-effort rollback so a failed create does not leave an orphan draft.
+          }
+          setMovie(null);
+        }
+
         const firstError = saveResponse.errors
           ? Object.values(saveResponse.errors)[0]?.[0]
           : undefined;
@@ -1967,6 +2149,16 @@ export default function MovieEditorForm({
       }
       router.push("/admin/content-management/movies");
       router.refresh();
+    } catch (err) {
+      if (createdMovieIdInThisSubmit != null) {
+        try {
+          await adminMoviesService.remove(createdMovieIdInThisSubmit);
+        } catch {
+          // Best-effort rollback.
+        }
+        setMovie(null);
+      }
+      setError(err instanceof Error ? err.message : "ذخیره فرم انجام نشد.");
     } finally {
       setSubmitting(false);
       setSubmitStep(null);
@@ -1997,6 +2189,7 @@ export default function MovieEditorForm({
   const previewPosterSources = buildAdminPreviewImageSources(
     previewPosterImage,
     form.poster_url,
+    form.poster_source_url,
     movie?.metadata?.tmdb?.poster_source_url,
     movie?.metadata?.tmdb?.poster_url,
     movie?.poster_url,
@@ -2004,6 +2197,7 @@ export default function MovieEditorForm({
   const previewBackdropSources = buildAdminPreviewImageSources(
     previewBackdropImage,
     form.backdrop_url,
+    form.backdrop_source_url,
     movie?.metadata?.tmdb?.backdrop_source_url,
     movie?.metadata?.tmdb?.backdrop_url,
   );
@@ -2127,6 +2321,32 @@ export default function MovieEditorForm({
           <section className="space-y-6">
             {activeTab === "details" ? (
               <div className="space-y-5">
+                <ContentEntryModeToggle
+                  value={entryMode}
+                  disabled={loading || submitting}
+                  onChange={(nextMode) => {
+                    setEntryMode(nextMode);
+                    setError("");
+                    setTabFieldErrors({});
+                    tmdbImageIngestAbortRef.current?.abort();
+                    tmdbImageIngestAbortRef.current = null;
+                    latestTmdbRequestRef.current = `manual-${Date.now()}`;
+                    setSearchingTmdb(false);
+                    setFetchingTmdb(false);
+                    setIngestingTmdbImages(false);
+                    if (nextMode === "manual") {
+                      setForm((current) => ({
+                        ...current,
+                        tmdb_query: "",
+                        tmdb_id: "",
+                        belongs_to_collection: null,
+                      }));
+                      setLastFetchedTmdbCode("");
+                    }
+                  }}
+                />
+
+                {!isManualMode ? (
                 <FormFieldAnchor field="tmdb_id" error={tabFieldErrors.tmdb_id}>
                 <div className="rounded-[28px] border border-[#38bdf8]/20 bg-[#38bdf8]/[0.06] p-5 space-y-4">
                   <TmdbTitleSearch
@@ -2148,7 +2368,7 @@ export default function MovieEditorForm({
                     <label className="block">
                       <span className="mb-2 flex items-center gap-2 text-sm text-[#8ea4b3]">
                         <HiOutlineSearch className="h-4 w-4" />
-                        کد TMDB (یا جایگزین دستی)
+                        کد TMDB
                       </span>
                       <input
                         inputMode="numeric"
@@ -2157,6 +2377,11 @@ export default function MovieEditorForm({
                         onChange={(event) => handleTmdbCodeChange(event.target.value)}
                         placeholder="مثلاً 550"
                         className="w-full rounded-2xl border border-white/10 bg-[#071019] px-4 py-3 text-sm text-white placeholder:text-[#728896] outline-none transition focus:border-[#38bdf8]/45"
+                      />
+                      <TmdbIdAvailabilityHint
+                        status={tmdbAvailability.status}
+                        existing={tmdbAvailability.existing}
+                        entityKind="movie"
                       />
                     </label>
 
@@ -2184,11 +2409,15 @@ export default function MovieEditorForm({
                   </div>
                 </div>
                 </FormFieldAnchor>
+                ) : null}
 
                 <div className="grid gap-5 md:grid-cols-2">
                   <FormFieldAnchor field="title" error={tabFieldErrors.title}>
                   <label className="block">
-                    <span className="mb-2 block text-sm text-[#8ea4b3]">نام</span>
+                    <span className="mb-2 block text-sm text-[#8ea4b3]">
+                      نام / عنوان فارسی{" "}
+                      <span className="text-[#f5c518]">*</span>
+                    </span>
                     <input
                       value={form.title}
                       onChange={(event) => handleChange("title", event.target.value)}
@@ -2197,20 +2426,26 @@ export default function MovieEditorForm({
                   </label>
                   </FormFieldAnchor>
 
+                  <FormFieldAnchor field="original_title" error={tabFieldErrors.original_title}>
                   <label className="block">
-                    <span className="mb-2 block text-sm text-[#8ea4b3]">نام اصلی</span>
+                    <span className="mb-2 block text-sm text-[#8ea4b3]">
+                      نام اصلی {isManualMode ? <span className="text-[#f5c518]">*</span> : null}
+                    </span>
                     <input
                       value={form.original_title}
                       onChange={(event) => handleChange("original_title", event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45"
+                      className={`w-full rounded-2xl border bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${formFieldBorderClass(Boolean(tabFieldErrors.original_title))}`}
                     />
                   </label>
+                  </FormFieldAnchor>
                 </div>
 
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                   <FormFieldAnchor field="slug" error={tabFieldErrors.slug}>
                   <label className="block">
-                    <span className="mb-2 block text-sm text-[#8ea4b3]">slug</span>
+                    <span className="mb-2 block text-sm text-[#8ea4b3]">
+                      slug {isManualMode ? <span className="text-[#f5c518]">*</span> : null}
+                    </span>
                     <input
                       value={form.slug}
                       onChange={(event) => handleChange("slug", event.target.value)}
@@ -2349,7 +2584,9 @@ export default function MovieEditorForm({
 
                 <FormFieldAnchor field="synopsis" error={tabFieldErrors.synopsis}>
                 <label className="block">
-                  <span className="mb-2 block text-sm text-[#8ea4b3]">خلاصه داستان</span>
+                  <span className="mb-2 block text-sm text-[#8ea4b3]">
+                    خلاصه داستان {isManualMode ? <span className="text-[#f5c518]">*</span> : null}
+                  </span>
                   <textarea
                     rows={6}
                     value={form.synopsis}
@@ -2374,6 +2611,9 @@ export default function MovieEditorForm({
                     }
                     placeholder="انتخاب ژانر"
                     loading={taxonomyLoading}
+                    required={isManualMode}
+                    error={tabFieldErrors.genres}
+                    fieldKey="genres"
                   />
                   <AdminTaxonomyMultiSelect
                     label="کشورها"
@@ -2385,6 +2625,9 @@ export default function MovieEditorForm({
                     placeholder="انتخاب کشور"
                     loading={taxonomyLoading}
                     columns={2}
+                    required={isManualMode}
+                    error={tabFieldErrors.countries}
+                    fieldKey="countries"
                   />
                   <AdminTaxonomyMultiSelect
                     label="زبان‌ها"
@@ -2404,6 +2647,9 @@ export default function MovieEditorForm({
                     placeholder="انتخاب زبان"
                     loading={taxonomyLoading}
                     columns={2}
+                    required={isManualMode}
+                    error={tabFieldErrors.languages}
+                    fieldKey="languages"
                   />
                   {(Object.keys(freeArrayFieldLabels) as MovieEditorFreeArrayField[]).map(
                     (field) => (
@@ -2494,16 +2740,15 @@ export default function MovieEditorForm({
                     </button>
                   </div>
 
-                  {sortedActorsWithIndex.length ? (
+                  {form.actors.length ? (
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {sortedActorsWithIndex.map(
-                        ({ actor, index: actorIndex }, displayIndex) => (
+                      {form.actors.map((actor, actorIndex) => (
                         <div
-                          key={`${actor.name || "actor"}-${actorIndex}-${displayIndex}`}
+                          key={`actor-row-${actorIndex}`}
                           className="group relative space-y-3 rounded-[20px] border border-white/10 bg-[#071019] p-3"
                         >
                           <p className="text-[11px] font-semibold text-[#8ea4b3]">
-                            #{typeof actor.order === "number" ? actor.order + 1 : displayIndex + 1}
+                            #{actorIndex + 1}
                           </p>
                           <div className="flex items-center gap-3">
                             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/[0.04]">
@@ -2523,15 +2768,19 @@ export default function MovieEditorForm({
 
                             <div className="min-w-0 flex-1 space-y-2">
                               <input
-                                dir="ltr"
+                                dir={isManualMode ? "rtl" : "ltr"}
                                 value={actor.name || ""}
                                 onChange={(event) =>
                                   handleActorChange(actorIndex, "name", event.target.value)
                                 }
-                                placeholder="English name · e.g. Bradley Cooper"
-                                className={`w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white outline-none transition focus:border-[#f5c518]/45 ${ltrInputClass}`}
+                                placeholder={
+                                  isManualMode
+                                    ? "نام بازیگر"
+                                    : "English name · e.g. Bradley Cooper"
+                                }
+                                className={`w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white outline-none transition focus:border-[#f5c518]/45 ${isManualMode ? "" : ltrInputClass}`}
                               />
-                              {actor.name && !isLatinPersonName(actor.name) ? (
+                              {!isManualMode && actor.name && !isLatinPersonName(actor.name) ? (
                                 <p className="text-[10px] text-[#fca5a5]">
                                   نام باید انگلیسی باشد.
                                 </p>
@@ -2547,6 +2796,19 @@ export default function MovieEditorForm({
                             </div>
                           </div>
 
+                          <AdminImageUrlField
+                            label="تصویر بازیگر"
+                            value={actor.profile_url || ""}
+                            onChange={(value) =>
+                              handleActorChange(actorIndex, "profile_url", value)
+                            }
+                            entityType="movie"
+                            entityId={movie?.id ?? movieId ?? null}
+                            imageRole="still"
+                            uploadLabel="آپلود تصویر"
+                            className={ltrLinkInputClass}
+                          />
+
                           <button
                             type="button"
                             onClick={() => removeActorRow(actorIndex)}
@@ -2555,12 +2817,11 @@ export default function MovieEditorForm({
                             <HiOutlineX className="h-3 w-3" />
                           </button>
                         </div>
-                      ),
-                      )}
+                      ))}
                     </div>
                   ) : (
                     <div className="rounded-[22px] border border-dashed border-white/12 bg-[#071019] px-4 py-5 text-sm text-[#8ea4b3]">
-                      هنوز بازیگری ثبت نشده است.
+                      هنوز بازیگری ثبت نشده است. روی «افزودن» بزنید.
                     </div>
                   )}
                 </div>
@@ -2577,10 +2838,11 @@ export default function MovieEditorForm({
                   <button
                     type="button"
                     onClick={goToNextTab}
+                    aria-disabled={!canProceedToNextTab}
                     className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
                       canProceedToNextTab
                         ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
-                        : "border-[#f5c518]/25 bg-[#f5c518]/70 text-[#081018] hover:bg-[#f5c518]"
+                        : "cursor-not-allowed border-white/10 bg-white/[0.06] text-[#607684] opacity-70"
                     }`}
                   >
                     تب بعدی
@@ -2603,7 +2865,7 @@ export default function MovieEditorForm({
                 <div className="grid gap-5 md:grid-cols-2">
                   <FormFieldAnchor field="poster_url" error={tabFieldErrors.poster_url}>
                   <AdminImageUrlField
-                    label="پوستر"
+                    label={isManualMode ? "پوستر *" : "پوستر"}
                     value={form.poster_url}
                     onChange={(value) => handleChange("poster_url", value)}
                     entityType="movie"
@@ -2626,7 +2888,7 @@ export default function MovieEditorForm({
 
                   <FormFieldAnchor field="backdrop_url" error={tabFieldErrors.backdrop_url}>
                   <AdminImageUrlField
-                    label="تصویر پس‌زمینه"
+                    label={isManualMode ? "تصویر پس‌زمینه *" : "تصویر پس‌زمینه"}
                     value={form.backdrop_url}
                     onChange={(value) => handleChange("backdrop_url", value)}
                     entityType="movie"
@@ -2653,6 +2915,7 @@ export default function MovieEditorForm({
                   <span className="mb-2 flex items-center gap-2 text-sm text-[#8ea4b3]">
                     <HiOutlineVideoCamera className="h-4 w-4" />
                     لینک تریلر یوتیوب
+                    <span className="font-normal text-[#607684]"> (اختیاری)</span>
                   </span>
                   <input
                     type="url"
@@ -2712,11 +2975,14 @@ export default function MovieEditorForm({
                     {form.playback_protocol === "hls" ? (
                       <FormFieldAnchor field="hls_url" error={tabFieldErrors.hls_url} className="md:col-span-2">
                       <label className="block">
-                        <span className="mb-2 block text-sm text-[#8ea4b3]">مسیر HLS</span>
+                        <span className="mb-2 block text-sm text-[#8ea4b3]">
+                          مسیر HLS
+                          {isManualMode ? null : <span className="text-[#f5c518]"> *</span>}
+                        </span>
                         <input
                           type="text"
                           dir="ltr"
-                          required
+                          required={!isManualMode}
                           value={form.hls_url}
                           onChange={(event) => handleChange("hls_url", event.target.value)}
                           placeholder="پوشهٔ پکیج یا آدرس کامل master.m3u8"
@@ -2731,17 +2997,17 @@ export default function MovieEditorForm({
                       <FormFieldAnchor field="progressive_url" error={tabFieldErrors.progressive_url} className="md:col-span-2">
                       <label className="block">
                         <span className="mb-2 block text-sm text-[#8ea4b3]">
-                          آدرس ویدیو مستقیم (MP4)
+                          آدرس ویدیو مستقیم (MP4/MKV)
+                          <span className="font-normal text-[#607684]"> (اختیاری)</span>
                         </span>
                         <input
                           type="text"
                           dir="ltr"
-                          required
                           value={form.progressive_url}
                           onChange={(event) =>
                             handleChange("progressive_url", event.target.value)
                           }
-                          placeholder="https://cdn.example.com/movies/title/video.mp4"
+                          placeholder="https://cdn.example.com/movies/title/video.mkv"
                           className={`w-full rounded-2xl border bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass} ${formFieldBorderClass(Boolean(tabFieldErrors.progressive_url), "border-white/10")}`}
                         />
                         <p className="mt-2 text-xs text-[#8ea4b3]">
@@ -2862,9 +3128,9 @@ export default function MovieEditorForm({
                     </div>
 
                     <div className="space-y-3">
-                      {form.download_links.map((link, index) => (
+                      {form.download_links.filter(Boolean).map((link, index) => (
                         <div
-                          key={link.id}
+                          key={link?.id || `download-${index}`}
                           className="grid gap-3 rounded-[24px] border border-white/10 bg-[#071019] p-4 md:grid-cols-[180px_1fr_auto]"
                         >
                           <div dir="ltr" className={`min-w-0 ${ltrLinkInputClass}`}>
@@ -2912,10 +3178,11 @@ export default function MovieEditorForm({
                   <button
                     type="button"
                     onClick={goToNextTab}
+                    aria-disabled={!canProceedToNextTab}
                     className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
                       canProceedToNextTab
                         ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
-                        : "border-[#f5c518]/25 bg-[#f5c518]/70 text-[#081018] hover:bg-[#f5c518]"
+                        : "cursor-not-allowed border-white/10 bg-white/[0.06] text-[#607684] opacity-70"
                     }`}
                   >
                     تب بعدی
@@ -2947,7 +3214,12 @@ export default function MovieEditorForm({
                   <button
                     type="button"
                     onClick={goToNextTab}
-                    className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d]"
+                    aria-disabled={!canProceedToNextTab}
+                    className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
+                      canProceedToNextTab
+                        ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
+                        : "cursor-not-allowed border-white/10 bg-white/[0.06] text-[#607684] opacity-70"
+                    }`}
                   >
                     تب بعدی
                   </button>
@@ -3002,7 +3274,7 @@ export default function MovieEditorForm({
                         نمایش در اسلایدر صفحه اصلی
                       </span>
                       <span className="mt-1 block text-xs text-[#8ea4b3]">
-                        این فیلم در ابتدای اسلایدر HomeHero (حداکثر ۳ مورد) قرار می‌گیرد.
+                        این فیلم در ابتدای اسلایدر HomeHero (حداکثر ۸ مورد) قرار می‌گیرد.
                       </span>
                     </span>
                     <input

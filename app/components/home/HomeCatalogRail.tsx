@@ -139,7 +139,7 @@ export default function HomeCatalogRail({
                 className={SLIDER_SLIDE_CLASS}
                 aria-hidden="true"
               >
-                <CatalogPosterCardSkeleton />
+                <CatalogPosterCardSkeleton isSeries={normalizedKind === "series"} />
               </div>
             ))
           : null}

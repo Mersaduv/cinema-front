@@ -17,9 +17,13 @@ export function isPlayerChromeTarget(target: EventTarget | null): boolean {
         "input",
         "select",
         "textarea",
+        "label",
         '[role="slider"]',
         '[role="listbox"]',
         '[role="option"]',
+        '[role="menu"]',
+        '[role="menuitem"]',
+        '[role="dialog"]',
       ].join(", "),
     ),
   );

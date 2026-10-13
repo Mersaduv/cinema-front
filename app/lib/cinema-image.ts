@@ -91,14 +91,34 @@ export function normalizeImageUrl(url: string | null | undefined): string | null
   }
 
   if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed);
+
+      // Always serve managed assets same-origin via Next `/images` route.
+      // Absolute hosts (cinema.af vs cinema.at) cause intermittent DNS/load failures
+      // and leave the blur layer stuck while the sharp <img> never fires onLoad.
+      if (
+        parsed.pathname === "/images" ||
+        parsed.pathname.startsWith("/images/")
+      ) {
+        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+      }
+    } catch {
+      return trimmed;
+    }
+
     return trimmed;
   }
 
   if (trimmed.startsWith("//")) {
-    return `https:${trimmed}`;
+    return normalizeImageUrl(`https:${trimmed}`);
   }
 
   const path = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+
+  if (path === "/images" || path.startsWith("/images/")) {
+    return path;
+  }
 
   return IMAGE_BASE_URL ? `${IMAGE_BASE_URL}${path}` : path;
 }
@@ -403,15 +423,16 @@ export const POSTER_GRID_SIZES = IMAGE_SIZES["poster-grid"];
 export const HERO_IMAGE_SIZES = IMAGE_SIZES["hero-backdrop"];
 export const DETAIL_POSTER_SIZES = IMAGE_SIZES["detail-poster"];
 
-/** Hero/backdrop variant widths — matches production hero srcset pattern. */
+/** Hero/backdrop variant widths — high-res for full-bleed hero; srcset picks device width. */
 export const HERO_BACKDROP_WIDTHS = [
-  640, 750, 828, 1080, 1200, 1920,
+  640, 750, 828, 1080, 1280, 1600, 1920,
 ] as const;
 
 export const HERO_BACKDROP_QUALITY = 85;
 export const HERO_BACKDROP_SHARPEN = 60;
 export const HERO_BACKDROP_BLUR_QUALITY = 10;
 export const HERO_BACKDROP_BLUR_SHARPEN = 0;
+/** Default hero src when srcset is unsupported — sharp full-bleed. */
 export const HERO_BACKDROP_FALLBACK_WIDTH = 1920;
 
 export function stripImageQueryParams(url: string): string {
@@ -527,16 +548,16 @@ export const USAGE_VARIANT_PRESETS: Record<
     defaultWidth: 640,
   },
   "detail-backdrop": {
-    widths: [640, 1080, 1920, 2048],
-    quality: 75,
+    widths: [640, 828, 1080, 1200],
+    quality: 70,
     sharpen: 60,
-    defaultWidth: 1280,
+    defaultWidth: 1080,
   },
   "hero-backdrop": {
     widths: [...HERO_BACKDROP_WIDTHS],
     quality: HERO_BACKDROP_QUALITY,
     sharpen: HERO_BACKDROP_SHARPEN,
-    defaultWidth: 1920,
+    defaultWidth: HERO_BACKDROP_FALLBACK_WIDTH,
   },
   "person-card": {
     widths: [160, 256, 384],
@@ -584,6 +605,24 @@ function hasWidthQuery(url: string | null | undefined): boolean {
   return /[?&]width=\d+/i.test(url);
 }
 
+function maxSrcSetWidth(srcset: string | undefined): number {
+  if (!srcset) {
+    return 0;
+  }
+
+  let max = 0;
+
+  for (const part of srcset.split(",")) {
+    const match = part.trim().match(/(\d+)\s*w\s*$/i);
+
+    if (match) {
+      max = Math.max(max, Number(match[1]));
+    }
+  }
+
+  return max;
+}
+
 /**
  * Ensure managed /images/ URLs always carry movieland-style width/quality/sharpen
  * variants — even when API only returned a bare original URL.
@@ -594,8 +633,20 @@ export function ensureOptimizedImageAsset(
   usage: ImageUsage = "poster-card",
 ): ResponsiveImageAsset | null {
   const existingSrcset = buildSrcSetString(image);
+  const preset = USAGE_VARIANT_PRESETS[usage];
+  const presetMax = Math.max(...preset.widths);
+  const existingMax = maxSrcSetWidth(existingSrcset);
 
-  if (existingSrcset && image) {
+  // Rebuild when API srcset is oversized (e.g. 3840w) or for detail surfaces —
+  // cold transforms hang and leave the blur layer stuck.
+  const shouldReuseApiSrcset =
+    Boolean(existingSrcset && image) &&
+    usage !== "detail-poster" &&
+    usage !== "detail-backdrop" &&
+    existingMax > 0 &&
+    existingMax <= presetMax;
+
+  if (shouldReuseApiSrcset && image) {
     return image;
   }
 
@@ -618,7 +669,6 @@ export function ensureOptimizedImageAsset(
   }
 
   const base = stripImageQueryParams(baseCandidate);
-  const preset = USAGE_VARIANT_PRESETS[usage];
   const srcset_string = preset.widths
     .map(
       (width) =>

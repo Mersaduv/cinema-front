@@ -1,6 +1,7 @@
 "use client";
 
 import CatalogPosterCard from "./CatalogPosterCard";
+import CatalogPosterCardSkeleton from "./CatalogPosterCardSkeleton";
 import ContentListSlider, { SLIDER_SLIDE_CLASS } from "./ContentListSlider";
 import type { CatalogListItem } from "../../lib/catalog/rest";
 
@@ -38,15 +39,13 @@ export default function RelatedContentSlider({
                 data-slider-slide
                 className={SLIDER_SLIDE_CLASS}
               >
-                <div className="aspect-[2/3] animate-pulse rounded-xl bg-white/8" />
-                <div className="mt-2.5 h-4 w-3/4 animate-pulse rounded bg-white/10" />
-                <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-white/8" />
+                <CatalogPosterCardSkeleton isSeries={kind === "series"} />
               </div>
             ))
           : items.map((item) => (
               <div key={item.id} data-slider-slide className={SLIDER_SLIDE_CLASS}>
                 <CatalogPosterCard
-                  item={item}
+                  item={{ ...item, catalogKind: kind }}
                   href={`${basePath}/${item.slug}`}
                   carouselItem
                 />

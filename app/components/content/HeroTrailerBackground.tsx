@@ -12,7 +12,8 @@ import {
 import { extractYoutubeVideoId } from "../../lib/youtube";
 import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 
-const COVER_MIN_DISPLAY_MS = 5000;
+/** Poster stays fully visible this long before any trailer network load starts. */
+const COVER_MIN_DISPLAY_MS = 8500;
 const YT_EMBED_ORIGIN =
   typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
 
@@ -85,15 +86,16 @@ export default function HeroTrailerBackground({
   const isPlayingRef = useRef(true);
 
   const [mountPlayer, setMountPlayer] = useState(false);
+  const [mountDirectVideo, setMountDirectVideo] = useState(false);
   const [embedReady, setEmbedReady] = useState(false);
-  const [minCoverElapsed, setMinCoverElapsed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [iframeSuspended, setIframeSuspended] = useState(false);
 
   const showTrailer =
-    Boolean(embedUrl && mountPlayer && embedReady && minCoverElapsed && !iframeSuspended);
-  const coverVisible = !showTrailer;
+    Boolean(embedUrl && mountPlayer && embedReady && !iframeSuspended);
+  const showDirectTrailer = Boolean(directVideoUrl && mountDirectVideo);
+  const coverVisible = !(showTrailer || showDirectTrailer);
 
   const sendPlay = useCallback(() => {
     postYouTubeCommand(iframeRef.current, "playVideo");
@@ -113,30 +115,31 @@ export default function HeroTrailerBackground({
   }, []);
 
   useEffect(() => {
-    if (!videoId) {
-      return;
-    }
-
     setMountPlayer(false);
+    setMountDirectVideo(false);
     setEmbedReady(false);
-    setMinCoverElapsed(false);
     setIsPlaying(true);
     setIsMuted(true);
     setIframeSuspended(false);
 
-    const mountTimer = window.setTimeout(() => {
-      setMountPlayer(true);
-    }, 400);
+    if (!videoId && !directVideoUrl) {
+      return;
+    }
 
-    const coverTimer = window.setTimeout(() => {
-      setMinCoverElapsed(true);
+    // Do not start trailer download until the poster has been visible for a few seconds.
+    const mountTimer = window.setTimeout(() => {
+      if (videoId) {
+        setMountPlayer(true);
+      }
+      if (directVideoUrl) {
+        setMountDirectVideo(true);
+      }
     }, COVER_MIN_DISPLAY_MS);
 
     return () => {
       window.clearTimeout(mountTimer);
-      window.clearTimeout(coverTimer);
     };
-  }, [videoId]);
+  }, [videoId, directVideoUrl]);
 
   useEffect(() => {
     if (!embedUrl) {
@@ -195,9 +198,11 @@ export default function HeroTrailerBackground({
         <div className="absolute inset-0 bg-[#05070b]" />
       )}
 
-      {directVideoUrl ? (
+      {directVideoUrl && mountDirectVideo ? (
         <video
-          className="absolute inset-0 h-full w-full object-cover"
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+            showDirectTrailer ? "opacity-100" : "opacity-0"
+          }`}
           src={directVideoUrl}
           autoPlay
           muted

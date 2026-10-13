@@ -29,6 +29,22 @@ function nullableNumber(value: string) {
   return parsed;
 }
 
+function nullableDurationMinutes(value: string) {
+  const trimmed = value.trim();
+
+  if (trimmed === "") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function downloadMapFromEpisode(episode: EpisodeDraft): Record<string, string> | undefined {
   const links = Object.entries(episode.download_links || {}).reduce<Record<string, string>>(
     (accumulator, [quality, url]) => {
@@ -101,7 +117,7 @@ export function buildEpisodeUpsertPayload(
     synopsis: nullableString(episode.synopsis) || null,
     synopsis_en: nullableString(episode.synopsis_en) || null,
     air_date: nullableString(episode.air_date) || null,
-    duration_minutes: nullableNumber(episode.duration_minutes),
+    duration_minutes: nullableDurationMinutes(episode.duration_minutes),
     still_url: nullableString(episode.still_url) || null,
     source_method: episode.source_method || "hls",
     video_url:
@@ -111,7 +127,7 @@ export function buildEpisodeUpsertPayload(
     embed_url:
       episode.source_method === "embed" ? nullableString(episode.embed_url) || null : null,
     hls_url:
-      episode.source_method === "hls" && episode.hls_verified
+      episode.source_method === "hls"
         ? nullableString(episode.hls_url) || null
         : null,
     hls_verified: episode.source_method === "hls" ? Boolean(episode.hls_verified) : false,

@@ -2,6 +2,7 @@ import { localizeGenreLabels } from "../../../../lib/genre-labels";
 import { resolveTmdbSyncedImageFields } from "../../../../lib/admin-tmdb-image-ingest";
 import { toManagedImagePublicPath } from "../../../../lib/cinema-image";
 import { resolveEpisodeTitle } from "../../../../lib/episode-title";
+import { normalizeAgeRating } from "../../../../lib/age-rating";
 import { filterLatinPersonNameList, resolveLatinPersonName } from "../../../../lib/person-name";
 import {
   mergeSeasonEpisodeSynopsisFromTmdb,
@@ -274,11 +275,12 @@ export function mergeEpisodeDraftFromTmdb(
       currentEpisode?.synopsis_en,
     ),
     air_date: episode.air_date || currentEpisode?.air_date || "",
-    duration_minutes: episode.duration_minutes
-      ? String(episode.duration_minutes)
-      : currentEpisode?.duration_minutes
-        ? String(currentEpisode.duration_minutes)
-        : "",
+    duration_minutes:
+      episode.duration_minutes != null
+        ? String(episode.duration_minutes)
+        : currentEpisode?.duration_minutes != null
+          ? String(currentEpisode.duration_minutes)
+          : "",
     still_url: episode.still_url || currentEpisode?.still_url || "",
     source_method:
       currentEpisode?.source_method ||
@@ -493,7 +495,7 @@ function applyTmdbSeriesLevelFields(
     }),
     trailer_url: payload.trailer_url || current.trailer_url,
     homepage_url: payload.homepage_url || current.homepage_url,
-    age_rating: payload.age_rating || current.age_rating,
+    age_rating: normalizeAgeRating(payload.age_rating) || current.age_rating,
     rating: typeof payload.rating === "number" ? String(payload.rating) : current.rating,
     popularity:
       typeof payload.popularity === "number" ? String(payload.popularity) : current.popularity,

@@ -36,6 +36,11 @@ import { buildPlaybackSubtitleUrl } from "../utils/format";
 import { isSameOriginMediaRequest } from "../../../lib/playback-networking";
 import { optimizeManagedImageUrl } from "../../../lib/cinema-image";
 import { tokenStorage } from "../../../lib/token-storage";
+import {
+  bindFullscreenChangeListeners,
+  isPlayerFullscreenActive,
+  togglePlayerFullscreen,
+} from "../utils/fullscreen";
 
 /**
  * Production-grade player shell — composes controller, controls, and overlays.
@@ -153,11 +158,28 @@ function PlayerShellComponent({
   const autoQualityLabel = usePlayerStore((s) => s.autoQualityLabel);
 
   const isReady = readyState >= HTMLMediaElement.HAVE_FUTURE_DATA;
+  const hasCurrentData = readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
   const { controlsEnabled, progressEnabled } = usePlayerBootPhase(
     isReady,
     isPlaying,
     videoRef,
   );
+
+  const awaitingFirstFrame =
+    !error &&
+    !tvPlayBlocked &&
+    fsmState !== "ended" &&
+    !hasCurrentData;
+
+  const showBufferingOverlay =
+    !error &&
+    !isDraggingSeek &&
+    !tvPlayBlocked &&
+    (isLoading ||
+      isSourceTransitioning ||
+      fsmState === "seeking" ||
+      fsmState === "idle" ||
+      awaitingFirstFrame);
 
   useWatchProgress({
     media: watchMedia ?? null,
@@ -198,22 +220,20 @@ function PlayerShellComponent({
   }, [media.src, media.progressiveUrl, media.dashUrl]);
 
   const toggleFullscreen = useCallback(async () => {
-    if (!containerRef.current) {
+    revealControls();
+
+    const result = await togglePlayerFullscreen({
+      container: containerRef.current,
+      video: videoRef.current,
+    });
+
+    setIsFullscreen(isPlayerFullscreenActive(videoRef.current));
+
+    // Do not surface a hard player error — fullscreen support varies by browser.
+    if (result === "failed") {
       return;
     }
-
-    try {
-      if (!document.fullscreenElement) {
-        await containerRef.current.requestFullscreen();
-      } else {
-        await document.exitFullscreen();
-      }
-    } catch {
-      usePlayerStore.getState().applySnapshot({
-        error: "تغییر حالت تمام‌صفحه در این مرورگر انجام نشد.",
-      });
-    }
-  }, []);
+  }, [revealControls, setIsFullscreen, videoRef]);
 
   const togglePiP = useCallback(async () => {
     const video = videoRef.current;
@@ -380,14 +400,13 @@ function PlayerShellComponent({
   );
 
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+    const syncFullscreen = () => {
+      setIsFullscreen(isPlayerFullscreenActive(videoRef.current));
     };
 
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () =>
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  }, [setIsFullscreen]);
+    syncFullscreen();
+    return bindFullscreenChangeListeners(videoRef.current, syncFullscreen);
+  }, [setIsFullscreen, videoRef]);
 
   useEffect(() => {
     if (!tvPlayBlocked || !isTv) {
@@ -419,18 +438,6 @@ function PlayerShellComponent({
     video.style.setProperty("--cinema-subtitle-color", colorMap[subtitleFontColor]);
     video.style.setProperty("--cinema-subtitle-bg", bgMap[subtitleBackground]);
   }, [subtitleBackground, subtitleFontColor, subtitleFontSize, videoRef]);
-
-  const showBufferingOverlay =
-    !error &&
-    !isDraggingSeek &&
-    (isLoading ||
-      isSourceTransitioning ||
-      fsmState === "seeking" ||
-      // Keep spinner until first frames exist — never flash poster/black alone.
-      (!isPlaying &&
-        readyState < HTMLMediaElement.HAVE_CURRENT_DATA &&
-        fsmState !== "ended" &&
-        fsmState !== "idle"));
 
   return (
     <div
@@ -512,7 +519,7 @@ function PlayerShellComponent({
             <button
               type="button"
               aria-label={showControls ? "پنهان کردن کنترل‌ها" : "نمایش کنترل‌ها"}
-              className={`absolute inset-0 z-20 cursor-pointer border-0 bg-transparent p-0 ${
+              className={`absolute inset-0 z-20 cursor-pointer border-0 bg-transparent p-0 [@media(hover:none)]:hidden ${
                 showControls ? "pointer-events-none" : "pointer-events-auto"
               }`}
               onClick={handleVideoAreaClick}
@@ -648,7 +655,7 @@ function PlayerShellComponent({
               </div>
             )}
 
-            {!isPlaying && fsmState !== "ended" && !isLoading && !tvPlayBlocked ? (
+            {!isPlaying && fsmState !== "ended" && !tvPlayBlocked ? (
               <div className="pointer-events-auto flex flex-1 items-center justify-center">
                 <button
                   type="button"
@@ -666,35 +673,38 @@ function PlayerShellComponent({
             <div
               ref={controlsRef}
               data-player-controls
-              className={
-                controlsInteractive ? "pointer-events-auto" : ""
-              }
+              onPointerDownCapture={() => {
+                if (controlsInteractive) {
+                  revealControls();
+                }
+              }}
+              className={controlsInteractive ? "pointer-events-auto" : "pointer-events-none"}
             >
-            <ControlBar
-              onTogglePlay={() => void togglePlay()}
-              onSeekBy={handleSeekByWithFeedback}
-              onSeekTo={seekTo}
-              onSeekDragStart={() => setIsDraggingSeek(true)}
-              onSeekDragEnd={() => setIsDraggingSeek(false)}
-              onToggleMute={toggleMute}
-              onVolumeChange={setVolume}
-              onSelectQuality={selectQuality}
-              onSelectAudio={selectAudio}
-              onSelectSubtitle={selectSubtitle}
-              onSelectSpeed={setPlaybackRate}
-              onSubtitleDelayChange={setSubtitleDelay}
-              onSubtitleStyleChange={setSubtitleStyle}
-              onToggleFullscreen={() => void toggleFullscreen()}
-              onTogglePiP={() => void togglePiP()}
-              onNextEpisode={
-                seriesContext?.nextEpisode ? goNextEpisode : undefined
-              }
-              onPrevEpisode={
-                seriesContext?.prevEpisode ? goPrevEpisode : undefined
-              }
-              canUsePiP={canUsePiP}
-              hasSeriesNav={Boolean(seriesContext)}
-            />
+              <ControlBar
+                onTogglePlay={() => void togglePlay()}
+                onSeekBy={handleSeekByWithFeedback}
+                onSeekTo={seekTo}
+                onSeekDragStart={() => setIsDraggingSeek(true)}
+                onSeekDragEnd={() => setIsDraggingSeek(false)}
+                onToggleMute={toggleMute}
+                onVolumeChange={setVolume}
+                onSelectQuality={selectQuality}
+                onSelectAudio={selectAudio}
+                onSelectSubtitle={selectSubtitle}
+                onSelectSpeed={setPlaybackRate}
+                onSubtitleDelayChange={setSubtitleDelay}
+                onSubtitleStyleChange={setSubtitleStyle}
+                onToggleFullscreen={() => void toggleFullscreen()}
+                onTogglePiP={() => void togglePiP()}
+                onNextEpisode={
+                  seriesContext?.nextEpisode ? goNextEpisode : undefined
+                }
+                onPrevEpisode={
+                  seriesContext?.prevEpisode ? goPrevEpisode : undefined
+                }
+                canUsePiP={canUsePiP}
+                hasSeriesNav={Boolean(seriesContext)}
+              />
             </div>
           </div>
         </div>

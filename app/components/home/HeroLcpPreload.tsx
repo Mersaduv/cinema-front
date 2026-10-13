@@ -19,17 +19,25 @@ export default function HeroLcpPreload({
     fallbackSrc: item.poster_url,
   });
 
-  if (!resolved.src) {
+  if (!resolved.src && !resolved.blur) {
     return null;
   }
 
   return (
-    <link
-      rel="preload"
-      as="image"
-      href={resolved.src}
-      imageSrcSet={resolved.srcSet}
-      imageSizes={HERO_IMAGE_SIZES}
-    />
+    <>
+      {resolved.blur ? (
+        <link rel="preload" as="image" href={resolved.blur} fetchPriority="high" />
+      ) : null}
+      {resolved.src ? (
+        <link
+          rel="preload"
+          as="image"
+          href={resolved.src}
+          imageSrcSet={resolved.srcSet}
+          imageSizes={HERO_IMAGE_SIZES}
+          fetchPriority="high"
+        />
+      ) : null}
+    </>
   );
 }

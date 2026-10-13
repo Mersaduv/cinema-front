@@ -11,7 +11,9 @@ import {
 import {
   getImageAlt,
   HERO_IMAGE_SIZES,
+  isManagedImageUrl,
   resolveHeroBackdropImage,
+  stripImageQueryParams,
   type ResponsiveImageAsset,
 } from "../../lib/cinema-image";
 
@@ -37,6 +39,11 @@ const HERO_IMG_STYLE: CSSProperties = {
   color: "transparent",
 };
 
+/** Keep blur visible; only force-open if medium never fires onLoad. */
+const LOAD_FAIL_OPEN_MS = 12000;
+/** Give LQIP a short exclusive window before the sharp hero starts. */
+const MEDIUM_DEFER_MS = 120;
+
 export default function HeroBackdropImage({
   image,
   src,
@@ -50,36 +57,88 @@ export default function HeroBackdropImage({
   overlay,
   placeholderPath = "/placeholders/backdrop.svg",
 }: HeroBackdropImageProps) {
-  const [loaded, setLoaded] = useState(false);
+  const [mediumLoaded, setMediumLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
+  const [useBareManaged, setUseBareManaged] = useState(false);
+  const [allowMedium, setAllowMedium] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
   const resolved = resolveHeroBackdropImage({ image, src, fallbackSrc });
   const resolvedAlt = alt ?? getImageAlt({ title, role: "backdrop" });
-  const displaySrc = errored ? placeholderPath : resolved.src;
-  const displaySrcSet = errored ? undefined : resolved.srcSet;
+
+  const bareManagedSrc =
+    resolved.src && isManagedImageUrl(resolved.src)
+      ? stripImageQueryParams(resolved.src)
+      : null;
+
+  const displaySrc = errored
+    ? placeholderPath
+    : useBareManaged && bareManagedSrc
+      ? bareManagedSrc
+      : resolved.src;
+  const displaySrcSet =
+    errored || useBareManaged ? undefined : resolved.srcSet;
   const blurSrc = errored ? undefined : resolved.blur;
 
-  // Detect already-cached images: browser fires no onLoad for cached imgs
   useEffect(() => {
+    setMediumLoaded(false);
+    setErrored(false);
+    setUseBareManaged(false);
+    setAllowMedium(!resolved.blur);
+  }, [resolved.src, resolved.blur]);
+
+  useEffect(() => {
+    if (allowMedium) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setAllowMedium(true), MEDIUM_DEFER_MS);
+    return () => window.clearTimeout(timer);
+  }, [allowMedium, resolved.src]);
+
+  useEffect(() => {
+    if (!allowMedium || !displaySrc) {
+      return;
+    }
+
     const img = imgRef.current;
     if (img && img.complete && img.naturalWidth > 0) {
-      setLoaded(true);
+      setMediumLoaded(true);
     }
-  }, [displaySrc]);
+  }, [displaySrc, allowMedium]);
+
+  useEffect(() => {
+    if (mediumLoaded || !displaySrc || !allowMedium) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setMediumLoaded(true), LOAD_FAIL_OPEN_MS);
+    return () => window.clearTimeout(timer);
+  }, [mediumLoaded, displaySrc, allowMedium]);
 
   const handleLoad = useCallback(() => {
-    setLoaded(true);
+    setMediumLoaded(true);
   }, []);
 
   const handleError = useCallback(() => {
+    if (
+      !useBareManaged &&
+      bareManagedSrc &&
+      resolved.src &&
+      bareManagedSrc !== resolved.src
+    ) {
+      setUseBareManaged(true);
+      setMediumLoaded(false);
+      return;
+    }
+
     if (!errored) {
       setErrored(true);
-      setLoaded(false);
+      setMediumLoaded(true);
     }
-  }, [errored]);
+  }, [bareManagedSrc, errored, resolved.src, useBareManaged]);
 
-  if (!displaySrc) {
+  if (!displaySrc && !blurSrc) {
     return (
       <div
         className={`absolute inset-0 size-full overflow-hidden bg-[#05070b] ${wrapperClassName}`}
@@ -90,8 +149,10 @@ export default function HeroBackdropImage({
   }
 
   return (
-    <div className={`absolute inset-0 size-full overflow-hidden ${wrapperClassName}`}>
-      {/* Blur layer — sits behind main image, fades out after load */}
+    <div
+      className={`absolute inset-0 size-full overflow-hidden bg-[#05070b] ${wrapperClassName}`}
+    >
+      {/* LQIP — soft blur only (scale is for blur edge bleed, not ken-burns). */}
       {blurSrc ? (
         <img
           src={blurSrc}
@@ -99,28 +160,45 @@ export default function HeroBackdropImage({
           aria-hidden
           decoding="async"
           loading="eager"
-          className={`absolute inset-0 size-full object-cover blur-xl scale-110 transition-opacity duration-700 pointer-events-none ${
-            loaded ? "opacity-0" : "opacity-100"
+          fetchPriority="high"
+          className={`absolute inset-0 size-full object-cover object-center blur-xl scale-110 transition-opacity duration-700 ease-out pointer-events-none ${
+            mediumLoaded ? "opacity-0" : "opacity-100"
           }`}
         />
+      ) : !mediumLoaded && displaySrc && allowMedium ? (
+        <img
+          src={displaySrc}
+          alt=""
+          aria-hidden
+          decoding="async"
+          loading="eager"
+          fetchPriority="high"
+          className="absolute inset-0 size-full object-cover object-center blur-2xl scale-110 opacity-100 pointer-events-none"
+        />
+      ) : !mediumLoaded ? (
+        <div className="absolute inset-0 bg-[#0a0e16]" aria-hidden />
       ) : null}
 
-      {/* Main image — fades in on top of blur */}
-      <img
-        ref={imgRef}
-        alt={resolvedAlt}
-        decoding="async"
-        data-nimg="fill"
-        sizes={HERO_IMAGE_SIZES}
-        srcSet={displaySrcSet}
-        src={displaySrc}
-        loading={priority ? "eager" : "lazy"}
-        fetchPriority={fetchPriority ?? (priority ? "high" : "auto")}
-        onLoad={handleLoad}
-        onError={handleError}
-        className={`object-cover transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"} ${className}`.trim()}
-        style={HERO_IMG_STYLE}
-      />
+      {/* Sharp hero — fills frame, no zoom animation. */}
+      {allowMedium && displaySrc ? (
+        <img
+          ref={imgRef}
+          alt={resolvedAlt}
+          decoding="async"
+          data-nimg="fill"
+          sizes={HERO_IMAGE_SIZES}
+          srcSet={displaySrcSet}
+          src={displaySrc}
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={fetchPriority ?? (priority ? "high" : "low")}
+          onLoad={handleLoad}
+          onError={handleError}
+          className={`object-cover object-center transition-opacity duration-700 ease-out ${
+            mediumLoaded ? "opacity-100" : "opacity-0"
+          } ${className}`.trim()}
+          style={HERO_IMG_STYLE}
+        />
+      ) : null}
 
       {overlay}
     </div>

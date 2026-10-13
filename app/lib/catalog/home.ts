@@ -10,8 +10,8 @@ import { isCarouselMeta } from "./rest";
 
 export const HOME_RAIL_FETCH_COUNT = HOME_RAIL_CAROUSEL_PER_PAGE;
 export const HOME_FEATURED_POOL = 8;
-export const HOME_FEATURED_SLIDES = 5;
-export const HOME_FEATURED_EDITORIAL_MAX = 2;
+export const HOME_FEATURED_SLIDES = 8;
+export const HOME_FEATURED_EDITORIAL_MAX = 8;
 export const HOME_HERO_MIN_RATING = 6;
 
 const carouselDefaults = { carousel: true } as const;

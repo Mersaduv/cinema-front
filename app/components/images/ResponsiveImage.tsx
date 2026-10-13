@@ -10,6 +10,7 @@ import {
   normalizeImageUrl,
   pickBlurSrc,
   pickImageSrc,
+  stripImageQueryParams,
   type ImageUsage,
   type ResponsiveImageAsset,
 } from "../../lib/cinema-image";
@@ -37,6 +38,8 @@ export type ResponsiveImageProps = {
   allowRemoteFallback?: boolean;
 };
 
+const LOAD_FAIL_OPEN_MS = 2500;
+
 export default function ResponsiveImage({
   image,
   src,
@@ -60,6 +63,7 @@ export default function ResponsiveImage({
   const isTvCompat = useIsTvCompat();
   const [loaded, setLoaded] = useState(false);
   const [useFallback, setUseFallback] = useState(false);
+  const [useBareManaged, setUseBareManaged] = useState(false);
   const [errored, setErrored] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
@@ -82,28 +86,44 @@ export default function ResponsiveImage({
     [fallbackUrl],
   );
 
+  const bareManagedSrc = useMemo(() => {
+    if (!primarySrc || !isManagedImageUrl(primarySrc)) {
+      return null;
+    }
+
+    return stripImageQueryParams(primarySrc);
+  }, [primarySrc]);
+
   const resolvedSrc = errored
     ? (placeholderPath ?? null)
-    : useFallback && normalizedFallback && normalizedFallback !== primarySrc
-      ? normalizedFallback
-      : (primarySrc ??
-        (allowRemoteFallback ? normalizedFallback : null) ??
-        placeholderPath ??
-        null);
+    : useBareManaged && bareManagedSrc
+      ? bareManagedSrc
+      : useFallback && normalizedFallback && normalizedFallback !== primarySrc
+        ? normalizedFallback
+        : (primarySrc ??
+          (allowRemoteFallback ? normalizedFallback : null) ??
+          placeholderPath ??
+          null);
 
-  const blurSrc = errored || useFallback ? undefined : pickBlurSrc(optimizedImage);
+  const blurSrc =
+    errored || useFallback || useBareManaged
+      ? undefined
+      : pickBlurSrc(optimizedImage);
   const srcSet =
-    errored || useFallback ? undefined : buildSrcSetString(optimizedImage);
-  const sizesAttr = sizes ?? (usage ? getImageSizes(usage, { isTv: isTvCompat }) : undefined);
+    errored || useFallback || useBareManaged
+      ? undefined
+      : buildSrcSetString(optimizedImage);
+  const sizesAttr =
+    sizes ?? (usage ? getImageSizes(usage, { isTv: isTvCompat }) : undefined);
   const objectFitClass = objectFit === "contain" ? "object-contain" : "object-cover";
 
   useEffect(() => {
     setUseFallback(false);
+    setUseBareManaged(false);
     setErrored(false);
     setLoaded(false);
   }, [primarySrc, normalizedFallback]);
 
-  // Handle already-cached images: browser won't fire onLoad again
   useEffect(() => {
     const img = imgRef.current;
     if (img && img.complete && img.naturalWidth > 0) {
@@ -111,9 +131,30 @@ export default function ResponsiveImage({
     }
   }, [resolvedSrc]);
 
+  useEffect(() => {
+    if (loaded || !resolvedSrc) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setLoaded(true), LOAD_FAIL_OPEN_MS);
+    return () => window.clearTimeout(timer);
+  }, [loaded, resolvedSrc]);
+
   const handleLoad = useCallback(() => setLoaded(true), []);
 
   const handleError = useCallback(() => {
+    if (
+      !useBareManaged &&
+      !useFallback &&
+      bareManagedSrc &&
+      primarySrc &&
+      bareManagedSrc !== primarySrc
+    ) {
+      setUseBareManaged(true);
+      setLoaded(false);
+      return;
+    }
+
     if (
       !useFallback &&
       primarySrc &&
@@ -125,15 +166,23 @@ export default function ResponsiveImage({
       normalizedFallback !== primarySrc
     ) {
       setUseFallback(true);
+      setUseBareManaged(false);
       setLoaded(false);
       return;
     }
 
     if (!errored) {
       setErrored(true);
-      setLoaded(false);
+      setLoaded(true);
     }
-  }, [errored, normalizedFallback, primarySrc, useFallback]);
+  }, [
+    bareManagedSrc,
+    errored,
+    normalizedFallback,
+    primarySrc,
+    useBareManaged,
+    useFallback,
+  ]);
 
   if (!resolvedSrc) {
     return (

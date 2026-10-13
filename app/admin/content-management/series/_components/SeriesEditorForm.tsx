@@ -35,10 +35,16 @@ import {
 import {
   parseSeriesEpisodeFieldKey,
   parseSeriesSeasonFieldKey,
+  validateSeriesCatalogTab,
   validateSeriesIdentityTab,
   validateSeriesSeasonsTab,
   validateSeriesTab,
 } from "../../_lib/series-tab-validation";
+import {
+  resolveContentEntryMode,
+  type ContentEntryMode,
+} from "../../_lib/content-entry-mode";
+import ContentEntryModeToggle from "../../_components/ContentEntryModeToggle";
 import PublishOutcomeModal, {
   type PublishOutcomeStatus,
 } from "../../../../components/admin/PublishOutcomeModal";
@@ -191,6 +197,11 @@ function episodeDownloadMapFromRows(rows: EpisodeDownloadLinkRow[]): Record<stri
 import { revalidateAdminSeriesList } from "../../../../lib/admin-series-revalidate";
 import { revalidatePublicSeriesPages } from "../../../../lib/catalog/revalidate";
 import {
+  SERIES_AGE_RATING_VALUES,
+  normalizeAgeRating,
+  seriesAgeRatingOptions,
+} from "../../../../lib/age-rating";
+import {
   adminSeriesService,
   type AdminSeries,
   type AdminSeriesActor,
@@ -203,6 +214,10 @@ import {
   SlugAvailabilityHint,
   useSlugAvailability,
 } from "../../../../hooks/useSlugAvailability";
+import {
+  TmdbIdAvailabilityHint,
+  useTmdbIdAvailability,
+} from "../../../../hooks/useTmdbIdAvailability";
 import {
   applyTmdbSeasonToForm,
   applyTmdbSeriesOverviewToForm,
@@ -419,12 +434,9 @@ function seriesFormBodyFingerprint(form: SeriesFormState): string {
   return JSON.stringify(body);
 }
 
-const ageRatingValues = ["G", "PG", "PG-13", "R", "16+", "18+"] as const;
+const ageRatingValues = SERIES_AGE_RATING_VALUES;
 
-const ageRatingOptions = [
-  { value: "", label: "انتخاب درجه سنی *" },
-  ...ageRatingValues.map((value) => ({ value, label: value })),
-];
+const ageRatingOptions = seriesAgeRatingOptions(true);
 
 const defaultStatusOptions = [
   { value: "", label: "وضعیت نامشخص" },
@@ -446,7 +458,7 @@ type SeriesFreeArrayField = Extract<
 const freeArrayFieldLabels: Record<SeriesFreeArrayField, string> = {
   creators: "سازندگان",
   directors: "کارگردان ها",
-  writers: "نویسنده ها",
+  writers: "نویسنده‌ها (اختیاری)",
   tags: "برچسب ها",
 };
 
@@ -843,6 +855,22 @@ function nullableNumber(value: string) {
   return parsed;
 }
 
+function nullableDurationMinutes(value: string) {
+  const trimmed = value.trim();
+
+  if (trimmed === "") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function nullableString(value: string) {
   const trimmed = value.trim();
 
@@ -865,9 +893,10 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
     last_air_date: series.last_air_date || "",
     release_year: series.release_year ? String(series.release_year) : "",
     status: series.status || "",
-    episode_runtime_minutes: series.episode_runtime_minutes
-      ? String(series.episode_runtime_minutes)
-      : "",
+    episode_runtime_minutes:
+      series.episode_runtime_minutes != null
+        ? String(series.episode_runtime_minutes)
+        : "",
     number_of_seasons: series.number_of_seasons ? String(series.number_of_seasons) : "",
     number_of_episodes: series.number_of_episodes
       ? String(series.number_of_episodes)
@@ -900,7 +929,7 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
       "",
     trailer_url: series.trailer_url || "",
     homepage_url: series.homepage_url || "",
-    age_rating: series.age_rating || "",
+    age_rating: normalizeAgeRating(series.age_rating) || "",
     is_featured: Boolean(series.is_featured),
     catalog_visibility: series.catalog_visibility || "catalog_search",
     publish_status: series.publish_status || "draft",
@@ -1005,9 +1034,10 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
                   synopsis: episodeSynopsis.synopsis,
                   synopsis_en: episodeSynopsis.synopsis_en,
                   air_date: episode.air_date || "",
-                  duration_minutes: episode.duration_minutes
-                    ? String(episode.duration_minutes)
-                    : "",
+                  duration_minutes:
+                    episode.duration_minutes != null
+                      ? String(episode.duration_minutes)
+                      : "",
                   still_url: episode.still_url || "",
                   source_method: episode.source_method || "hls",
                   video_url: episode.video_url || "",
@@ -1037,18 +1067,37 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
 function formToPayload(
   form: SeriesFormState,
   taxonomyCountries: AdminTaxonomyCountry[] = [],
+  entryMode: ContentEntryMode = "tmdb",
 ): AdminSeriesPayload {
   const seriesHlsBase = normalizeHlsBaseUrl(form.hls_base_url);
 
   const seasons: AdminSeriesSeason[] = form.seasons
-    .filter((season) => season.season_number.trim())
+    .filter((season): season is SeasonDraft => Boolean(season?.season_number?.trim()))
+    .filter((season) => {
+      if (entryMode !== "manual") {
+        return true;
+      }
+
+      // در حالت دستی، فصل پیش‌فرض خالی را ذخیره نکن
+      return season.episodes.some(
+        (episode) =>
+          Boolean(episode?.title?.trim()) ||
+          Boolean(episode?.hls_url?.trim()) ||
+          Boolean(episode?.video_url?.trim()) ||
+          Boolean(episode?.embed_url?.trim()) ||
+          Boolean(episode?.synopsis?.trim()) ||
+          Boolean(episode?.still_url?.trim()),
+      );
+    })
     .map((season) => {
       const seasonNumber = Number(season.season_number);
       const seasonHlsBase =
         normalizeHlsBaseUrl(season.hls_base_url) ||
         buildSeasonHlsBase(seriesHlsBase, seasonNumber);
-      const episodes: AdminSeriesEpisode[] = season.episodes
-        .filter((episode) => episode.episode_number.trim())
+      const episodes: AdminSeriesEpisode[] = (season.episodes || [])
+        .filter((episode): episode is EpisodeDraft =>
+          Boolean(episode?.episode_number?.trim()),
+        )
         .map((episode) => {
           return {
           season_number: seasonNumber,
@@ -1060,7 +1109,7 @@ function formToPayload(
           synopsis: nullableString(episode.synopsis) || null,
           synopsis_en: nullableString(episode.synopsis_en) || null,
           air_date: nullableString(episode.air_date) || null,
-          duration_minutes: nullableNumber(episode.duration_minutes),
+          duration_minutes: nullableDurationMinutes(episode.duration_minutes),
           still_url: nullableString(episode.still_url) || null,
           source_method: episode.source_method || "hls",
           video_url:
@@ -1072,7 +1121,7 @@ function formToPayload(
               ? nullableString(episode.embed_url) || null
               : null,
           hls_url:
-            episode.source_method === "hls" && episode.hls_verified
+            episode.source_method === "hls"
               ? nullableString(episode.hls_url) || null
               : null,
           hls_verified: episode.source_method === "hls" ? Boolean(episode.hls_verified) : false,
@@ -1116,7 +1165,7 @@ function formToPayload(
     last_air_date: nullableString(form.last_air_date) || null,
     release_year: nullableNumber(form.release_year),
     status: nullableString(form.status),
-    episode_runtime_minutes: nullableNumber(form.episode_runtime_minutes),
+    episode_runtime_minutes: nullableDurationMinutes(form.episode_runtime_minutes),
     number_of_seasons: nullableNumber(form.number_of_seasons),
     number_of_episodes: nullableNumber(form.number_of_episodes),
     network: nullableString(form.network),
@@ -1128,7 +1177,7 @@ function formToPayload(
     trailer_url: nullableString(form.trailer_url),
     homepage_url: nullableString(form.homepage_url),
     hls_base_url: nullableString(seriesHlsBase),
-    age_rating: nullableString(form.age_rating),
+    age_rating: nullableString(normalizeAgeRating(form.age_rating) || form.age_rating),
     catalog_visibility: form.catalog_visibility || "catalog_search",
     is_featured: form.is_featured,
     exclude_from_slider: !form.is_featured,
@@ -1137,8 +1186,9 @@ function formToPayload(
       form.drm_scheme !== "none" ? nullableString(form.drm_license_url) || null : null,
     publish_status: form.publish_status,
     scheduled_for: form.publish_status === "scheduled" ? form.scheduled_for || null : null,
-    tmdb_query: nullableString(form.tmdb_query),
-    tmdb_id: nullableNumber(form.tmdb_id),
+    content_source: entryMode,
+    tmdb_query: entryMode === "tmdb" ? nullableString(form.tmdb_query) || undefined : undefined,
+    tmdb_id: entryMode === "tmdb" ? nullableNumber(form.tmdb_id) : null,
     imdb_id: nullableString(form.imdb_id),
     tvdb_id: nullableString(form.tvdb_id),
     meta_title: nullableString(form.meta_title),
@@ -1211,6 +1261,7 @@ export default function SeriesEditorForm({
   const [publishOutcomeStatus, setPublishOutcomeStatus] =
     useState<PublishOutcomeStatus>("draft");
   const [form, setForm] = useState<SeriesFormState>(createInitialFormState);
+  const [entryMode, setEntryMode] = useState<ContentEntryMode>("tmdb");
   const [series, setSeries] = useState<AdminSeries | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const [submitting, setSubmitting] = useState(false);
@@ -1235,7 +1286,9 @@ export default function SeriesEditorForm({
     writers: "",
     tags: "",
   });
-  const [expandedSeasonIds, setExpandedSeasonIds] = useState<string[]>([form.seasons[0].id]);
+  const [expandedSeasonIds, setExpandedSeasonIds] = useState<string[]>(() =>
+    form.seasons[0]?.id ? [form.seasons[0].id] : [],
+  );
   const [expandedEpisodeKeys, setExpandedEpisodeKeys] = useState<string[]>([]);
   const [episodeHlsSyncMessage, setEpisodeHlsSyncMessage] = useState<Record<string, string>>({});
   const [episodeHlsSyncPending, setEpisodeHlsSyncPending] = useState<Record<string, boolean>>({});
@@ -1281,6 +1334,7 @@ export default function SeriesEditorForm({
 
     setSeries(null);
     setForm(initialForm);
+    setEntryMode("tmdb");
     setActiveTab("identity");
     setPublishOutcomeOpen(false);
     setPublishOutcomeStatus("draft");
@@ -1300,7 +1354,9 @@ export default function SeriesEditorForm({
       writers: "",
       tags: "",
     });
-    setExpandedSeasonIds([initialForm.seasons[0].id]);
+    setExpandedSeasonIds(
+      initialForm.seasons[0]?.id ? [initialForm.seasons[0].id] : [],
+    );
     setExpandedEpisodeKeys([]);
     setEpisodeHlsSyncMessage({});
     setEpisodeHlsSyncPending({});
@@ -1382,6 +1438,14 @@ export default function SeriesEditorForm({
         const seededHlsState = seedVerifiedEpisodeHlsSyncState(nextForm);
         setSeries(response.data.series);
         setForm(nextForm);
+        setEntryMode(
+          resolveContentEntryMode({
+            savedSource: response.data.series.metadata?.content_source,
+            tmdbId:
+              response.data.series.metadata?.tmdb?.tmdb_id ?? nextForm.tmdb_id,
+            isCreate: false,
+          }),
+        );
         setLastFetchedTmdbCode(
           normalizeTmdbCodeInput(nextForm.tmdb_id || nextForm.tmdb_query),
         );
@@ -1394,7 +1458,9 @@ export default function SeriesEditorForm({
         episodeHlsComparableMapRef.current = seededHlsState.comparables;
         setEpisodeHlsSyncMessage(seededHlsState.messages);
         setEpisodeHlsSyncPending({});
-        setExpandedSeasonIds(nextForm.seasons.map((season) => season.id));
+        setExpandedSeasonIds(
+          nextForm.seasons.length > 0 ? [nextForm.seasons[0].id] : [],
+        );
         setExpandedEpisodeKeys([]);
       }
 
@@ -1409,26 +1475,6 @@ export default function SeriesEditorForm({
       setActiveTab("publish");
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    if (mode !== "create" || loading) {
-      return;
-    }
-
-    const tmdbCode = normalizeTmdbCodeInput(form.tmdb_query);
-
-    if (!tmdbCode || tmdbCode === lastFetchedTmdbCode) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void handleAutoTmdbFetch(tmdbCode);
-    }, 700);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [form.tmdb_query, mode, loading, lastFetchedTmdbCode]);
 
   const totalEpisodes = useMemo(
     () => form.seasons.reduce((sum, season) => sum + season.episodes.length, 0),
@@ -1610,7 +1656,11 @@ export default function SeriesEditorForm({
     value: string,
   ) => {
     const nextValue =
-      field === "name" ? sanitizeLatinPersonName(value) || null : value || null;
+      field === "name"
+        ? isManualMode
+          ? value
+          : sanitizeLatinPersonName(value) || null
+        : value || null;
 
     setForm((current) => ({
       ...current,
@@ -1631,12 +1681,12 @@ export default function SeriesEditorForm({
       actors: [
         ...current.actors,
         {
-          name: null,
-          character: null,
+          name: "",
+          character: "",
           profile_url: null,
           tmdb_person_id: null,
           credit_id: null,
-          order: null,
+          order: current.actors.length,
           known_for_department: null,
           episode_count: null,
         },
@@ -1861,6 +1911,28 @@ export default function SeriesEditorForm({
     nextMessage?: string,
     baseForm?: SeriesFormState,
   ) {
+    const normalizedId = normalizeTmdbCodeInput(tmdbId);
+    if (!normalizedId) {
+      setError("کد TMDb معتبر نیست.");
+      return;
+    }
+
+    const excludeId = series?.id ?? seriesId;
+    const uniqueness = await adminSeriesService.checkTmdbId(normalizedId, excludeId);
+    if (uniqueness.success && uniqueness.data && !uniqueness.data.available) {
+      const existing = uniqueness.data.existing;
+      const message = existing?.title
+        ? `این کد TMDb قبلاً برای «${existing.title}» (#${existing.id}) ثبت شده است. از ویرایش همان سریال استفاده کنید.`
+        : "این کد TMDb قبلاً ثبت شده است.";
+      setError(message);
+      setTabFieldErrors((current) => ({ ...current, tmdb_id: message }));
+      setActiveTab("identity");
+      setSearchingTmdb(false);
+      setFetchingTmdb(false);
+      setTmdbSyncState({ ...initialTmdbSyncState, phase: "error" });
+      return;
+    }
+
     tmdbAbortControllerRef.current?.abort();
     const imageSession = beginTmdbImageIngestSession();
     const abortController = new AbortController();
@@ -1876,7 +1948,7 @@ export default function SeriesEditorForm({
     setError("");
 
     try {
-      const overviewResponse = await adminSeriesService.fetchTmdb(tmdbId, {
+      const overviewResponse = await adminSeriesService.fetchTmdb(normalizedId, {
         includeSeasons: false,
         signal,
       });
@@ -2299,17 +2371,31 @@ export default function SeriesEditorForm({
     setSearchingTmdb(false);
   };
 
-  const isIdentityTabComplete =
-    form.tmdb_id.trim() !== "" &&
-    form.title.trim() !== "" &&
-    buildSlug(
-      form.slug,
-      form.original_title,
-      form.title,
-      form.tmdb_id ? `series-${form.tmdb_id}` : null,
-    ) !== "" &&
-    form.synopsis.trim() !== "" &&
-    isAgeRatingSelected(form.age_rating, ageRatingValues);
+  const isManualMode = entryMode === "manual";
+
+  const isIdentityTabComplete = isManualMode
+    ? form.title.trim() !== "" &&
+      form.original_title.trim() !== "" &&
+      form.slug.trim() !== "" &&
+      form.synopsis.trim() !== "" &&
+      isAgeRatingSelected(form.age_rating, ageRatingValues) &&
+      form.genres.length > 0 &&
+      form.countries.length > 0 &&
+      form.languages.length > 0
+    : form.tmdb_id.trim() !== "" &&
+      form.title.trim() !== "" &&
+      buildSlug(
+        form.slug,
+        form.original_title,
+        form.title,
+        form.tmdb_id ? `series-${form.tmdb_id}` : null,
+      ) !== "" &&
+      form.synopsis.trim() !== "" &&
+      isAgeRatingSelected(form.age_rating, ageRatingValues);
+
+  const isCatalogTabComplete = isManualMode
+    ? form.poster_url.trim() !== "" && form.backdrop_url.trim() !== ""
+    : true;
 
   const isSeasonsStructureComplete =
     form.seasons.length > 0 &&
@@ -2320,15 +2406,9 @@ export default function SeriesEditorForm({
         season.episodes.every((episode) => episode.episode_number.trim() !== ""),
     );
 
-  const isSeasonsTabComplete =
-    isSeasonsStructureComplete &&
-    form.seasons.every((season) =>
-      season.episodes.every(
-        (episode) =>
-          resolveEpisodeTitle([episode.title], episode.episode_number).trim() !== "",
-      ),
-    );
-
+  const isSeasonsTabComplete = isManualMode
+    ? form.seasons.length === 0 || isSeasonsStructureComplete
+    : isSeasonsStructureComplete;
   const isPublishScheduleComplete =
     form.publish_status !== "scheduled" || form.scheduled_for.trim() !== "";
 
@@ -2338,12 +2418,106 @@ export default function SeriesEditorForm({
     check: adminSeriesService.checkSlug,
   });
 
+  const tmdbCodeForAvailability = normalizeTmdbCodeInput(
+    form.tmdb_query || form.tmdb_id,
+  );
+
+  const tmdbAvailability = useTmdbIdAvailability({
+    tmdbId: tmdbCodeForAvailability,
+    excludeId: series?.id ?? seriesId,
+    check: adminSeriesService.checkTmdbId,
+    enabled: !isManualMode,
+  });
+
+  useEffect(() => {
+    if (isManualMode) {
+      setTabFieldErrors((current) => {
+        if (!current.tmdb_id) {
+          return current;
+        }
+        const next = { ...current };
+        delete next.tmdb_id;
+        return next;
+      });
+      return;
+    }
+
+    if (tmdbAvailability.isTaken) {
+      const existingTitle = tmdbAvailability.existing?.title;
+      setTabFieldErrors((current) => ({
+        ...current,
+        tmdb_id: existingTitle
+          ? `این کد TMDb قبلاً برای «${existingTitle}» ثبت شده است.`
+          : "این کد TMDb قبلاً ثبت شده است.",
+      }));
+      return;
+    }
+
+    if (tmdbAvailability.isAvailable || tmdbAvailability.status === "idle") {
+      setTabFieldErrors((current) => {
+        if (!current.tmdb_id) {
+          return current;
+        }
+        const next = { ...current };
+        delete next.tmdb_id;
+        return next;
+      });
+    }
+  }, [
+    isManualMode,
+    tmdbAvailability.isTaken,
+    tmdbAvailability.isAvailable,
+    tmdbAvailability.status,
+    tmdbAvailability.existing?.title,
+  ]);
+
+  useEffect(() => {
+    if (mode !== "create" || loading || entryMode !== "tmdb") {
+      return;
+    }
+
+    const tmdbCode = normalizeTmdbCodeInput(form.tmdb_query);
+
+    if (!tmdbCode || tmdbCode === lastFetchedTmdbCode) {
+      return;
+    }
+
+    // Wait until uniqueness check finishes; never auto-fetch a taken TMDb id.
+    if (tmdbAvailability.isChecking || tmdbAvailability.isTaken) {
+      return;
+    }
+
+    if (tmdbAvailability.status !== "available") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void handleAutoTmdbFetch(tmdbCode);
+    }, 700);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    form.tmdb_query,
+    mode,
+    loading,
+    lastFetchedTmdbCode,
+    entryMode,
+    tmdbAvailability.isChecking,
+    tmdbAvailability.isTaken,
+    tmdbAvailability.status,
+  ]);
+
   const canSubmitForm =
     isIdentityTabComplete &&
+    isCatalogTabComplete &&
     isSeasonsTabComplete &&
     isPublishScheduleComplete &&
     !slugAvailability.isChecking &&
-    !slugAvailability.isTaken;
+    !slugAvailability.isTaken &&
+    !tmdbAvailability.isChecking &&
+    !tmdbAvailability.isTaken;
   const hasSeasonHlsCascadePending = Object.keys(seasonHlsCascadePendingKeys).length > 0;
   const hasEpisodeHlsSyncPending = Object.keys(episodeHlsSyncPending).length > 0;
   const isSeriesHlsProcessing =
@@ -2362,29 +2536,36 @@ export default function SeriesEditorForm({
 
   const canProceedToNextTab =
     activeTab === "identity"
-      ? isIdentityTabComplete
+      ? isIdentityTabComplete && !tmdbAvailability.isTaken && !tmdbAvailability.isChecking
       : activeTab === "catalog"
-        ? true
+        ? isCatalogTabComplete
         : activeTab === "seo"
           ? true
           : activeTab === "seasons"
-            ? isSeasonsStructureComplete
+            ? isSeasonsTabComplete
             : false;
 
   const canAccessTab = (target: SeriesEditorTab) => {
-    if (mode === "edit") {
-      return true;
-    }
-
     if (target === "identity") {
       return true;
     }
 
-    if (target === "publish") {
-      return isIdentityTabComplete && isSeasonsTabComplete;
+    const identityOk =
+      isIdentityTabComplete && !tmdbAvailability.isTaken && !tmdbAvailability.isChecking;
+
+    if (target === "catalog") {
+      return identityOk;
     }
 
-    return isIdentityTabComplete;
+    if (target === "seo" || target === "seasons") {
+      return identityOk && isCatalogTabComplete;
+    }
+
+    if (target === "publish") {
+      return identityOk && isCatalogTabComplete && isSeasonsTabComplete;
+    }
+
+    return false;
   };
 
   const prepareFieldFocus = (field: string) => {
@@ -2423,31 +2604,47 @@ export default function SeriesEditorForm({
   };
 
   const goToTab = (target: SeriesEditorTab) => {
-    if (mode !== "edit") {
-      if (target !== "identity") {
-        const identityIssues = validateSeriesIdentityTab(form, buildSlug, ageRatingValues);
+    if (target !== "identity") {
+      const identityIssues = validateSeriesIdentityTab(
+        form,
+        buildSlug,
+        ageRatingValues,
+        entryMode,
+      );
 
-        if (identityIssues.length > 0) {
-          if (activeTab !== "identity") {
-            setActiveTab("identity");
-          }
-
-          applyTabFieldIssues(identityIssues);
-          return;
+      if (identityIssues.length > 0) {
+        if (activeTab !== "identity") {
+          setActiveTab("identity");
         }
+
+        applyTabFieldIssues(identityIssues);
+        return;
       }
+    }
 
-      if (target === "publish") {
-        const seasonsIssues = validateSeriesSeasonsTab(form);
+    if (target === "seo" || target === "seasons" || target === "publish") {
+      const catalogIssues = validateSeriesCatalogTab(form, entryMode);
 
-        if (seasonsIssues.length > 0) {
-          if (activeTab !== "seasons") {
-            setActiveTab("seasons");
-          }
-
-          applyTabFieldIssues(seasonsIssues);
-          return;
+      if (catalogIssues.length > 0) {
+        if (activeTab !== "catalog") {
+          setActiveTab("catalog");
         }
+
+        applyTabFieldIssues(catalogIssues);
+        return;
+      }
+    }
+
+    if (target === "publish") {
+      const seasonsIssues = validateSeriesSeasonsTab(form, entryMode);
+
+      if (seasonsIssues.length > 0) {
+        if (activeTab !== "seasons") {
+          setActiveTab("seasons");
+        }
+
+        applyTabFieldIssues(seasonsIssues);
+        return;
       }
     }
 
@@ -2455,7 +2652,9 @@ export default function SeriesEditorForm({
       setError(
         target === "publish"
           ? "ابتدا اطلاعات اصلی سریال و فصل ها و قسمت ها را کامل کن."
-          : "ابتدا اطلاعات اصلی سریال را کامل کن.",
+          : target === "seo" || target === "seasons"
+            ? "ابتدا پوستر و تصویر پس‌زمینه را کامل کن."
+            : "ابتدا اطلاعات اصلی سریال را کامل کن.",
       );
       return;
     }
@@ -2485,15 +2684,24 @@ export default function SeriesEditorForm({
       return;
     }
 
-    const issues = validateSeriesTab(activeTab, form, buildSlug, ageRatingValues);
+    const issues = validateSeriesTab(activeTab, form, buildSlug, ageRatingValues, entryMode);
 
-    if (applyTabFieldIssues(issues)) {
+    if (applyTabFieldIssues(issues) || !canProceedToNextTab) {
+      if (!issues.length && !canProceedToNextTab) {
+        setError("ابتدا فیلدهای اجباری این تب را کامل کنید.");
+      }
+      return;
+    }
+
+    const nextTab = tabOrder[currentIndex + 1];
+    if (!canAccessTab(nextTab)) {
+      setError("ابتدا فیلدهای اجباری این تب را کامل کنید.");
       return;
     }
 
     setTabFieldErrors({});
     setError("");
-    setActiveTab(tabOrder[currentIndex + 1]);
+    setActiveTab(nextTab);
     window.requestAnimationFrame(() => {
       formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -3782,8 +3990,21 @@ export default function SeriesEditorForm({
   };
 
   const handleSubmit = async () => {
-    if (!form.tmdb_query.trim()) {
+    if (entryMode === "tmdb" && !form.tmdb_query.trim()) {
       setError("ابتدا کد TMDb سریال را وارد کن.");
+      setActiveTab("identity");
+      return;
+    }
+
+    if (entryMode === "tmdb" && (tmdbAvailability.isTaken || tmdbAvailability.isChecking)) {
+      const existingTitle = tmdbAvailability.existing?.title;
+      setError(
+        tmdbAvailability.isChecking
+          ? "لطفاً تا پایان بررسی یکتایی کد TMDb صبر کنید."
+          : existingTitle
+            ? `این کد TMDb قبلاً برای «${existingTitle}» ثبت شده است.`
+            : "این کد TMDb قبلاً ثبت شده است.",
+      );
       setActiveTab("identity");
       return;
     }
@@ -3794,14 +4015,39 @@ export default function SeriesEditorForm({
       return;
     }
 
-    if (!form.age_rating.trim()) {
+    if (entryMode === "tmdb" && !form.age_rating.trim()) {
       setError("درجه سنی اجباری است.");
       setActiveTab("identity");
       return;
     }
 
+    if (entryMode === "manual") {
+      const identityIssues = validateSeriesIdentityTab(
+        form,
+        buildSlug,
+        ageRatingValues,
+        entryMode,
+      );
+      if (identityIssues.length > 0) {
+        setActiveTab("identity");
+        applyTabFieldIssues(identityIssues);
+        return;
+      }
+
+      const catalogIssues = validateSeriesCatalogTab(form, entryMode);
+      if (catalogIssues.length > 0) {
+        setActiveTab("catalog");
+        applyTabFieldIssues(catalogIssues);
+        return;
+      }
+    }
+
     if (!isSeasonsTabComplete) {
-      setError("شماره فصل، شماره قسمت و عنوان هر قسمت را کامل کن.");
+      setError(
+        isManualMode
+          ? "اگر فصل اضافه کرده‌ای، شماره فصل و قسمت را کامل کن."
+          : "شماره فصل و شماره قسمت را کامل کن.",
+      );
       setActiveTab("seasons");
       return;
     }
@@ -3829,7 +4075,7 @@ export default function SeriesEditorForm({
     try {
       setSubmitStep("۱/۳ — ذخیره متادیتا و فصل‌ها...");
       console.time("series:submit");
-      const payload = formToPayload(form, taxonomyCountries);
+      const payload = formToPayload(form, taxonomyCountries, entryMode);
       const response =
         mode === "edit" && seriesId
           ? await adminSeriesService.update(seriesId, payload)
@@ -3859,42 +4105,22 @@ export default function SeriesEditorForm({
         }));
       }
 
-      const openedPipeline =
-        response.pipeline_status === "pending" ||
-        response.pipeline_status === "running";
-
       // Revalidate in background — keep the form unlock immediate after API save.
       void Promise.all([
         revalidateAdminSeriesList(),
         revalidatePublicSeriesPages(savedSeries.slug, series?.slug, form.slug),
       ]);
 
-      if (openedPipeline) {
-        if (mode === "create") {
-          resetCreateEditorState();
-          router.push("/admin/content-management/series");
-        } else {
-          router.push("/admin/content-management/series");
-          router.refresh();
-        }
-        return;
+      // Always return to the list immediately (same as movies). Heavy work stays
+      // in the queue; do not wait on a modal or pipeline status before navigating.
+      if (mode === "create") {
+        resetCreateEditorState();
       }
-
-      setSubmitStep(null);
-      seriesFormBodyFingerprintRef.current = seriesFormBodyFingerprint(form);
-      setEpisodeSavedFingerprints(seedEpisodeSavedFingerprints(form));
-      const episodesDeferred =
-        response.episode_sync_status === "queued" ||
-        savedSeries.episode_sync_status === "queued";
-      setSuccessMessage(
-        episodesDeferred
-          ? "سریال ثبت شد — قسمت‌ها و تصاویر در پس‌زمینه پردازش می‌شوند."
-          : "ذخیره شد — تصاویر و اعتبار بازیگران در صف پردازش می‌شوند.",
-      );
-      setPublishOutcomeStatus(savedSeries.publish_status || form.publish_status);
-      setPublishOutcomeOpen(true);
-      setActiveTab("publish");
-      pendingNavigationRef.current = "/admin/content-management/series";
+      router.push("/admin/content-management/series");
+      if (mode === "edit") {
+        router.refresh();
+      }
+      return;
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "ذخیره سریال انجام نشد.",
@@ -4001,13 +4227,14 @@ export default function SeriesEditorForm({
               <button
                 key={tab.key}
                 type="button"
+                disabled={!canAccessTab(tab.key)}
                 onClick={() => goToTab(tab.key)}
                 className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                   activeTab === tab.key
                     ? "bg-[#f5c518] text-black"
                     : canAccessTab(tab.key)
                       ? "border border-white/10 bg-white/[0.04] text-[#d8e5ec] hover:bg-white/[0.08]"
-                      : "cursor-not-allowed border border-white/5 bg-white/[0.02] text-[#607684]"
+                      : "cursor-not-allowed border border-white/5 bg-white/[0.02] text-[#607684] opacity-55"
                 }`}
               >
                 {tab.icon}
@@ -4022,6 +4249,36 @@ export default function SeriesEditorForm({
                 icon={<HiOutlineFilm className="h-5 w-5" />}
                 title="شناسه و اطلاعات اصلی"
               />
+              <ContentEntryModeToggle
+                value={entryMode}
+                disabled={loading || submitting}
+                onChange={(nextMode) => {
+                  setEntryMode(nextMode);
+                  setError("");
+                  setTabFieldErrors({});
+                  setSearchMessage("");
+                  // قطع درخواست‌های در حال اجرای TMDB تا race باعث crash نشود
+                  tmdbAbortControllerRef.current?.abort();
+                  tmdbImageIngestAbortRef.current?.abort();
+                  tmdbAbortControllerRef.current = null;
+                  tmdbImageIngestAbortRef.current = null;
+                  setSearchingTmdb(false);
+                  setFetchingTmdb(false);
+                  setIngestingTmdbImages(false);
+                  setTmdbSyncState(initialTmdbSyncState);
+
+                  if (nextMode === "manual") {
+                    setForm((current) => ({
+                      ...current,
+                      tmdb_query: "",
+                      tmdb_id: "",
+                      // فصل‌ها را خالی نکن — فقط شناسه TMDB پاک شود
+                    }));
+                    setLastFetchedTmdbCode("");
+                  }
+                }}
+              />
+              {!isManualMode ? (
               <div className="rounded-[28px] border border-[#38bdf8]/18 bg-[#38bdf8]/[0.06] p-4 space-y-4">
                 <TmdbTitleSearch
                   label="جستجوی عنوان سریال در TMDB"
@@ -4035,12 +4292,19 @@ export default function SeriesEditorForm({
                 <div className="grid gap-4 xl:grid-cols-[1.2fr_auto] xl:items-end">
                   <div className="whitespace-nowrap">
                     <TextField
-                      label="کد TMDb (یا جایگزین دستی)"
+                      label="کد TMDb"
                       value={form.tmdb_query}
                       onChange={handleTmdbCodeChange}
                       dir="ltr"
                       required
                       placeholder="124364"
+                      fieldKey="tmdb_id"
+                      error={tabFieldErrors.tmdb_id}
+                    />
+                    <TmdbIdAvailabilityHint
+                      status={tmdbAvailability.status}
+                      existing={tmdbAvailability.existing}
+                      entityKind="series"
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -4066,12 +4330,13 @@ export default function SeriesEditorForm({
                   </div>
                 </div>
               </div>
+              ) : null}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField label="عنوان فارسی/نمایشی" value={form.title} onChange={(value) => updateField("title", value)} required fieldKey="title" error={tabFieldErrors.title} />
-                <TextField label="عنوان اصلی" value={form.original_title} onChange={(value) => updateField("original_title", value)} />
+                <TextField label="عنوان اصلی" value={form.original_title} onChange={(value) => updateField("original_title", value)} required={isManualMode} fieldKey="original_title" error={tabFieldErrors.original_title} />
                 <div>
-                  <TextField label="Slug" value={form.slug} onChange={(value) => updateField("slug", value)} dir="ltr" placeholder="show-slug" fieldKey="slug" error={tabFieldErrors.slug} />
+                  <TextField label="Slug" value={form.slug} onChange={(value) => updateField("slug", value)} dir="ltr" placeholder="show-slug" required={isManualMode} fieldKey="slug" error={tabFieldErrors.slug} />
                   <SlugAvailabilityHint
                     status={slugAvailability.status}
                     suggestion={slugAvailability.suggestion}
@@ -4118,7 +4383,7 @@ export default function SeriesEditorForm({
               />
 
               <TextAreaField
-                label="خلاصه داستان"
+                label={isManualMode ? "خلاصه داستان *" : "خلاصه داستان"}
                 value={form.synopsis}
                 onChange={(value) => updateField("synopsis", value)}
                 rows={5}
@@ -4145,6 +4410,9 @@ export default function SeriesEditorForm({
                   }
                   placeholder="انتخاب ژانر"
                   loading={taxonomyLoading}
+                  required={isManualMode}
+                  error={tabFieldErrors.genres}
+                  fieldKey="genres"
                 />
                 <AdminTaxonomyMultiSelect
                   label="کشورها"
@@ -4156,6 +4424,9 @@ export default function SeriesEditorForm({
                   placeholder="انتخاب کشور"
                   loading={taxonomyLoading}
                   columns={2}
+                  required={isManualMode}
+                  error={tabFieldErrors.countries}
+                  fieldKey="countries"
                 />
                 <AdminTaxonomyMultiSelect
                   label="زبان ها"
@@ -4175,6 +4446,9 @@ export default function SeriesEditorForm({
                   placeholder="انتخاب زبان"
                   loading={taxonomyLoading}
                   columns={2}
+                  required={isManualMode}
+                  error={tabFieldErrors.languages}
+                  fieldKey="languages"
                 />
                 {(Object.keys(freeArrayFieldLabels) as SeriesFreeArrayField[]).map((field) => (
                   <ArrayItemsFieldCard
@@ -4217,15 +4491,15 @@ export default function SeriesEditorForm({
                   </button>
                 </div>
 
-                {sortedActorsWithIndex.length ? (
+                {form.actors.length ? (
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {sortedActorsWithIndex.map(({ actor, index: actorIndex }, displayIndex) => (
+                    {form.actors.map((actor, actorIndex) => (
                       <div
-                        key={`${actor.name || "actor"}-${actorIndex}-${displayIndex}`}
+                        key={`series-actor-${actorIndex}`}
                         className="group relative space-y-3 rounded-[22px] border border-white/10 bg-[#071019] p-3"
                       >
                         <p className="text-[11px] font-semibold text-[#8ea4b3]">
-                          #{typeof actor.order === "number" ? actor.order + 1 : displayIndex + 1}
+                          #{actorIndex + 1}
                         </p>
                         <div className="flex items-center gap-3">
                           <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] text-xs font-semibold text-[#8ea4b3]">
@@ -4244,15 +4518,19 @@ export default function SeriesEditorForm({
                           </div>
                           <div className="min-w-0 flex-1 space-y-2">
                             <input
-                              dir="ltr"
+                              dir={isManualMode ? "rtl" : "ltr"}
                               value={actor.name || ""}
                               onChange={(event) =>
                                 handleActorChange(actorIndex, "name", event.target.value)
                               }
-                              placeholder="English name · e.g. Bradley Cooper"
-                              className={`w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white outline-none transition focus:border-[#f5c518]/45 ${ltrInputClass}`}
+                              placeholder={
+                                isManualMode
+                                  ? "نام بازیگر"
+                                  : "English name · e.g. Bradley Cooper"
+                              }
+                              className={`w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white outline-none transition focus:border-[#f5c518]/45 ${isManualMode ? "" : ltrInputClass}`}
                             />
-                            {actor.name && !isLatinPersonName(actor.name) ? (
+                            {!isManualMode && actor.name && !isLatinPersonName(actor.name) ? (
                               <p className="text-[10px] text-[#fca5a5]">
                                 نام باید انگلیسی باشد.
                               </p>
@@ -4267,14 +4545,17 @@ export default function SeriesEditorForm({
                             />
                           </div>
                         </div>
-                        <input
-                          dir="ltr"
+                        <AdminImageUrlField
+                          label="تصویر بازیگر"
                           value={actor.profile_url || ""}
-                          onChange={(event) =>
-                            handleActorChange(actorIndex, "profile_url", event.target.value)
+                          onChange={(value) =>
+                            handleActorChange(actorIndex, "profile_url", value)
                           }
-                          placeholder="https://image-url"
-                          className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white outline-none transition focus:border-[#f5c518]/45"
+                          entityType="series"
+                          entityId={series?.id ?? seriesId ?? null}
+                          imageRole="still"
+                          uploadLabel="آپلود تصویر"
+                          className={ltrInputClass}
                         />
                         <button
                           type="button"
@@ -4288,7 +4569,7 @@ export default function SeriesEditorForm({
                   </div>
                 ) : (
                   <div className="rounded-[22px] border border-dashed border-white/12 bg-[#071019] px-4 py-5 text-sm text-[#8ea4b3]">
-                    هنوز بازیگری ثبت نشده است.
+                    هنوز بازیگری ثبت نشده است. روی «افزودن» بزنید.
                   </div>
                 )}
               </div>
@@ -4304,10 +4585,11 @@ export default function SeriesEditorForm({
                 <button
                   type="button"
                   onClick={goToNextTab}
+                  aria-disabled={!canProceedToNextTab}
                   className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
                     canProceedToNextTab
                       ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
-                      : "border-[#f5c518]/25 bg-[#f5c518]/70 text-[#081018] hover:bg-[#f5c518]"
+                      : "cursor-not-allowed border-white/10 bg-white/[0.06] text-[#607684] opacity-70"
                   }`}
                 >
                   تب بعدی
@@ -4323,8 +4605,9 @@ export default function SeriesEditorForm({
                 title="تصاویر"
               />
               <div className="grid gap-4 md:grid-cols-2">
+                <FormFieldAnchor field="poster_url" error={tabFieldErrors.poster_url}>
                 <AdminImageUrlField
-                  label="پوستر"
+                  label={isManualMode ? "پوستر *" : "پوستر"}
                   value={form.poster_url}
                   onChange={(value) => {
                     setForm((current) => ({
@@ -4351,8 +4634,10 @@ export default function SeriesEditorForm({
                   }}
                   className={ltrInputClass}
                 />
+                </FormFieldAnchor>
+                <FormFieldAnchor field="backdrop_url" error={tabFieldErrors.backdrop_url}>
                 <AdminImageUrlField
-                  label="تصویر پس‌زمینه"
+                  label={isManualMode ? "تصویر پس‌زمینه *" : "تصویر پس‌زمینه"}
                   value={form.backdrop_url}
                   onChange={(value) => {
                     setForm((current) => ({
@@ -4379,8 +4664,21 @@ export default function SeriesEditorForm({
                   }}
                   className={ltrInputClass}
                 />
-                <TextField label="Trailer URL" value={form.trailer_url} onChange={(value) => updateField("trailer_url", value)} dir="ltr" className={ltrInputClass} />
-                <TextField label="Homepage URL" value={form.homepage_url} onChange={(value) => updateField("homepage_url", value)} dir="ltr" className={ltrInputClass} />
+                </FormFieldAnchor>
+                <TextField
+                  label={isManualMode ? "Trailer URL (اختیاری)" : "Trailer URL"}
+                  value={form.trailer_url}
+                  onChange={(value) => updateField("trailer_url", value)}
+                  dir="ltr"
+                  className={ltrInputClass}
+                />
+                <TextField
+                  label={isManualMode ? "Homepage URL (اختیاری)" : "Homepage URL"}
+                  value={form.homepage_url}
+                  onChange={(value) => updateField("homepage_url", value)}
+                  dir="ltr"
+                  className={ltrInputClass}
+                />
               </div>
 
               <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3">
@@ -4394,7 +4692,12 @@ export default function SeriesEditorForm({
                 <button
                   type="button"
                   onClick={goToNextTab}
-                  className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d]"
+                  aria-disabled={!canProceedToNextTab}
+                  className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
+                    canProceedToNextTab
+                      ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
+                      : "cursor-not-allowed border-white/10 bg-white/[0.06] text-[#607684] opacity-70"
+                  }`}
                 >
                   تب بعدی
                 </button>
@@ -4429,7 +4732,12 @@ export default function SeriesEditorForm({
                 <button
                   type="button"
                   onClick={goToNextTab}
-                  className="rounded-2xl border border-[#f5c518]/40 bg-[#f5c518] px-7 py-3 text-sm font-bold text-[#081018] transition hover:bg-[#e8bb0d]"
+                  aria-disabled={!canProceedToNextTab}
+                  className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
+                    canProceedToNextTab
+                      ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
+                      : "cursor-not-allowed border-white/10 bg-white/[0.06] text-[#607684] opacity-70"
+                  }`}
                 >
                   تب بعدی
                 </button>
@@ -4536,7 +4844,10 @@ export default function SeriesEditorForm({
                   </section>
                 ))}
 
-                {form.seasons.map((season, seasonIndex) => {
+                {form.seasons.filter(Boolean).map((season, seasonIndex) => {
+                  if (!season?.id) {
+                    return null;
+                  }
                   const seasonSyncStatus = tmdbSyncState.seasonProgress.find(
                     (row) => row.season_number === Number(season.season_number),
                   )?.status;
@@ -4565,7 +4876,7 @@ export default function SeriesEditorForm({
                           <p className="mt-1 text-xs text-[#8ea4b3]">
                             {isSeasonTmdbLoading
                               ? "در حال دریافت از TMDB…"
-                              : `${season.episodes.length} قسمت`}
+                              : `${(season.episodes || []).length} قسمت`}
                           </p>
                           {seasonSyncStatus === "error" ? (
                             <p className="mt-1 text-xs text-[#fca5a5]">
@@ -4657,7 +4968,10 @@ export default function SeriesEditorForm({
                               {tabFieldErrors[`season:${season.id}:episodes`]}
                             </p>
                           ) : null}
-                          {season.episodes.map((episode) => {
+                            {(season.episodes || []).filter(Boolean).map((episode) => {
+                            if (!episode?.id) {
+                              return null;
+                            }
                             const episodeKey = seasonEpisodeKey(season.id, episode.id);
                             const isEpisodeExpanded = expandedEpisodeKeys.includes(episodeKey);
                             const isEpisodeDirty =
@@ -4769,7 +5083,13 @@ export default function SeriesEditorForm({
                                 {isEpisodeExpanded ? (
                                   <div className="grid gap-4 border-t border-white/10 px-4 py-4 md:grid-cols-2">
                                     <TextField label="شماره قسمت" value={episode.episode_number} onChange={(value) => updateEpisode(season.id, episode.id, { episode_number: value.replace(/[^\d]/g, "") })} dir="ltr" fieldKey={`episode:${season.id}:${episode.id}:number`} error={tabFieldErrors[`episode:${season.id}:${episode.id}:number`]} />
-                                    <TextField label="عنوان قسمت" value={episode.title} onChange={(value) => updateEpisode(season.id, episode.id, { title: value })} />
+                                    <TextField
+                                      label="عنوان قسمت (اختیاری)"
+                                      value={episode.title}
+                                      onChange={(value) =>
+                                        updateEpisode(season.id, episode.id, { title: value })
+                                      }
+                                    />
                                     <TextField label="تاریخ پخش" type="date" value={episode.air_date} onChange={(value) => updateEpisode(season.id, episode.id, { air_date: value })} />
                                     <TextField
                                       label="مدت قسمت (اختیاری)"
@@ -4793,6 +5113,12 @@ export default function SeriesEditorForm({
                                             placeholder="پوشهٔ پکیج یا آدرس کامل master.m3u8"
                                             dir="ltr"
                                             className={ltrInputClass}
+                                            fieldKey={`episode:${season.id}:${episode.id}:hls_url`}
+                                            error={
+                                              tabFieldErrors[
+                                                `episode:${season.id}:${episode.id}:hls_url`
+                                              ]
+                                            }
                                           />
                                           <EpisodeHlsSyncStatus
                                             checking={episodeHlsSyncPending[episodeKey]}
@@ -4813,7 +5139,7 @@ export default function SeriesEditorForm({
                                         </>
                                       ) : (
                                         <TextField
-                                          label="آدرس ویدیو مستقیم (MP4)"
+                                          label="آدرس ویدیو مستقیم (MP4/MKV)"
                                           value={episode.video_url}
                                           onChange={(value) =>
                                             updateEpisode(season.id, episode.id, {
@@ -4821,9 +5147,15 @@ export default function SeriesEditorForm({
                                               source_method: "url",
                                             })
                                           }
-                                          placeholder="https://cdn.example.com/episodes/s01e01.mp4"
+                                          placeholder="https://cdn.example.com/episodes/s01e01.mkv"
                                           dir="ltr"
                                           className={ltrInputClass}
+                                          fieldKey={`episode:${season.id}:${episode.id}:video_url`}
+                                          error={
+                                            tabFieldErrors[
+                                              `episode:${season.id}:${episode.id}:video_url`
+                                            ]
+                                          }
                                         />
                                       )}
 
@@ -4925,10 +5257,11 @@ export default function SeriesEditorForm({
                 <button
                   type="button"
                   onClick={goToNextTab}
+                  aria-disabled={!canProceedToNextTab}
                   className={`rounded-2xl border px-7 py-3 text-sm font-bold transition ${
                     canProceedToNextTab
                       ? "border-[#f5c518]/40 bg-[#f5c518] text-[#081018] hover:bg-[#e8bb0d]"
-                      : "border-[#f5c518]/25 bg-[#f5c518]/70 text-[#081018] hover:bg-[#f5c518]"
+                      : "cursor-not-allowed border-white/10 bg-white/[0.06] text-[#607684] opacity-70"
                   }`}
                 >
                   تب بعدی
@@ -4987,7 +5320,7 @@ export default function SeriesEditorForm({
                       نمایش در اسلایدر صفحه اصلی
                     </span>
                     <span className="mt-1 block text-xs text-[#8ea4b3]">
-                      این سریال در ابتدای اسلایدر HomeHero (حداکثر ۳ مورد) قرار می‌گیرد.
+                      این سریال در ابتدای اسلایدر HomeHero (حداکثر ۸ مورد) قرار می‌گیرد.
                     </span>
                   </span>
                   <input

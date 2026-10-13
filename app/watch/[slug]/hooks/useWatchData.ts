@@ -312,8 +312,8 @@ export function useWatchData(
 
   const waitingForSource =
     !hasPlayableSource &&
-    ((isSeriesPlayback && watchEpisodeFetching) ||
-      (!isSeriesPlayback && watchMovieFetching));
+    ((isSeriesPlayback && watchEpisodeFetching && !watchEpisodeError) ||
+      (!isSeriesPlayback && watchMovieFetching && !watchMovieError));
 
   const waitingForRestFallback =
     !hasPlayableSource &&
@@ -323,6 +323,29 @@ export function useWatchData(
     !movieRestError;
 
   const showSkeleton = waitingForSource || waitingForRestFallback;
+
+  const playbackUnavailableMessage = useMemo(() => {
+    if (hasPlayableSource) {
+      return "";
+    }
+
+    if (isSeriesPlayback && (watchEpisodeError || watchEpisodeData?.watchEpisode)) {
+      const watch = watchEpisodeData?.watchEpisode;
+      if (watch && !watch.hls_url && !watch.video_url) {
+        return "لینک پخش این قسمت هنوز آماده نیست.";
+      }
+      if (watchEpisodeError) {
+        return "خروجی پخش برای این قسمت در دسترس نیست.";
+      }
+    }
+
+    return "";
+  }, [
+    hasPlayableSource,
+    isSeriesPlayback,
+    watchEpisodeData?.watchEpisode,
+    watchEpisodeError,
+  ]);
 
   const watchAuthError = useMemo(() => {
     const graphQLError = isSeriesPlayback ? watchEpisodeError : watchMovieError;
@@ -351,7 +374,7 @@ export function useWatchData(
     progressiveUrl,
     hasPlayableSource,
     showSkeleton,
-    restError,
+    restError: restError || playbackUnavailableMessage,
     watchAuthError,
     watchMovieData,
     watchEpisodeData,

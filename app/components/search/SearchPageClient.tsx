@@ -259,7 +259,7 @@ function SearchResultColumn({
               {columnItems.map((item) => (
                 <CatalogPosterCard
                   key={`${kind}-${item.id}`}
-                  item={item}
+                  item={{ ...item, catalogKind: isMovie ? "movie" : "series" }}
                   href={`${basePath}/${item.slug}`}
                 />
               ))}

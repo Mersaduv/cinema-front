@@ -14,6 +14,7 @@ import {
 } from "../features/player/services/ProgressTracker";
 import type { WatchProgressRecord } from "../features/player/services/progress.types";
 import ContentListSlider from "./catalog/ContentListSlider";
+import { SeriesStackShell } from "./catalog/SeriesPosterStack";
 import { BackdropImage, EpisodeStillImage, PosterImage } from "./images";
 import { VIEWER_ACCENT } from "../lib/viewer-theme";
 import { TV_CARD_FOCUS_CLASS, TV_FOCUS_RING_CLASS } from "../lib/tv/focus";
@@ -321,12 +322,68 @@ function ContinueWatchingCard({
   }
 
   const isLandscape = layout === "landscape";
+  const isSeries = record.mediaType === "series";
   const cardTitle = record.title || "ادامه تماشا";
   const cardImage = resolveCardImage(record, layout);
   const imageLoading = isTvCompat && index < 8 ? "eager" : undefined;
   const shellAttrs = isLandscape
     ? { "data-tv-landscape-shell": true }
     : { "data-tv-poster-shell": true };
+
+  const mediaShell = (
+    <div
+      {...shellAttrs}
+      className={`relative overflow-hidden rounded-xl bg-[#12161f] shadow-[0_12px_28px_rgba(0,0,0,0.35)] ${
+        isSeries ? "z-[1]" : ""
+      } ${isLandscape ? "aspect-video" : "aspect-[2/3]"}`}
+    >
+      {isLandscape ? (
+        isSeries ? (
+          <EpisodeStillImage
+            seriesTitle={cardTitle}
+            src={cardImage}
+            usage="episode-card"
+            loading={imageLoading}
+            wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
+          />
+        ) : (
+          <BackdropImage
+            title={cardTitle}
+            src={cardImage}
+            usage="detail-backdrop"
+            loading={imageLoading}
+            wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
+          />
+        )
+      ) : (
+        <PosterImage
+          title={cardTitle}
+          src={cardImage}
+          usage="poster-grid"
+          loading={imageLoading}
+          wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
+        />
+      )}
+
+      <div
+        className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 ${TV_CARD_FOCUS_CLASS}`}
+      >
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md">
+          <HiMiniPlay className="h-7 w-7" />
+        </span>
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1 bg-white/15" dir="ltr">
+        <div
+          className="h-full transition-all"
+          style={{
+            width: `${Math.min(100, record.percentWatched)}%`,
+            backgroundColor: VIEWER_ACCENT,
+          }}
+        />
+      </div>
+    </div>
+  );
 
   return (
     <div className={`group relative ${isLandscape ? "w-full" : ""}`}>
@@ -335,67 +392,21 @@ function ContinueWatchingCard({
         aria-label={cardTitle}
         data-tv-focusable
         data-tv-carousel-item
+        data-content-kind={isSeries ? "series" : "movie"}
         tabIndex={0}
         className={`block rounded-xl ${TV_FOCUS_RING_CLASS}`}
       >
-        <div
-          {...shellAttrs}
-          className={`relative overflow-hidden rounded-xl bg-[#12161f] ${
-            isLandscape ? "aspect-video" : "aspect-[2/3]"
-          }`}
-        >
-          {isLandscape ? (
-            record.mediaType === "series" ? (
-              <EpisodeStillImage
-                seriesTitle={cardTitle}
-                src={cardImage}
-                usage="episode-card"
-                loading={imageLoading}
-                wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
-              />
-            ) : (
-              <BackdropImage
-                title={cardTitle}
-                src={cardImage}
-                usage="detail-backdrop"
-                loading={imageLoading}
-                wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
-              />
-            )
-          ) : (
-            <PosterImage
-              title={cardTitle}
-              src={cardImage}
-              usage="poster-grid"
-              loading={imageLoading}
-              wrapperClassName="h-full transition duration-500 group-hover:scale-[1.04] group-focus-within:scale-[1.04]"
-            />
-          )}
-
-          <div
-            className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 ${TV_CARD_FOCUS_CLASS}`}
-          >
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md">
-              <HiMiniPlay className="h-7 w-7" />
-            </span>
-          </div>
-
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1 bg-white/15" dir="ltr">
-            <div
-              className="h-full transition-all"
-              style={{
-                width: `${Math.min(100, record.percentWatched)}%`,
-                backgroundColor: VIEWER_ACCENT,
-              }}
-            />
-          </div>
-        </div>
+        {isSeries ? (
+          <SeriesStackShell variant={isLandscape ? "landscape" : "portrait"}>
+            {mediaShell}
+          </SeriesStackShell>
+        ) : (
+          mediaShell
+        )}
         <p className="mt-2 line-clamp-2 text-right text-xs font-medium text-white/90 md:text-sm">
           {cardTitle}
         </p>
-        {record.mediaType === "series" &&
-        record.seasonNumber &&
-        record.episodeNumber ? (
+        {isSeries && record.seasonNumber && record.episodeNumber ? (
           <p className="mt-0.5 text-right text-[11px] text-white/50">
             فصل {record.seasonNumber} — قسمت {record.episodeNumber}
           </p>
@@ -406,7 +417,7 @@ function ContinueWatchingCard({
         aria-label="حذف از تاریخچه"
         data-tv-focusable
         onClick={() => onRemove(record)}
-        className={`absolute top-2 left-2 z-30 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white/80 opacity-0 transition hover:bg-black group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 ${TV_FOCUS_RING_CLASS} ${TV_CARD_FOCUS_CLASS}`}
+        className={`absolute ${isSeries ? "top-3.5" : "top-2"} left-2 z-30 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white/80 opacity-0 transition hover:bg-black group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 ${TV_FOCUS_RING_CLASS} ${TV_CARD_FOCUS_CLASS}`}
       >
         <HiOutlineXMark className="h-4 w-4" />
       </button>

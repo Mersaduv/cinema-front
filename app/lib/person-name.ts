@@ -1,3 +1,5 @@
+import { normalizeAgeRating } from "./age-rating";
+
 const persianScriptPattern =
   /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/u;
 
@@ -78,6 +80,16 @@ export function isAgeRatingSelected(
   allowedValues: readonly string[],
 ) {
   const trimmed = (value ?? "").trim();
+  if (!trimmed) {
+    return false;
+  }
 
-  return trimmed !== "" && allowedValues.includes(trimmed);
+  if (allowedValues.includes(trimmed)) {
+    return true;
+  }
+
+  // Legacy letter codes (G, PG-13, …) map to numeric ages used in forms.
+  const normalized = normalizeAgeRating(trimmed);
+
+  return Boolean(normalized && allowedValues.includes(normalized));
 }

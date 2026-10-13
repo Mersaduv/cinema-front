@@ -35,14 +35,8 @@ function isProcessing(item: ContentStatusItem): boolean {
 
   const processingStatus = item.processing_status;
 
-  if (
-    processingStatus &&
-    !["ready", "failed"].includes(processingStatus)
-  ) {
-    return true;
-  }
-
-  return false;
+  // "pending" means no HLS/package work yet — not an active worker job.
+  return processingStatus === "queued" || processingStatus === "processing";
 }
 
 export function ContentStatusBadge({ item, className = "" }: ContentStatusBadgeProps) {

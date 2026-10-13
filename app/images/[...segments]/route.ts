@@ -142,6 +142,20 @@ export async function GET(
   try {
     return await createOptimizedResponse(absolutePath, request);
   } catch (error) {
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? String((error as { code?: string }).code ?? "")
+        : "";
+
+    // Missing originals are expected for stale URLs — return 404 without a stack dump.
+    if (code === "ENOENT") {
+      try {
+        return await createOriginalResponse(absolutePath);
+      } catch {
+        return new Response("Not found", { status: 404 });
+      }
+    }
+
     console.error("[cinema-image] transform failed, falling back to original", error);
     try {
       return await createOriginalResponse(absolutePath);

@@ -58,7 +58,7 @@ export default function AppChrome({
               : "h-dvh overflow-hidden bg-black"
             : shouldHideHeader || shouldOverlayHeader
               ? `flex min-h-screen flex-col${showTvSidebar ? " pr-[220px]" : ""}`
-              : `flex min-h-screen flex-col pt-[138px] xl:pt-[81px] ${showTvSidebar ? " pr-[220px]" : ""}`
+              : `flex min-h-screen flex-col pt-[72px] lg:pt-[81px] ${showTvSidebar ? " pr-[220px]" : ""}`
         }
       >
         <main className={isWatchRoute ? "h-full overflow-hidden" : "flex-1"}>

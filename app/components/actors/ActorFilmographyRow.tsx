@@ -26,7 +26,10 @@ export default function ActorFilmographyRow({
       <ContentListSlider ariaLabel={title}>
         {items.map((item) => (
           <div key={`${kind}-${item.id}`} data-slider-slide className={SLIDER_SLIDE_CLASS}>
-            <CatalogPosterCard item={item} href={`${basePath}/${item.slug}`} />
+            <CatalogPosterCard
+              item={{ ...item, catalogKind: kind }}
+              href={`${basePath}/${item.slug}`}
+            />
           </div>
         ))}
       </ContentListSlider>
