@@ -110,6 +110,12 @@ export function buildEpisodeUpsertPayload(
     normalizeHlsBaseUrl(season.hls_base_url) ||
     buildSeasonHlsBase(seriesHlsBase, seasonNumber);
 
+  const hlsUrl = nullableString(episode.hls_url);
+  const sourceMethod =
+    hlsUrl && episode.source_method !== "embed"
+      ? "hls"
+      : episode.source_method || "hls";
+
   return {
     season_number: seasonNumber,
     episode_number: Number(episode.episode_number),
@@ -119,18 +125,15 @@ export function buildEpisodeUpsertPayload(
     air_date: nullableString(episode.air_date) || null,
     duration_minutes: nullableDurationMinutes(episode.duration_minutes),
     still_url: nullableString(episode.still_url) || null,
-    source_method: episode.source_method || "hls",
+    source_method: sourceMethod,
     video_url:
-      episode.source_method === "url" || episode.source_method === "upload"
+      sourceMethod === "url" || sourceMethod === "upload"
         ? nullableString(episode.video_url) || null
         : null,
     embed_url:
-      episode.source_method === "embed" ? nullableString(episode.embed_url) || null : null,
-    hls_url:
-      episode.source_method === "hls"
-        ? nullableString(episode.hls_url) || null
-        : null,
-    hls_verified: episode.source_method === "hls" ? Boolean(episode.hls_verified) : false,
+      sourceMethod === "embed" ? nullableString(episode.embed_url) || null : null,
+    hls_url: sourceMethod === "hls" ? hlsUrl || null : null,
+    hls_verified: sourceMethod === "hls" ? Boolean(episode.hls_verified || hlsUrl) : false,
     dash_url: episode.dash_verified ? nullableString(episode.dash_url) || null : null,
     dash_verified: Boolean(episode.dash_verified),
     download_links: downloadMapFromEpisode(episode),

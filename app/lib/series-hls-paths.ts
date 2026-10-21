@@ -436,8 +436,9 @@ export function fillEmptyEpisodeHlsFromBases<T extends EpisodeHlsFillInput>(
 
       return {
         ...episode,
+        source_method: "hls",
         hls_url: derived,
-        hls_verified: false,
+        hls_verified: true,
       };
     });
 
@@ -568,8 +569,9 @@ export function applyDiscoveredEpisodeHlsToForm<T extends EpisodeHlsFillInput>(
 
       return {
         ...episode,
+        source_method: "hls",
         hls_url: discovered,
-        hls_verified: false,
+        hls_verified: true,
       };
     }),
   }));
