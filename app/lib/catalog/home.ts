@@ -9,10 +9,12 @@ import type { CatalogListItem, PaginationMeta } from "./rest";
 import { isCarouselMeta } from "./rest";
 
 export const HOME_RAIL_FETCH_COUNT = HOME_RAIL_CAROUSEL_PER_PAGE;
-export const HOME_FEATURED_POOL = 8;
-export const HOME_FEATURED_SLIDES = 8;
-export const HOME_FEATURED_EDITORIAL_MAX = 8;
+export const HOME_FEATURED_POOL = 7;
+export const HOME_FEATURED_SLIDES = 7;
+export const HOME_FEATURED_EDITORIAL_MAX = 7;
 export const HOME_HERO_MIN_RATING = 6;
+export const HOME_SITE_FRESH_MAX = 20;
+export const HOME_SITE_FRESH_INITIAL = 6;
 
 const carouselDefaults = { carousel: true } as const;
 
@@ -65,7 +67,7 @@ export const HOME_TOP_RATED_FILTERS: CatalogFiltersState = {
 
 export const HOME_FRESH_MOVIES_FILTERS: CatalogFiltersState = {
   search: "",
-  sort: "newest",
+  sort: "updated",
   genres: [],
   countries: [],
   languages: [],
@@ -295,26 +297,50 @@ export function pickTrendingHomeItems(
   return [...merged, ...fallback].slice(0, limit);
 }
 
+export function sortBySitePublishedAt<
+  T extends { updated_at?: string | null; published_at?: string | null },
+>(items: T[]): T[] {
+  return [...items].sort((left, right) => {
+    const leftTime = Date.parse(left.updated_at ?? left.published_at ?? "") || 0;
+    const rightTime = Date.parse(right.updated_at ?? right.published_at ?? "") || 0;
+    return rightTime - leftTime;
+  });
+}
+
+/** Movies + series ordered by the latest site update (updated_at). */
 export function pickFreshHomeItems(
   movies: CatalogListItem[],
   series: CatalogListItem[],
   limit = HOME_RAIL_CAROUSEL_PER_PAGE,
 ): Array<CatalogListItem & { catalogKind: "movie" | "series" }> {
-  const movieItems = filterHomeSliderItems(movies);
-  const seriesItems = filterHomeSliderItems(series);
-  const merged: Array<CatalogListItem & { catalogKind: "movie" | "series" }> = [];
-  const maxLen = Math.max(movieItems.length, seriesItems.length);
+  const merged = [
+    ...filterHomeSliderItems(movies).map((item) => ({
+      ...item,
+      catalogKind: "movie" as const,
+    })),
+    ...filterHomeSliderItems(series).map((item) => ({
+      ...item,
+      catalogKind: "series" as const,
+    })),
+  ];
 
-  for (let index = 0; index < maxLen; index += 1) {
-    if (movieItems[index]) {
-      merged.push({ ...movieItems[index], catalogKind: "movie" });
-    }
-    if (seriesItems[index]) {
-      merged.push({ ...seriesItems[index], catalogKind: "series" });
-    }
-  }
+  return sortBySitePublishedAt(merged).slice(0, limit);
+}
 
-  return merged.slice(0, limit);
+export function splitSiteFreshRail(
+  movies: CatalogListItem[],
+  series: CatalogListItem[],
+  initial = HOME_SITE_FRESH_INITIAL,
+): {
+  visible: ReturnType<typeof pickFreshHomeItems>;
+  reserve: ReturnType<typeof pickFreshHomeItems>;
+} {
+  const sorted = pickFreshHomeItems(movies, series, HOME_SITE_FRESH_MAX);
+
+  return {
+    visible: sorted.slice(0, initial),
+    reserve: sorted.slice(initial),
+  };
 }
 
 export function buildFeaturedDetailHref(item: FeaturedCatalogItem | AnimationCatalogItem): string {

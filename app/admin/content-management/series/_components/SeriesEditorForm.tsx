@@ -1280,6 +1280,11 @@ export default function SeriesEditorForm({
   const [taxonomyCountries, setTaxonomyCountries] = useState<AdminTaxonomyCountry[]>([]);
   const [taxonomyLanguages, setTaxonomyLanguages] = useState<AdminTaxonomyLanguage[]>([]);
   const [taxonomyLoading, setTaxonomyLoading] = useState(true);
+  const [homeHeroSlider, setHomeHeroSlider] = useState({
+    max: 7,
+    current: 0,
+    remaining: 7,
+  });
   const [listDrafts, setListDrafts] = useState<Record<SeriesFreeArrayField, string>>({
     creators: "",
     directors: "",
@@ -1417,6 +1422,9 @@ export default function SeriesEditorForm({
         setTaxonomyGenres(nextGenres);
         setTaxonomyCountries(nextCountries);
         setTaxonomyLanguages(nextLanguages);
+        if (optionsResponse.data.home_hero_slider) {
+          setHomeHeroSlider(optionsResponse.data.home_hero_slider);
+        }
       }
       setTaxonomyLoading(false);
 
@@ -2036,7 +2044,7 @@ export default function SeriesEditorForm({
         seasonNumbers,
         (seasonNumber) =>
           adminSeriesService.fetchTmdbSeason(tmdbId, seasonNumber, { signal }),
-        { concurrency: 2, signal },
+        { concurrency: 4, signal },
       );
 
       const [seasonFetchRows] = await Promise.all([
@@ -5320,18 +5328,45 @@ export default function SeriesEditorForm({
                       نمایش در اسلایدر صفحه اصلی
                     </span>
                     <span className="mt-1 block text-xs text-[#8ea4b3]">
-                      این سریال در ابتدای اسلایدر HomeHero (حداکثر ۸ مورد) قرار می‌گیرد.
+                      این سریال در ابتدای اسلایدر HomeHero قرار می‌گیرد (حداکثر{" "}
+                      {homeHeroSlider.max} مورد — فعال: {homeHeroSlider.current}).
                     </span>
                   </span>
                   <input
                     type="checkbox"
                     checked={form.is_featured}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      if (checked && !form.is_featured && homeHeroSlider.remaining <= 0) {
+                        setError(
+                          `اسلایدر صفحه اصلی حداکثر ${homeHeroSlider.max} مورد می‌تواند داشته باشد. ابتدا یکی را غیرفعال کنید.`,
+                        );
+                        return;
+                      }
+
+                      setError("");
                       setForm((current) => ({
                         ...current,
-                        is_featured: event.target.checked,
-                      }))
-                    }
+                        is_featured: checked,
+                      }));
+                      setHomeHeroSlider((current) => {
+                        if (checked && !form.is_featured) {
+                          return {
+                            ...current,
+                            current: current.current + 1,
+                            remaining: Math.max(0, current.remaining - 1),
+                          };
+                        }
+                        if (!checked && form.is_featured) {
+                          return {
+                            ...current,
+                            current: Math.max(0, current.current - 1),
+                            remaining: current.remaining + 1,
+                          };
+                        }
+                        return current;
+                      });
+                    }}
                     className="h-5 w-5 rounded border-white/20 bg-transparent accent-[#f5c518]"
                   />
                 </label>

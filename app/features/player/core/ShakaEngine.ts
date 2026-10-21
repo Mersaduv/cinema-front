@@ -69,6 +69,13 @@ export class ShakaEngine implements PlaybackEngine {
         safeSeekOffset: 5,
         stallEnabled: true,
         stallSkip: 0.1,
+        retryParameters: {
+          timeout: 120_000,
+          maxAttempts: 10,
+          baseDelay: 1_000,
+          backoffFactor: 2,
+          fuzzFactor: 0.5,
+        },
       },
       abr: {
         enabled: true,
@@ -76,6 +83,15 @@ export class ShakaEngine implements PlaybackEngine {
         switchInterval: 8,
         bandwidthUpgradeTarget: this.options.config.abrSafetyFactor,
         bandwidthDowngradeTarget: 0.95,
+      },
+      manifest: {
+        retryParameters: {
+          timeout: 120_000,
+          maxAttempts: 10,
+          baseDelay: 1_000,
+          backoffFactor: 2,
+          fuzzFactor: 0.5,
+        },
       },
     });
 

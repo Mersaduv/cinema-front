@@ -1,4 +1,3 @@
-import type { FilterOptions } from "../../lib/filter-options";
 import {
   HOME_POPULAR_HYBRID_MOVIES_FILTERS,
   HOME_POPULAR_SERIES_FILTERS,
@@ -7,13 +6,12 @@ import {
   toCarouselMeta,
 } from "../../lib/catalog/home";
 import { getCachedDeferredHomeRails } from "../../lib/catalog/home-deferred";
+import { getCachedFilterOptions } from "../../lib/filter-options-cache";
 import HomeCatalogRail from "./HomeCatalogRail";
+import HomeLatestEpisodesRail from "./HomeLatestEpisodesRail";
 
-export default async function HomeDeferredRails({
-  filterOptions,
-}: {
-  filterOptions: FilterOptions;
-}) {
+export default async function HomeDeferredRails() {
+  const filterOptions = await getCachedFilterOptions();
   const data = await getCachedDeferredHomeRails(filterOptions);
 
   return (
@@ -32,6 +30,8 @@ export default async function HomeDeferredRails({
         />
       ) : null}
 
+      <HomeLatestEpisodesRail items={data.latestEpisodes} />
+
       {data.popularHybrid ? (
         <HomeCatalogRail
           title="محبوب در سینما"
@@ -43,21 +43,6 @@ export default async function HomeDeferredRails({
           sort="popular_hybrid"
           kind="movies"
           filters={HOME_POPULAR_HYBRID_MOVIES_FILTERS}
-        />
-      ) : null}
-
-      {data.freshItems.length > 0 ? (
-        <HomeCatalogRail
-          title="تازه‌های سینما"
-          initialItems={data.freshItems}
-          initialMeta={buildStaticCarouselMeta(
-            data.freshTotal,
-            data.freshItems.length,
-          )}
-          sort="newest"
-          kind="movies"
-          progressive={false}
-          useItemKind
         />
       ) : null}
 

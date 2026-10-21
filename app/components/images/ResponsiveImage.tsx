@@ -36,6 +36,9 @@ export type ResponsiveImageProps = {
   draggable?: boolean;
   /** Admin preview: show TMDB/external fallback when managed src is not ready yet. */
   allowRemoteFallback?: boolean;
+  /** When true, render placeholder shell without starting a network fetch. */
+  deferLoad?: boolean;
+  onLoadComplete?: () => void;
 };
 
 const LOAD_FAIL_OPEN_MS = 2500;
@@ -59,6 +62,8 @@ export default function ResponsiveImage({
   height,
   draggable,
   allowRemoteFallback = false,
+  deferLoad = false,
+  onLoadComplete,
 }: ResponsiveImageProps) {
   const isTvCompat = useIsTvCompat();
   const [loaded, setLoaded] = useState(false);
@@ -140,7 +145,10 @@ export default function ResponsiveImage({
     return () => window.clearTimeout(timer);
   }, [loaded, resolvedSrc]);
 
-  const handleLoad = useCallback(() => setLoaded(true), []);
+  const handleLoad = useCallback(() => {
+    setLoaded(true);
+    onLoadComplete?.();
+  }, [onLoadComplete]);
 
   const handleError = useCallback(() => {
     if (
@@ -174,15 +182,34 @@ export default function ResponsiveImage({
     if (!errored) {
       setErrored(true);
       setLoaded(true);
+      onLoadComplete?.();
     }
   }, [
     bareManagedSrc,
     errored,
     normalizedFallback,
+    onLoadComplete,
     primarySrc,
     useBareManaged,
     useFallback,
   ]);
+
+  useEffect(() => {
+    if (deferLoad || !resolvedSrc || !loaded) {
+      return;
+    }
+    onLoadComplete?.();
+  }, [deferLoad, loaded, onLoadComplete, resolvedSrc]);
+
+  if (deferLoad) {
+    return (
+      <div
+        className={`bg-[#12161f] ${fill ? "h-full w-full" : ""} ${wrapperClassName}`}
+        style={!fill && aspectRatio ? { aspectRatio } : undefined}
+        aria-hidden
+      />
+    );
+  }
 
   if (!resolvedSrc) {
     return (

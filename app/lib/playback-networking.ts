@@ -148,11 +148,40 @@ export function applyPlaybackFetchInit(
   };
 }
 
+/** hls.js load policies — patient with slow last-mile networks. */
+export function createHlsLoadPolicies() {
+  const timeoutRetry = {
+    maxNumRetry: 8,
+    retryDelayMs: 1_000,
+    maxRetryDelayMs: 12_000,
+  };
+  const errorRetry = {
+    maxNumRetry: 10,
+    retryDelayMs: 1_000,
+    maxRetryDelayMs: 16_000,
+  };
+
+  const defaultPolicy = {
+    maxTimeToFirstByteMs: Infinity,
+    maxLoadTimeMs: PLAYBACK_FETCH_TIMEOUT_MS,
+    timeoutRetry,
+    errorRetry,
+  };
+
+  return {
+    manifestLoadPolicy: { default: defaultPolicy },
+    playlistLoadPolicy: { default: defaultPolicy },
+    fragLoadPolicy: { default: defaultPolicy },
+    keyLoadPolicy: { default: defaultPolicy },
+  };
+}
+
 export function createHlsNetworkingConfig(): {
   xhrSetup: (xhr: XMLHttpRequest, url: string) => void;
   fetchSetup: (context: { url: string }, initParams: RequestInit) => Request;
-} {
+} & ReturnType<typeof createHlsLoadPolicies> {
   return {
+    ...createHlsLoadPolicies(),
     xhrSetup(xhr, url) {
       const rewritten = rewriteCdnUrlForPlayback(url);
       xhr.timeout = PLAYBACK_FETCH_TIMEOUT_MS;

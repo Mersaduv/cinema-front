@@ -5,6 +5,7 @@ import HomeCatalogRail from "./components/home/HomeCatalogRail";
 import HomeClient from "./components/home/HomeClient";
 import HomeDeferredRails from "./components/home/HomeDeferredRails";
 import HomeHero from "./components/home/HomeHero";
+import HomeSiteFreshRail from "./components/home/HomeSiteFreshRail";
 import HeroLcpPreload from "./components/home/HeroLcpPreload";
 import { getCriticalHomeData } from "./lib/catalog/home-critical";
 import {
@@ -14,8 +15,16 @@ import {
 } from "./lib/catalog/home";
 
 export default async function Home() {
-  const { filterOptions, heroSlides, trendingItems, trendingTotal, popularMovies } =
-    await getCriticalHomeData();
+  const {
+    heroSlides,
+    siteFreshVisible,
+    siteFreshReserve,
+    siteFreshMoviesCursor,
+    siteFreshSeriesCursor,
+    trendingItems,
+    trendingTotal,
+    popularMovies,
+  } = await getCriticalHomeData();
 
   const hasHero = heroSlides.length > 0;
 
@@ -31,6 +40,13 @@ export default async function Home() {
           }`}
         >
           <ContinueWatching mediaType="all" limit={16} layout="landscape" />
+
+          <HomeSiteFreshRail
+            initialItems={siteFreshVisible}
+            reserveItems={siteFreshReserve}
+            moviesCursor={siteFreshMoviesCursor}
+            seriesCursor={siteFreshSeriesCursor}
+          />
 
           <HomeCatalogRail
             title="جدید و محبوب"
@@ -57,10 +73,12 @@ export default async function Home() {
           />
 
           <Suspense>
-            <HomeDeferredRails filterOptions={filterOptions} />
+            <HomeDeferredRails />
           </Suspense>
 
-          <GenreRailsSection filterOptions={filterOptions} />
+          <Suspense>
+            <GenreRailsSection />
+          </Suspense>
         </div>
       </HomeClient>
     </>

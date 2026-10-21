@@ -1,10 +1,17 @@
 import { memo } from "react";
 
+type LoadingOverlayProps = {
+  /** During initial prepare, sit above chrome and use a fuller veil. */
+  elevated?: boolean;
+};
+
 /** Minimal loading spinner — no text, no poster. */
-function LoadingOverlayComponent() {
+function LoadingOverlayComponent({ elevated = false }: LoadingOverlayProps) {
   return (
     <div
-      className="pointer-events-none absolute inset-0 z-[25] flex items-center justify-center bg-black/40"
+      className={`pointer-events-none absolute inset-0 flex items-center justify-center ${
+        elevated ? "z-40 bg-black/70" : "z-[25] bg-black/40"
+      }`}
       role="status"
       aria-live="polite"
       aria-busy="true"

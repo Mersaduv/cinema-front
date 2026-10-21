@@ -53,7 +53,7 @@ export async function fetchPlaybackSession(input: {
   }
 
   try {
-    const response = await fetch(`/api/playback/session?${cacheKey}`, {
+    const response = await fetch(`/edge/playback/session?${cacheKey}`, {
       credentials: "include",
     });
 

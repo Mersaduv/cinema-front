@@ -1,5 +1,8 @@
-/** Conservative playback network timeout — TV Wi-Fi stacks may hang without platform default. */
-export const PLAYBACK_FETCH_TIMEOUT_MS = 20_000;
+/**
+ * Patient playback network timeout for weak viewer connections.
+ * Prefer long waits + engine retries over surfacing a player error.
+ */
+export const PLAYBACK_FETCH_TIMEOUT_MS = 120_000;
 
 export function playbackFetchSignal(
   parent?: AbortSignal | null,

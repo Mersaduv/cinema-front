@@ -91,7 +91,7 @@ async function refreshPublicViewerServerCache(options?: {
   }
 
   try {
-    await fetch("/api/admin/revalidate-viewer", {
+    await fetch("/edge/admin/revalidate-viewer", {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -149,7 +149,7 @@ export function revalidatePublicHomePage(): Promise<void> {
 
 /**
  * Lightweight client-side SWR refresh after admin saves.
- * Also invalidates Next.js home/slider server cache via /api/admin/revalidate-viewer.
+ * Also invalidates Next.js home/slider server cache via /edge/admin/revalidate-viewer.
  */
 export async function syncViewerCacheAfterAdminSave(options?: {
   movieSlugs?: Array<string | null | undefined>;

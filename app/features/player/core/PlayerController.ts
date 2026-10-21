@@ -767,7 +767,7 @@ export class PlayerController {
 
     const timeoutMs = Math.min(
       this.config.watchdogTimeoutMs * 2 ** this.recoveryAttempt,
-      30_000,
+      180_000,
     );
 
     this.watchdogTimer = window.setTimeout(() => {

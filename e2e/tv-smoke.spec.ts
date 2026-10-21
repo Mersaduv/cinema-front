@@ -187,7 +187,7 @@ test.describe("TV browser smoke — unified UI (Tizen UA)", () => {
       "#EXT-X-ENDLIST",
     ].join("\n");
 
-    await page.route("**/api/playback/manifest**", async (route) => {
+    await page.route("**/edge/playback/manifest**", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/vnd.apple.mpegurl",

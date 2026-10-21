@@ -263,6 +263,11 @@ export interface AdminSeriesOptionsResponse {
   genres?: Array<{ id: number; tmdb_id: number | null; name: string; slug: string }>;
   countries?: Array<{ iso: string; name: string; flag?: string | null }>;
   languages?: Array<{ iso: string; name: string }>;
+  home_hero_slider?: {
+    max: number;
+    current: number;
+    remaining: number;
+  };
 }
 
 export interface AdminSeriesPayload {

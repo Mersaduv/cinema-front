@@ -13,6 +13,8 @@ type BackdropImageProps = Omit<
   usage?: "hero-backdrop" | "detail-backdrop";
   placeholderPath?: string;
   allowRemoteFallback?: boolean;
+  deferLoad?: boolean;
+  onLoadComplete?: () => void;
 };
 
 export default function BackdropImage({
@@ -25,6 +27,8 @@ export default function BackdropImage({
   src,
   fallbackUrl,
   allowRemoteFallback = false,
+  deferLoad = false,
+  onLoadComplete,
   ...rest
 }: BackdropImageProps) {
   if (usage === "hero-backdrop") {
@@ -38,6 +42,8 @@ export default function BackdropImage({
         priority={loading === "eager"}
         fetchPriority={loading === "eager" ? "high" : "auto"}
         placeholderPath={placeholderPath}
+        deferLoad={deferLoad}
+        onLoadComplete={onLoadComplete}
         {...rest}
       />
     );
@@ -55,6 +61,8 @@ export default function BackdropImage({
       loading={loading}
       placeholderPath={placeholderPath}
       allowRemoteFallback={allowRemoteFallback}
+      deferLoad={deferLoad}
+      onLoadComplete={onLoadComplete}
       fill
       {...rest}
     />

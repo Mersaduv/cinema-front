@@ -15,6 +15,7 @@ import {
   HiMiniPlay,
 } from "react-icons/hi2";
 import { BackdropImage, PosterImage } from "../images";
+import { useSequentialLoadGate } from "../../hooks/useSequentialLoadGate";
 import {
   buildFeaturedDetailHref,
   buildFeaturedWatchHref,
@@ -46,6 +47,11 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
     locked: "none" | "h" | "v";
   } | null>(null);
 
+  const { canLoad, markLoaded, unlockThrough } = useSequentialLoadGate(
+    slides.length,
+    { enabled: slides.length > 1, stallMs: 5_000 },
+  );
+
   const goNext = useCallback(() => {
     if (slides.length <= 1) {
       return;
@@ -57,7 +63,7 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
     if (slides.length <= 1) {
       return;
     }
-    setActiveIndex((current) => (current - 1 + slides.length) % slides.length);
+    setActiveIndex((current) => (current + slides.length - 1) % slides.length);
   }, [slides.length]);
 
   const slideIds = slides.map((item) => `${item.catalogKind}-${item.id}`).join(",");
@@ -113,6 +119,11 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
 
   const safeIndex =
     slides.length === 0 ? 0 : Math.min(activeIndex, slides.length - 1);
+
+  // Navigating to a slide must never wait on the sequential queue.
+  useEffect(() => {
+    unlockThrough(safeIndex);
+  }, [safeIndex, unlockThrough]);
 
   useEffect(() => {
     if (slides.length <= 1 || typeof document === "undefined") {
@@ -175,7 +186,6 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
       return;
     }
 
-    // Prefer page scroll when gesture is mostly vertical.
     if (absY * SWIPE_RATIO >= absX) {
       touch.locked = "v";
       return;
@@ -199,7 +209,6 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
       return;
     }
 
-    // RTL: swipe toward start (finger moves left → positive dx in LTR coords means next visually)
     if (dx > 0) {
       goNext();
     } else {
@@ -238,6 +247,10 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
     >
       {slides.map((item, index) => {
         const isActive = index === safeIndex;
+        const nextIndex = (safeIndex + 1) % slides.length;
+        // Mount media only for active, next (warm), or sequentially unlocked slides.
+        const shouldMountMedia =
+          isActive || index === nextIndex || canLoad(index);
 
         return (
           <div
@@ -247,32 +260,41 @@ export default function HomeHero({ items }: { items: FeaturedCatalogItem[] }) {
             }`}
             aria-hidden={!isActive}
           >
-            {/* Mobile: poster is clearer in portrait viewport */}
-            <div className="absolute inset-0 md:hidden">
-              <PosterImage
-                title={item.title}
-                image={item.poster_image}
-                src={item.poster_url}
-                fallbackUrl={item.backdrop_url ?? item.details.backdrop_url}
-                usage="detail-poster"
-                loading={index === 0 ? "eager" : "lazy"}
-                fetchPriority={index === 0 ? "high" : "auto"}
-                wrapperClassName="h-full w-full"
-                className="object-cover object-center"
-              />
-            </div>
-            <div className="absolute inset-0 hidden md:block">
-              <BackdropImage
-                title={item.title}
-                image={item.backdrop_image}
-                src={item.backdrop_url ?? item.details.backdrop_url}
-                fallbackUrl={item.poster_url}
-                usage="hero-backdrop"
-                loading={index === 0 ? "eager" : "lazy"}
-                wrapperClassName="h-full w-full"
-                className="object-cover object-center"
-              />
-            </div>
+            {shouldMountMedia ? (
+              <>
+                <div className="absolute inset-0 md:hidden">
+                  <PosterImage
+                    title={item.title}
+                    image={item.poster_image}
+                    src={item.poster_url}
+                    fallbackUrl={item.backdrop_url ?? item.details.backdrop_url}
+                    usage="detail-poster"
+                    loading={index === 0 || isActive ? "eager" : "lazy"}
+                    fetchPriority={index === 0 || isActive ? "high" : "auto"}
+                    deferLoad={!canLoad(index) && !isActive}
+                    onLoadComplete={() => markLoaded(index)}
+                    wrapperClassName="h-full w-full"
+                    className="object-cover object-center"
+                  />
+                </div>
+                <div className="absolute inset-0 hidden md:block">
+                  <BackdropImage
+                    title={item.title}
+                    image={item.backdrop_image}
+                    src={item.backdrop_url ?? item.details.backdrop_url}
+                    fallbackUrl={item.poster_url}
+                    usage="hero-backdrop"
+                    loading={index === 0 || isActive ? "eager" : "lazy"}
+                    deferLoad={!canLoad(index) && !isActive}
+                    onLoadComplete={() => markLoaded(index)}
+                    wrapperClassName="h-full w-full"
+                    className="object-cover object-center"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="absolute inset-0 bg-[#05070b]" aria-hidden />
+            )}
           </div>
         );
       })}

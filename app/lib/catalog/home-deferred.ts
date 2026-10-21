@@ -8,16 +8,12 @@ import {
 } from "./animation";
 import { HOME_RAIL_CAROUSEL_PER_PAGE } from "./carousel-config";
 import {
-  HOME_FRESH_MOVIES_FILTERS,
-  HOME_FRESH_SERIES_FILTERS,
   HOME_POPULAR_HYBRID_MOVIES_FILTERS,
   HOME_POPULAR_SERIES_FILTERS,
   HOME_TOP_RATED_FILTERS,
-  buildStaticCarouselMeta,
-  pickFreshHomeItems,
-  toCarouselMeta,
 } from "./home";
 import { filterHomeCatalogFetchResult, filterHomeSliderItems } from "./home-visibility";
+import type { LatestEpisodeCard } from "../../components/home/HomeLatestEpisodesRail";
 import { LATEST_CATALOG_FILTERS } from "./latest";
 import {
   fetchMoviesCatalogRest,
@@ -32,11 +28,10 @@ const homeFetchOptions: CatalogFetchOptions = { skipFetchCache: true };
 export type DeferredHomeRailsData = {
   popularSeries: MoviesCatalogFetchResult | MoviesCarouselFetchResult | null;
   popularHybrid: MoviesCatalogFetchResult | MoviesCarouselFetchResult | null;
-  freshItems: ReturnType<typeof pickFreshHomeItems>;
-  freshTotal: number;
   topRatedMovies: MoviesCatalogFetchResult | MoviesCarouselFetchResult | null;
   topRatedSeries: MoviesCatalogFetchResult | MoviesCarouselFetchResult | null;
   animation: Awaited<ReturnType<typeof fetchAnimationCatalogMerged>> | null;
+  latestEpisodes: LatestEpisodeCard[];
 };
 
 export async function loadDeferredHomeRails(
@@ -54,11 +49,10 @@ export async function loadDeferredHomeRails(
   const [
     popularSeriesResult,
     popularHybridResult,
-    freshMoviesResult,
-    freshSeriesResult,
     topRatedMoviesResult,
     topRatedSeriesResult,
     animationResult,
+    latestEpisodes,
   ] = await Promise.all([
     fetchSeriesCatalogRest(
       HOME_POPULAR_SERIES_FILTERS,
@@ -69,20 +63,6 @@ export async function loadDeferredHomeRails(
     ),
     fetchMoviesCatalogRest(
       HOME_POPULAR_HYBRID_MOVIES_FILTERS,
-      1,
-      HOME_RAIL_CAROUSEL_PER_PAGE,
-      undefined,
-      homeFetchOptions,
-    ),
-    fetchMoviesCatalogRest(
-      HOME_FRESH_MOVIES_FILTERS,
-      1,
-      HOME_RAIL_CAROUSEL_PER_PAGE,
-      undefined,
-      homeFetchOptions,
-    ),
-    fetchSeriesCatalogRest(
-      HOME_FRESH_SERIES_FILTERS,
       1,
       HOME_RAIL_CAROUSEL_PER_PAGE,
       undefined,
@@ -107,12 +87,8 @@ export async function loadDeferredHomeRails(
       1,
       HOME_RAIL_CAROUSEL_PER_PAGE,
     ),
+    fetchLatestEpisodes(),
   ]);
-
-  const freshItems = pickFreshHomeItems(
-    freshMoviesResult.items,
-    freshSeriesResult.items,
-  );
 
   const popularSeries = filterHomeCatalogFetchResult(popularSeriesResult);
   const popularHybrid = filterHomeCatalogFetchResult(popularHybridResult);
@@ -123,15 +99,36 @@ export async function loadDeferredHomeRails(
   return {
     popularSeries: popularSeries.items.length > 0 ? popularSeries : null,
     popularHybrid: popularHybrid.items.length > 0 ? popularHybrid : null,
-    freshItems,
-    freshTotal: freshMoviesResult.meta.total + freshSeriesResult.meta.total,
     topRatedMovies: topRatedMovies.items.length > 0 ? topRatedMovies : null,
     topRatedSeries: topRatedSeries.items.length > 0 ? topRatedSeries : null,
     animation:
       animationItems.length > 0
         ? { ...animationResult, items: animationItems }
         : null,
+    latestEpisodes,
   };
+}
+
+async function fetchLatestEpisodes(): Promise<LatestEpisodeCard[]> {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005/api";
+
+  try {
+    const response = await fetch(`${apiBase}/home/latest-episodes?limit=12`, {
+      next: { revalidate: 180, tags: ["home-rails", "catalog-series"] },
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const json = (await response.json()) as {
+      data?: { items?: LatestEpisodeCard[] };
+    };
+
+    return Array.isArray(json.data?.items) ? json.data.items : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getCachedDeferredHomeRails(

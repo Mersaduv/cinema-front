@@ -38,7 +38,7 @@ const IMDB_OPTIONS = [
 ];
 
 const SORT_OPTIONS: AdminCatalogFilterOption[] = [
-  { value: "", label: "جدیدترین" },
+  { value: "", label: "آخرین بروزرسانی" },
   { value: "title_asc", label: "عنوان از الف تا ی" },
   { value: "title_desc", label: "عنوان از ی تا الف" },
   { value: "year_desc", label: "سال ساخت جدیدتر" },

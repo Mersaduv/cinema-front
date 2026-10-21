@@ -95,7 +95,7 @@ export function buildPlaybackSubtitleUrl(subtitleUrl?: string | null): string | 
   }
 
   if (/^https?:\/\//i.test(trimmed)) {
-    return `/api/subtitles?src=${encodeURIComponent(trimmed)}`;
+    return `/edge/subtitles?src=${encodeURIComponent(trimmed)}`;
   }
 
   return trimmed;

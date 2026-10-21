@@ -6,6 +6,7 @@ import CatalogPosterCardSkeleton from "../catalog/CatalogPosterCardSkeleton";
 import ContentListSlider, { SLIDER_SLIDE_CLASS } from "../catalog/ContentListSlider";
 import { useCarouselRail } from "../../hooks/useCarouselRail";
 import { useCarouselSentinel } from "../../hooks/useCarouselSentinel";
+import { useSequentialLoadGate } from "../../hooks/useSequentialLoadGate";
 import { useIsTvCompat } from "../../hooks/useTvCapabilities";
 import { getCatalogItemHref } from "../../lib/catalog/animation";
 import {
@@ -39,7 +40,8 @@ export default function HomeCatalogRail({
   const scrollRef = useRef<HTMLDivElement>(null);
   const prefetchTriggeredRef = useRef(false);
   const isTvCompat = useIsTvCompat();
-  const eagerImageCount = isTvCompat ? 8 : 6;
+  /** First visible batch loads one-by-one; rest stay lazy after the gate opens. */
+  const sequentialBatch = isTvCompat ? 8 : 6;
   const config = useMemo(
     () => getCarouselConfig(initialMeta.total),
     [initialMeta.total],
@@ -60,6 +62,12 @@ export default function HomeCatalogRail({
   const hasMore = progressive ? rail.hasMore : false;
   const isLoadingMore = progressive ? rail.isLoadingMore : false;
   const loadMore = progressive ? rail.loadMore : () => undefined;
+
+  const gateTotal = Math.min(sequentialBatch, items.length);
+  const { canLoad, markLoaded } = useSequentialLoadGate(gateTotal, {
+    enabled: gateTotal > 1,
+    stallMs: 3_500,
+  });
 
   const sentinelIndex = Math.min(
     config.sentinelAtIndex,
@@ -109,12 +117,14 @@ export default function HomeCatalogRail({
         {items.map((item, index) => {
           const href = useItemKind ? getCatalogItemHref(item) : `${basePath}/${item.slug}`;
           const isSentinelCard = progressive && hasMore && index === sentinelIndex;
-          const eagerImage = isAboveFold && index < eagerImageCount;
-          const highPriority = isAboveFold && index < 2;
+          const inSequentialBatch = index < gateTotal;
+          const imageReady = !inSequentialBatch || canLoad(index);
+          const preferEager = isAboveFold && inSequentialBatch && imageReady;
+          const highPriority = isAboveFold && index < 2 && imageReady;
 
           return (
             <div
-              key={`${useItemKind ? getCatalogItemHref(item) : item.id}`}
+              key={`${normalizedKind}-${item.id}-${item.slug}`}
               ref={isSentinelCard ? attachSentinelRef : undefined}
               data-slider-slide
               className={SLIDER_SLIDE_CLASS}
@@ -124,8 +134,12 @@ export default function HomeCatalogRail({
                 href={href}
                 index={index}
                 carouselItem
-                imageLoading={eagerImage ? "eager" : "lazy"}
+                deferImage={!imageReady}
+                imageLoading={preferEager ? "eager" : "lazy"}
                 imageFetchPriority={highPriority ? "high" : "auto"}
+                onImageLoad={
+                  inSequentialBatch ? () => markLoaded(index) : undefined
+                }
               />
             </div>
           );

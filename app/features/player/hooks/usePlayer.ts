@@ -221,8 +221,8 @@ function resolvePlayerConfig(video: HTMLVideoElement) {
 
   return {
     ...DEFAULT_PLAYER_CONFIG,
-    watchdogTimeoutMs: 14_000,
-    maxRecoveryRetries: 4,
+    watchdogTimeoutMs: 60_000,
+    maxRecoveryRetries: 10,
   };
 }
 

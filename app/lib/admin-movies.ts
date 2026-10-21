@@ -254,6 +254,11 @@ export interface AdminMovieOptionsResponse {
     value: string;
     label: string;
   }>;
+  home_hero_slider?: {
+    max: number;
+    current: number;
+    remaining: number;
+  };
 }
 
 export interface CreateAdminMoviePayload {

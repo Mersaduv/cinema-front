@@ -48,7 +48,7 @@ export const MINIMAL_HLS_MANIFEST = [
 ].join("\n");
 
 export async function mockPlaybackManifest(page: Page): Promise<void> {
-  await page.route("**/api/playback/manifest**", async (route) => {
+  await page.route("**/edge/playback/manifest**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/vnd.apple.mpegurl",

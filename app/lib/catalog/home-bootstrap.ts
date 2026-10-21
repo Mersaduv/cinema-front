@@ -1,10 +1,10 @@
-import type { FilterOptions } from "../filter-options";
 import type { MoviesCarouselFetchResult, MoviesCatalogFetchResult } from "./rest";
 import { filterHomeCatalogFetchResult } from "./home-visibility";
 import {
+  HOME_SITE_FRESH_MAX,
   pickFeaturedHeroSlides,
   pickTrendingHomeItems,
-  type FeaturedCatalogItem,
+  splitSiteFreshRail,
 } from "./home";
 import type { HomeCriticalData } from "./home-critical";
 
@@ -17,7 +17,6 @@ type PoolPayload = {
 };
 
 type HomeCriticalApiPayload = {
-  filter_options: FilterOptions;
   latest_movies: PoolPayload;
   latest_series: PoolPayload;
   editorial_featured_movies: PoolPayload;
@@ -29,6 +28,8 @@ type HomeCriticalApiPayload = {
   trending_fallback_movies: PoolPayload;
   trending_fallback_series: PoolPayload;
   popular_movies: PoolPayload;
+  site_fresh_movies: PoolPayload;
+  site_fresh_series: PoolPayload;
 };
 
 function toCarouselResult(pool: PoolPayload): MoviesCarouselFetchResult {
@@ -93,6 +94,12 @@ export async function fetchHomeCriticalBootstrap(): Promise<HomeCriticalData> {
   const trendingFallbackMoviesResult = toCarouselResult(data.trending_fallback_movies);
   const trendingFallbackSeriesResult = toCarouselResult(data.trending_fallback_series);
   const popularMoviesResult = toCarouselResult(data.popular_movies);
+  const siteFreshMoviesResult = toCarouselResult(data.site_fresh_movies ?? {});
+  const siteFreshSeriesResult = toCarouselResult(data.site_fresh_series ?? {});
+  const siteFresh = splitSiteFreshRail(
+    siteFreshMoviesResult.items,
+    siteFreshSeriesResult.items,
+  );
 
   const heroSlides = pickFeaturedHeroSlides(
     latestMoviesResult.items,
@@ -114,8 +121,15 @@ export async function fetchHomeCriticalBootstrap(): Promise<HomeCriticalData> {
     trendingMoviesResult.meta.total + trendingSeriesResult.meta.total;
 
   return {
-    filterOptions: data.filter_options,
     heroSlides,
+    siteFreshVisible: siteFresh.visible,
+    siteFreshReserve: siteFresh.reserve,
+    siteFreshMoviesCursor: siteFreshMoviesResult.meta.next_cursor,
+    siteFreshSeriesCursor: siteFreshSeriesResult.meta.next_cursor,
+    siteFreshTotal: Math.min(
+      HOME_SITE_FRESH_MAX,
+      siteFreshMoviesResult.meta.total + siteFreshSeriesResult.meta.total,
+    ),
     trendingItems,
     trendingTotal,
     popularMovies: filterHomeCatalogFetchResult(popularMoviesResult),

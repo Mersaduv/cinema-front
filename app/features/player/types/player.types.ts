@@ -144,8 +144,9 @@ export type PlayerConfig = {
 };
 
 export const DEFAULT_PLAYER_CONFIG: PlayerConfig = {
-  watchdogTimeoutMs: 8000,
-  maxRecoveryRetries: 3,
+  // Give weak networks time before watchdog recovery kicks in.
+  watchdogTimeoutMs: 45_000,
+  maxRecoveryRetries: 8,
   controlsHideDelayMs: 3000,
   /** Longer auto-hide on touch devices so controls stay tappable. */
   mobileControlsHideDelayMs: 6000,

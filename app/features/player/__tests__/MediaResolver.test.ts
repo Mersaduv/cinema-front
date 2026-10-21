@@ -6,7 +6,7 @@ describe("MediaResolver", () => {
 
   it("proxies external subtitle URLs", () => {
     const url = resolver.resolveSubtitleUrl("https://cdn.example.com/sub.vtt");
-    expect(url).toBe("/api/subtitles?src=" + encodeURIComponent("https://cdn.example.com/sub.vtt"));
+    expect(url).toBe("/edge/subtitles?src=" + encodeURIComponent("https://cdn.example.com/sub.vtt"));
   });
 
   it("passes through local subtitle paths", () => {
@@ -22,10 +22,10 @@ describe("MediaResolver", () => {
     });
 
     expect(source.src).toBe(
-      "/api/playback/manifest?src=" +
+      "/edge/playback/manifest?src=" +
         encodeURIComponent("https://cdn.example.com/master.m3u8"),
     );
-    expect(source.subtitleUrl).toContain("/api/subtitles?src=");
+    expect(source.subtitleUrl).toContain("/edge/subtitles?src=");
   });
 
   it("treats mp4 src as progressive and does not proxy it as HLS", () => {

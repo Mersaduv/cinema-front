@@ -29,6 +29,8 @@ export type HeroBackdropImageProps = {
   wrapperClassName?: string;
   overlay?: ReactNode;
   placeholderPath?: string;
+  deferLoad?: boolean;
+  onLoadComplete?: () => void;
 };
 
 const HERO_IMG_STYLE: CSSProperties = {
@@ -56,6 +58,8 @@ export default function HeroBackdropImage({
   wrapperClassName = "",
   overlay,
   placeholderPath = "/placeholders/backdrop.svg",
+  deferLoad = false,
+  onLoadComplete,
 }: HeroBackdropImageProps) {
   const [mediumLoaded, setMediumLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
@@ -118,7 +122,8 @@ export default function HeroBackdropImage({
 
   const handleLoad = useCallback(() => {
     setMediumLoaded(true);
-  }, []);
+    onLoadComplete?.();
+  }, [onLoadComplete]);
 
   const handleError = useCallback(() => {
     if (
@@ -135,8 +140,25 @@ export default function HeroBackdropImage({
     if (!errored) {
       setErrored(true);
       setMediumLoaded(true);
+      onLoadComplete?.();
     }
-  }, [bareManagedSrc, errored, resolved.src, useBareManaged]);
+  }, [bareManagedSrc, errored, onLoadComplete, resolved.src, useBareManaged]);
+
+  useEffect(() => {
+    if (deferLoad || !mediumLoaded) {
+      return;
+    }
+    onLoadComplete?.();
+  }, [deferLoad, mediumLoaded, onLoadComplete]);
+
+  if (deferLoad) {
+    return (
+      <div
+        className={`absolute inset-0 size-full overflow-hidden bg-[#05070b] ${wrapperClassName}`}
+        aria-hidden
+      />
+    );
+  }
 
   if (!displaySrc && !blurSrc) {
     return (

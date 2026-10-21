@@ -4713,3 +4713,1325 @@ Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
 Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
 Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
     at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+[PublicMoviePage] zaduynabajki Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] jurassicworlddominion Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+⨯ Error: Failed to find Server Action. This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+⨯ Error: Failed to find Server Action. This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicMoviePage] %D8%AE%D9%88%D8%A7%D8%A8%E2%80%8C%E2%80%8C%D9%86%D9%85%D8%A7 Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "7e811fae". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "30644c02". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+⨯ Error: Failed to find Server Action. This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+⨯ Error: Failed to find Server Action. This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+⨯ TypeError: Failed to parse body as FormData.
+    at async m (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\_14f550ee._.js:1:7070)
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+[PublicMoviePage] %24%7Be.slug%7D Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicSeriesPage] %24%7Be.slug%7D Error: Internal server error
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7245)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685)
+⨯ Error: Internal server error
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7245)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685) {
+  digest: '8031148'
+}
+[PublicSeriesPage] %24%7Be%7D%24%7Br%7D Error: Internal server error
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7245)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685)
+⨯ Error: Internal server error
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7245)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685) {
+  digest: '8031148'
+}
+[PublicMoviePage] %24%7Be%7D Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+[PublicSeriesPage] twisted-metal Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685)
+⨯ Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685) {
+  digest: '1486759394'
+}
+[PublicSeriesPage] afsanh-srbaz-ashpzkhanh Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685)
+⨯ Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685) {
+  digest: '1486759394'
+}
+[PublicSeriesPage] aaatraf-myknm Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685)
+⨯ Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685) {
+  digest: '1486759394'
+}
+[PublicSeriesPage] sfa-ba-khanoadh Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685)
+⨯ Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685) {
+  digest: '1486759394'
+}
+[PublicSeriesPage] series-328405 Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685)
+⨯ Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685) {
+  digest: '1486759394'
+}
+[PublicSeriesPage] to-the-moon Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685)
+⨯ Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685) {
+  digest: '1486759394'
+}
+[PublicSeriesPage] mrd-sh-hzar-chhrh Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685)
+⨯ Error: GraphQL HTTP 429
+    at i (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:1:7164)
+    at async (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\app_lib_graphql_adapters_ts_83150e40._.js:337:591)
+    at async l (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__56a9cc54._.js:1:13685) {
+  digest: '1486759394'
+}
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+[PublicMoviePage] pipa Error: NEXT_HTTP_ERROR_FALLBACK;404
+    at f (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__01348fc0._.js:1:2959)
+    at k (D:\sites\cinema\new-cinema-frontend\.next\server\chunks\ssr\[root-of-the-server]__9893801b._.js:1:13616) {
+  digest: 'NEXT_HTTP_ERROR_FALLBACK;404'
+}
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "r2s". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action
+    at ignore-listed frames

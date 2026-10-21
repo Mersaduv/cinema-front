@@ -181,6 +181,13 @@ function PlayerShellComponent({
       fsmState === "idle" ||
       awaitingFirstFrame);
 
+  /** Initial prepare: only the loading spinner — no big Play / chrome. */
+  const prepareOnlyUi =
+    showBufferingOverlay &&
+    (awaitingFirstFrame ||
+      fsmState === "idle" ||
+      isSourceTransitioning);
+
   useWatchProgress({
     media: watchMedia ?? null,
     userId: user?.id != null ? String(user.id) : null,
@@ -273,11 +280,17 @@ function PlayerShellComponent({
   }, [onEpisodeSelect, seriesContext?.nextEpisode]);
 
   const handleVideoAreaClick = useCallback(() => {
+    if (isPlaying) {
+      void togglePlay();
+      revealControls();
+      return;
+    }
     toggleControls();
-  }, [toggleControls]);
+  }, [isPlaying, revealControls, toggleControls, togglePlay]);
 
   const controlsInteractive =
-    showControls || !isPlaying || openMenu !== null || episodePanelOpen;
+    !prepareOnlyUi &&
+    (showControls || !isPlaying || openMenu !== null || episodePanelOpen);
 
   const goPrevEpisode = useCallback(() => {
     const prev = seriesContext?.prevEpisode;
@@ -472,9 +485,7 @@ function PlayerShellComponent({
             crossOrigin={videoCrossOrigin}
             controls={false}
             poster={immersive ? undefined : optimizedPoster || undefined}
-            className={`cinema-player-video relative z-[2] h-full w-full bg-black ${
-              immersive ? "object-cover object-center" : "object-contain"
-            }`}
+            className="cinema-player-video absolute inset-0 z-[2] h-full w-full max-h-full max-w-full bg-black object-contain object-center"
           />
 
           {!immersive ? (
@@ -544,7 +555,9 @@ function PlayerShellComponent({
             </div>
           ) : null}
 
-          {showBufferingOverlay ? <LoadingOverlay /> : null}
+          {showBufferingOverlay ? (
+            <LoadingOverlay elevated={prepareOnlyUi} />
+          ) : null}
 
           {seekFeedback ? (
             <div
@@ -655,7 +668,10 @@ function PlayerShellComponent({
               </div>
             )}
 
-            {!isPlaying && fsmState !== "ended" && !tvPlayBlocked ? (
+            {!isPlaying &&
+            fsmState !== "ended" &&
+            !tvPlayBlocked &&
+            !showBufferingOverlay ? (
               <div className="pointer-events-auto flex flex-1 items-center justify-center">
                 <button
                   type="button"
@@ -665,6 +681,22 @@ function PlayerShellComponent({
                 >
                   <IoPlaySharp className="h-12 w-12" />
                 </button>
+              </div>
+            ) : isPlaying && !tvPlayBlocked && !showBufferingOverlay ? (
+              <div
+                className={`flex flex-1 items-center justify-center ${
+                  controlsInteractive ? "pointer-events-auto" : "pointer-events-none"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    void togglePlay();
+                    revealControls();
+                  }}
+                  aria-label="توقف"
+                  className="h-28 w-28 rounded-full border-0 bg-transparent"
+                />
               </div>
             ) : (
               <div className="flex-1" />

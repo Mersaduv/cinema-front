@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -8,6 +9,7 @@ import {
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type TouchEvent as ReactTouchEvent,
 } from "react";
 import { HiChevronLeft, HiChevronRight } from "react-icons/hi2";
 import { arrowKeyToDirection, isArrowKey } from "../../lib/tv/focus";
@@ -18,6 +20,10 @@ export const SLIDER_SLIDE_CLASS =
   "shrink-0 snap-start w-[46%] min-w-[132px] max-w-[168px] sm:w-[31%] sm:max-w-[184px] md:w-[24%] md:max-w-[196px] lg:w-[19%] lg:max-w-[208px] xl:w-[16%] xl:max-w-[220px] 2xl:w-[14%] 2xl:max-w-[232px]";
 
 const DRAG_THRESHOLD_PX = 8;
+const TOUCH_TAP_SLOP_PX = 12;
+const TOUCH_SCROLL_SLOP_PX = 6;
+/** iOS can synthesize click after snap/momentum settles — keep suppress longer. */
+const CLICK_SUPPRESS_MS = 450;
 
 type ContentListSliderProps = {
   children: ReactNode;
@@ -33,6 +39,14 @@ type DragState = {
   startY: number;
   startScrollLeft: number;
   active: boolean;
+  moved: boolean;
+};
+
+type TouchGuard = {
+  scrollLeft: number;
+  x: number;
+  y: number;
+  href: string | null;
   moved: boolean;
 };
 
@@ -95,6 +109,28 @@ function getVisibleIndexRange(
   return { first, last };
 }
 
+function resolveLinkHref(node: EventTarget | null): string | null {
+  if (!(node instanceof Element)) {
+    return null;
+  }
+
+  const anchor = node.closest("a[href]");
+  if (!(anchor instanceof HTMLAnchorElement)) {
+    return null;
+  }
+
+  // Prefer path for Next client navigation; keep query/hash.
+  try {
+    const url = new URL(anchor.href, window.location.origin);
+    if (url.origin !== window.location.origin) {
+      return url.href;
+    }
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return anchor.getAttribute("href");
+  }
+}
+
 export default function ContentListSlider({
   children,
   className = "",
@@ -102,9 +138,12 @@ export default function ContentListSlider({
   step = 3,
   containerRef,
 }: ContentListSliderProps) {
+  const router = useRouter();
   const trackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
+  const touchGuardRef = useRef<TouchGuard | null>(null);
   const suppressClickRef = useRef(false);
+  const suppressTimerRef = useRef(0);
   const [hasOverflow, setHasOverflow] = useState(false);
   const [canScrollStart, setCanScrollStart] = useState(false);
   const [canScrollEnd, setCanScrollEnd] = useState(false);
@@ -120,6 +159,14 @@ export default function ContentListSlider({
     },
     [containerRef],
   );
+
+  const armClickSuppress = useCallback((ms = CLICK_SUPPRESS_MS) => {
+    suppressClickRef.current = true;
+    window.clearTimeout(suppressTimerRef.current);
+    suppressTimerRef.current = window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, ms);
+  }, []);
 
   const updateScrollState = useCallback(() => {
     const element = trackRef.current;
@@ -160,6 +207,7 @@ export default function ContentListSlider({
       element.removeEventListener("dragstart", preventNativeDrag);
       window.removeEventListener("resize", updateScrollState);
       observer.disconnect();
+      window.clearTimeout(suppressTimerRef.current);
     };
   }, [updateScrollState, children]);
 
@@ -250,10 +298,7 @@ export default function ContentListSlider({
       }
 
       if (drag.moved) {
-        suppressClickRef.current = true;
-        window.setTimeout(() => {
-          suppressClickRef.current = false;
-        }, 120);
+        armClickSuppress();
       }
 
       if (element.hasPointerCapture(event.pointerId)) {
@@ -265,7 +310,7 @@ export default function ContentListSlider({
       element.style.scrollSnapType = "";
       window.setTimeout(updateScrollState, 50);
     },
-    [updateScrollState],
+    [armClickSuppress, updateScrollState],
   );
 
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
@@ -324,12 +369,101 @@ export default function ContentListSlider({
     element.scrollLeft = drag.startScrollLeft - deltaX;
   }, []);
 
-  const handleClickCapture = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (suppressClickRef.current) {
-      event.preventDefault();
-      event.stopPropagation();
+  const handleTouchStart = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
+    const element = trackRef.current;
+    const touch = event.touches[0];
+
+    if (!element || !touch) {
+      return;
+    }
+
+    touchGuardRef.current = {
+      scrollLeft: element.scrollLeft,
+      x: touch.clientX,
+      y: touch.clientY,
+      href: resolveLinkHref(event.target),
+      moved: false,
+    };
+  }, []);
+
+  const handleTouchMove = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
+    const guard = touchGuardRef.current;
+    const touch = event.touches[0];
+
+    if (!guard || !touch || guard.moved) {
+      return;
+    }
+
+    if (
+      Math.abs(touch.clientX - guard.x) > TOUCH_TAP_SLOP_PX ||
+      Math.abs(touch.clientY - guard.y) > TOUCH_TAP_SLOP_PX
+    ) {
+      guard.moved = true;
     }
   }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    const element = trackRef.current;
+    const guard = touchGuardRef.current;
+
+    if (!element || !guard) {
+      return;
+    }
+
+    const scrollDelta = Math.abs(element.scrollLeft - guard.scrollLeft);
+
+    // Swipe or snap/momentum scroll — block the subsequent synthetic click.
+    if (guard.moved || scrollDelta > TOUCH_SCROLL_SLOP_PX) {
+      armClickSuppress();
+    }
+  }, [armClickSuppress]);
+
+  const handleClickCapture = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (suppressClickRef.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      const element = trackRef.current;
+      const guard = touchGuardRef.current;
+
+      if (!element || !guard) {
+        return;
+      }
+
+      const scrollDelta = Math.abs(element.scrollLeft - guard.scrollLeft);
+      const clickHref = resolveLinkHref(event.target);
+
+      // Horizontal fling / snap jump under the finger → do not navigate.
+      if (guard.moved || scrollDelta > TOUCH_SCROLL_SLOP_PX) {
+        event.preventDefault();
+        event.stopPropagation();
+        armClickSuppress();
+        touchGuardRef.current = null;
+        return;
+      }
+
+      // iOS Safari: click target can differ from the card that received touchstart.
+      if (guard.href && clickHref && guard.href !== clickHref) {
+        event.preventDefault();
+        event.stopPropagation();
+        touchGuardRef.current = null;
+        armClickSuppress(200);
+
+        if (guard.href.startsWith("http://") || guard.href.startsWith("https://")) {
+          window.location.assign(guard.href);
+        } else {
+          router.push(guard.href);
+        }
+        return;
+      }
+
+      touchGuardRef.current = null;
+    },
+    [armClickSuppress, router],
+  );
 
   const navShellClass =
     "pointer-events-none absolute top-0 z-30 flex h-full w-14 items-center justify-center opacity-0 transition-all duration-300 group-hover/slider:pointer-events-auto group-hover/slider:opacity-100";
@@ -350,9 +484,14 @@ export default function ContentListSlider({
         onPointerMove={handlePointerMove}
         onPointerUp={resetDrag}
         onPointerCancel={resetDrag}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         onClickCapture={handleClickCapture}
         className={[
-          "flex gap-4 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] snap-x snap-mandatory [&::-webkit-scrollbar]:hidden",
+          // snap-proximity on small screens avoids iOS mandatory-snap jump under the finger.
+          "flex gap-4 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] snap-x snap-proximity md:snap-mandatory [&::-webkit-scrollbar]:hidden",
           "[-webkit-overflow-scrolling:touch] [scroll-behavior:auto] md:[scroll-behavior:smooth]",
           "[&_a]:touch-manipulation [&_img]:pointer-events-none [&_img]:select-none [&_img]:[-webkit-user-drag:none]",
           isDragging ? "cursor-grabbing select-none" : "cursor-grab",

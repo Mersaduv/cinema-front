@@ -90,5 +90,5 @@ export function isHlsManifestUrl(url: string): boolean {
 }
 
 export function buildHlsManifestProxyUrl(sourceUrl: string): string {
-  return `/api/playback/manifest?src=${encodeURIComponent(sourceUrl.trim())}`;
+  return `/edge/playback/manifest?src=${encodeURIComponent(sourceUrl.trim())}`;
 }
