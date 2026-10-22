@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  alignSeasonHlsBasesToConfirmedEpisodes,
   applyCascadedEpisodeHls,
-  buildEpisodeHlsPathCandidates,
+  applyConfirmedEpisodeHls,
   buildEmptyEpisodeHlsDiscoveryGroups,
+  buildEpisodeHlsPathCandidates,
   episodeKeepsExistingPlayback,
   fillEmptyEpisodeHlsFromBases,
 } from "../series-hls-paths";
@@ -110,6 +112,102 @@ describe("fillEmptyEpisodeHlsFromBases", () => {
     expect(nextForm.seasons[0]?.episodes[1]?.hls_url).toBe(
       "http://custom.example/episode-02/master.m3u8",
     );
+  });
+});
+
+describe("confirmed HLS routing", () => {
+  it("probes direct-video episodes that do not already have an HLS path", () => {
+    const groups = buildEmptyEpisodeHlsDiscoveryGroups(
+      {
+        hls_base_url: "http://cinema.af/content2/Fallout",
+        seasons: [
+          {
+            id: "season-2",
+            season_number: "2",
+            hls_base_url: "",
+            episodes: [
+              {
+                id: "episode-1",
+                episode_number: "1",
+                source_method: "url",
+                hls_url: "",
+                hls_verified: false,
+              },
+              {
+                id: "episode-14",
+                episode_number: "14",
+                source_method: "hls",
+                hls_url: "http://cinema.af/content2/Fallout/season-02/episode-14/master.m3u8",
+                hls_verified: true,
+              },
+            ],
+          },
+        ],
+      },
+      { includeOtherMethods: true },
+    );
+
+    expect(groups[0]?.episodes).toEqual([{ season: 2, episode: 1 }]);
+  });
+
+  it("assigns only confirmed packages and drops season roots without an HLS episode", () => {
+    const applied = applyConfirmedEpisodeHls(
+      {
+        hls_base_url: "http://cinema.af/content2/Fallout",
+        seasons: [
+          {
+            id: "season-1",
+            season_number: "1",
+            hls_base_url: "http://cinema.af/content2/Fallout/season-01",
+            episodes: [
+              {
+                id: "episode-1",
+                episode_number: "1",
+                source_method: "url",
+                video_url: "http://cdn.example/s01e01.mp4",
+                hls_url: "",
+                hls_verified: false,
+              },
+            ],
+          },
+          {
+            id: "season-2",
+            season_number: "2",
+            hls_base_url: "",
+            episodes: [
+              {
+                id: "episode-14",
+                episode_number: "14",
+                source_method: "url",
+                video_url: "http://cdn.example/s02e14.mp4",
+                hls_url: "",
+                hls_verified: false,
+              },
+            ],
+          },
+        ],
+      },
+      [
+        {
+          seasonId: "season-2",
+          episodeId: "episode-14",
+          hlsUrl: "http://cinema.af/content2/Fallout/season-02/episode-14/master.m3u8",
+        },
+      ],
+    );
+
+    expect(applied.nextForm.seasons[0]?.episodes[0]?.source_method).toBe("url");
+    expect(applied.nextForm.seasons[0]?.episodes[0]?.hls_url).toBe("");
+    expect(applied.nextForm.seasons[1]?.episodes[0]?.source_method).toBe("hls");
+    expect(applied.filled).toHaveLength(1);
+
+    const aligned = alignSeasonHlsBasesToConfirmedEpisodes(
+      applied.nextForm.seasons,
+      "http://cinema.af/content2/Fallout",
+    );
+
+    expect(aligned[0]?.hls_base_url).toBe("");
+    expect(aligned[1]?.hls_base_url).toBe("http://cinema.af/content2/Fallout/season-02");
   });
 });
 

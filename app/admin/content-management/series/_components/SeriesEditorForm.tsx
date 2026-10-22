@@ -81,11 +81,13 @@ import {
   buildEpisodeHlsUrl,
   buildHlsExistsCheckGroups,
   buildSeasonHlsBase,
-  applyCascadedEpisodeHls,
+  applyConfirmedEpisodeHls,
+  alignSeasonHlsBasesToConfirmedEpisodes,
   buildEmptyEpisodeHlsDiscoveryGroups,
   applyDiscoveredEpisodeHlsToForm,
   comparableHlsPlaylistUrl,
   episodeKeepsExistingPlayback,
+  inferSeriesHlsBaseFromEpisodeUrls,
   deriveEpisodeHlsUrl,
   deriveSeasonHlsBase,
   hlsExistsEpisodeKey,
@@ -350,6 +352,78 @@ async function discoverAndFillEmptyEpisodeHls(
   );
 
   return applyDiscoveredEpisodeHlsToForm(form, discoveries);
+}
+
+async function routeConfirmedSeriesHlsPackages(
+  form: SeriesFormState,
+): Promise<{ nextForm: SeriesFormState; filled: EpisodeHlsSyncTarget[] }> {
+  const seriesBase =
+    normalizeHlsBaseUrl(form.hls_base_url) ||
+    inferSeriesHlsBaseFromEpisodeUrls(form.seasons);
+  const prunedSeasons = alignSeasonHlsBasesToConfirmedEpisodes(form.seasons, seriesBase);
+
+  if (!seriesBase) {
+    return {
+      nextForm: { ...form, seasons: prunedSeasons },
+      filled: [],
+    };
+  }
+
+  const groups = buildEmptyEpisodeHlsDiscoveryGroups(
+    { ...form, hls_base_url: seriesBase, seasons: prunedSeasons },
+    { includeOtherMethods: true },
+  );
+  const discoveries: EpisodeHlsSyncTarget[] = [];
+
+  await Promise.all(
+    groups.map(async (group) => {
+      const response = await adminMoviesService.checkHlsExists(
+        group.baseUrl,
+        group.episodes,
+      );
+      const items = unwrapCheckHlsExistsItems(response);
+
+      for (const item of items) {
+        if (!item.exists) {
+          continue;
+        }
+
+        const resolvedUrl = item.hls_url?.trim();
+
+        if (!resolvedUrl) {
+          continue;
+        }
+
+        const target = group.targetByKey.get(
+          hlsExistsEpisodeKey(item.season, item.episode),
+        );
+
+        if (!target) {
+          continue;
+        }
+
+        discoveries.push({
+          seasonId: target.seasonId,
+          episodeId: target.episodeId,
+          hlsUrl: toMasterPlaylistUrl(resolvedUrl),
+        });
+      }
+    }),
+  );
+
+  const applied = applyConfirmedEpisodeHls(
+    { ...form, hls_base_url: seriesBase, seasons: prunedSeasons },
+    discoveries,
+  );
+
+  return {
+    nextForm: {
+      ...applied.nextForm,
+      hls_base_url: seriesBase,
+      seasons: alignSeasonHlsBasesToConfirmedEpisodes(applied.nextForm.seasons, seriesBase),
+    },
+    filled: applied.filled,
+  };
 }
 
 type EpisodeHlsSyncMessageTone = "success" | "warning" | "error";
@@ -1074,10 +1148,11 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
         : [createSeasonDraft(1)],
   };
 
-  mapped.playback_protocol = inferSeriesPlaybackProtocol(
+  mapped.seasons = alignSeasonHlsBasesToConfirmedEpisodes(
     mapped.seasons,
-    mapped.hls_base_url,
+    normalizeHlsBaseUrl(mapped.hls_base_url),
   );
+  mapped.playback_protocol = inferSeriesPlaybackProtocol(mapped.seasons);
   return mapped;
 }
 
@@ -1108,9 +1183,13 @@ function formToPayload(
     })
     .map((season) => {
       const seasonNumber = Number(season.season_number);
-      const seasonHlsBase =
-        normalizeHlsBaseUrl(season.hls_base_url) ||
-        buildSeasonHlsBase(seriesHlsBase, seasonNumber);
+      const seasonHasConfirmedHls = (season.episodes || []).some(
+        (episode) => episode?.source_method === "hls" && Boolean(episode.hls_url.trim()),
+      );
+      const seasonHlsBase = seasonHasConfirmedHls
+        ? normalizeHlsBaseUrl(season.hls_base_url) ||
+          buildSeasonHlsBase(seriesHlsBase, seasonNumber)
+        : "";
       const episodes: AdminSeriesEpisode[] = (season.episodes || [])
         .filter((episode): episode is EpisodeDraft =>
           Boolean(episode?.episode_number?.trim()),
@@ -1614,8 +1693,29 @@ export default function SeriesEditorForm({
     }));
   };
 
-  const setPlaybackProtocol = (protocol: "hls" | "mp4") => {
+  const routeSeriesPlaybackToConfirmedHls = async (formSnapshot: SeriesFormState) => {
+    setSeriesHlsSyncMessage("در حال بررسی پکیج‌های HLS موجود…");
     const previousComparables = new Map(episodeHlsComparableMapRef.current);
+    const { nextForm, filled } = await routeConfirmedSeriesHlsPackages(formSnapshot);
+
+    setForm(nextForm);
+    episodeHlsComparableMapRef.current = buildEpisodeHlsComparableMap(nextForm);
+    lastHlsFingerprintRef.current = buildHlsSyncFingerprint(nextForm);
+
+    if (filled.length === 0) {
+      setSeriesHlsSyncMessage(
+        "پکیج HLS برای قسمت‌های بدون مسیر پیدا نشد. قسمت‌های MP4 همان‌طور ماندند.",
+      );
+      return;
+    }
+
+    setSeriesHlsSyncMessage(
+      "مسیر فقط برای قسمت‌هایی ثبت شد که پکیج HLS دارند. بقیه قسمت‌ها تغییر نکردند.",
+    );
+    scheduleEpisodeHlsSyncAfterFormChangeRef.current?.(previousComparables, nextForm);
+  };
+
+  const setPlaybackProtocol = (protocol: "hls" | "mp4") => {
     let nextFormSnapshot: SeriesFormState | null = null;
 
     setForm((current) => {
@@ -1623,59 +1723,17 @@ export default function SeriesEditorForm({
         return current;
       }
 
-      const seriesBase = normalizeHlsBaseUrl(current.hls_base_url);
       const nextForm: SeriesFormState = {
         ...current,
         playback_protocol: protocol,
-        seasons: current.seasons.map((season) => {
-          const derivedSeasonBase = deriveSeasonHlsBase(seriesBase, season.season_number);
-          const seasonBase = normalizeHlsBaseUrl(season.hls_base_url) || derivedSeasonBase;
-
-          return {
-            ...season,
-            hls_base_url:
-              protocol === "hls" && seriesBase
-                ? season.hls_base_url.trim() || seasonBase
-                : season.hls_base_url,
-            episodes: season.episodes.map((episode) => {
-              if (protocol === "hls") {
-                if (episodeKeepsExistingPlayback(episode)) {
-                  return episode;
-                }
-
-                const nextHls =
-                  episode.hls_url.trim() ||
-                  (seriesBase
-                    ? deriveEpisodeHlsUrl(
-                        seriesBase,
-                        seasonBase,
-                        season.season_number,
-                        episode.episode_number,
-                      )
-                    : "");
-
-                return {
-                  ...episode,
-                  source_method: "hls",
-                  hls_url: nextHls,
-                  hls_verified: episode.hls_url.trim() ? episode.hls_verified : false,
-                };
-              }
-
-              if (
-                (episode.source_method === "hls" && episode.hls_url.trim()) ||
-                episodeKeepsExistingPlayback(episode)
-              ) {
-                return episode;
-              }
-
-              return {
-                ...episode,
-                source_method: "url",
-              };
-            }),
-          };
-        }),
+        seasons:
+          protocol === "hls"
+            ? alignSeasonHlsBasesToConfirmedEpisodes(
+                current.seasons,
+                normalizeHlsBaseUrl(current.hls_base_url) ||
+                  inferSeriesHlsBaseFromEpisodeUrls(current.seasons),
+              )
+            : current.seasons,
       };
 
       nextFormSnapshot = nextForm;
@@ -1683,12 +1741,7 @@ export default function SeriesEditorForm({
     });
 
     if (protocol === "hls" && nextFormSnapshot) {
-      window.queueMicrotask(() => {
-        scheduleEpisodeHlsSyncAfterFormChangeRef.current?.(
-          previousComparables,
-          nextFormSnapshot as SeriesFormState,
-        );
-      });
+      void routeSeriesPlaybackToConfirmedHls(nextFormSnapshot);
     }
   };
 
@@ -3314,8 +3367,6 @@ export default function SeriesEditorForm({
   const cascadeSeriesHlsDown = (raw: string) => {
     const parsed = parseHlsPackagePath(raw);
     const nextSeriesBase = parsed ? parsed.seriesBase : normalizeHlsBaseUrl(raw);
-    const previousSeriesBase = lastCommittedSeriesHlsBaseRef.current;
-    const previousComparables = new Map(episodeHlsComparableMapRef.current);
     let nextFormSnapshot: SeriesFormState | null = null;
 
     if (!nextSeriesBase) {
@@ -3325,200 +3376,61 @@ export default function SeriesEditorForm({
     }
 
     setForm((current) => {
-      let nextSeriesBaseValue = nextSeriesBase;
-
-      if (
-        parsed?.seriesBase &&
-        shouldCascadeReplaceBase(
-          current.hls_base_url,
-          previousSeriesBase,
-          parsed.seriesBase,
-        )
-      ) {
-        nextSeriesBaseValue = parsed.seriesBase;
-      }
-
-      const seasons = current.seasons.map((season) => {
-        if (
-          parsed != null &&
-          parsed.seasonNumber !== null &&
-          parsed.seasonNumber !== undefined &&
-          String(parsed.seasonNumber) !== season.season_number.trim()
-        ) {
-          return season;
-        }
-
-        const previousSeasonDerived = deriveSeasonHlsBase(
-          previousSeriesBase,
-          season.season_number,
-        );
-        const nextSeasonDerived =
-          parsed?.seasonBase && String(parsed.seasonNumber) === season.season_number.trim()
-            ? parsed.seasonBase
-            : deriveSeasonHlsBase(nextSeriesBaseValue, season.season_number);
-
-        const seasonBase = shouldCascadeReplaceBase(
-          season.hls_base_url,
-          previousSeasonDerived,
-          nextSeasonDerived,
-        )
-          ? nextSeasonDerived
-          : season.hls_base_url;
-
-        const previousSeasonContext = previousSeasonDerived || seasonBase;
-
-        const episodes = season.episodes.map((episode) =>
-          applyCascadedEpisodeHls(episode, {
-            previousSeriesBase,
-            nextSeriesBase: nextSeriesBaseValue,
-            previousSeasonContext,
-            seasonBase,
-            seasonNumber: season.season_number,
-            explicitEpisodeMaster: parsed?.episodeMaster,
-            explicitEpisodeNumber: parsed?.episodeNumber ?? null,
-          }),
-        );
-
-        return {
-          ...season,
-          hls_base_url: seasonBase,
-          episodes,
-        };
-      });
-
-      nextFormSnapshot = {
+      const nextForm: SeriesFormState = {
         ...current,
-        playback_protocol: "hls",
-        hls_base_url: nextSeriesBaseValue,
-        seasons,
+        hls_base_url: nextSeriesBase,
       };
 
-      return nextFormSnapshot;
+      nextFormSnapshot = nextForm;
+      return nextForm;
     });
 
     lastCommittedSeriesHlsBaseRef.current = nextSeriesBase;
+    const savedForm = nextFormSnapshot as SeriesFormState | null;
 
-    if (nextFormSnapshot) {
-      const savedForm = nextFormSnapshot as SeriesFormState;
-      const syncTargets =
-        mode === "create"
-          ? filterEpisodeHlsSyncTargetsForInitialScan(
-              savedForm,
-              collectEpisodeHlsSyncTargets(savedForm),
-            )
-          : filterEpisodeHlsSyncTargetsForInitialScan(
-              savedForm,
-              collectEpisodeHlsSyncTargetsForComparableChange(
-                savedForm,
-                previousComparables,
-              ),
-            );
-
-      if (syncTargets.length > 0) {
-        const keptDirectVideo = savedForm.seasons.some((season) =>
-          season.episodes.some((episode) => episodeKeepsExistingPlayback(episode)),
-        );
-        setSeriesHlsSyncMessage(
-          keptDirectVideo
-            ? "مسیر قسمت‌های HLS همگام شد. قسمت‌هایی که لینک MP4 دارند بدون تغییر ماندند."
-            : "مسیر فصل‌ها و قسمت‌ها همگام شد؛ زیرنویس و دوبلهٔ قسمت‌ها در حال بارگذاری است.",
-        );
-        window.queueMicrotask(() => {
-          scheduleEpisodeHlsSyncAfterFormChange(
-            previousComparables,
-            savedForm,
-          );
-        });
-      } else if (parsed?.level === "series") {
-        const keptDirectVideo = savedForm.seasons.some((season) =>
-          season.episodes.some((episode) => episodeKeepsExistingPlayback(episode)),
-        );
-        setSeriesHlsSyncMessage(
-          keptDirectVideo
-            ? "ریشه HLS ثبت شد. قسمت‌های MP4 قبلی حفظ شدند و قسمت‌های بدون ویدیو مستقیم HLS می‌شوند."
-            : "ریشه سریال ثبت شد.",
-        );
-      } else {
-        setSeriesHlsSyncMessage("");
-      }
+    if (!savedForm) {
+      return;
     }
+
+    if (savedForm.playback_protocol === "hls") {
+      void routeSeriesPlaybackToConfirmedHls(savedForm);
+      return;
+    }
+
+    setSeriesHlsSyncMessage(
+      "ریشه HLS ثبت شد. با تغییر روش پخش به HLS، فقط قسمت‌هایی که پکیج دارند مسیر می‌گیرند.",
+    );
   };
 
   const cascadeSeasonHlsDown = (seasonId: string, raw: string) => {
     const parsed = parseHlsPackagePath(raw);
-    const previousComparables = new Map(episodeHlsComparableMapRef.current);
+    const nextSeasonBase = parsed?.seasonBase || normalizeHlsBaseUrl(raw);
     let nextFormSnapshot: SeriesFormState | null = null;
 
+    if (!nextSeasonBase) {
+      return;
+    }
+
     setForm((current) => {
-      const previousSeriesBase = normalizeHlsBaseUrl(current.hls_base_url);
-      let nextSeriesBase = previousSeriesBase;
-
-      if (
-        parsed?.seriesBase &&
-        shouldCascadeReplaceBase(current.hls_base_url, previousSeriesBase, parsed.seriesBase)
-      ) {
-        nextSeriesBase = parsed.seriesBase;
-      }
-
-      const seasons = current.seasons.map((season) => {
-        if (season.id !== seasonId) {
-          return season;
-        }
-
-        const previousSeasonDerived = deriveSeasonHlsBase(
-          previousSeriesBase,
-          season.season_number,
-        );
-        const nextSeasonDerived = parsed
-          ? parsed.seasonBase ||
-            deriveSeasonHlsBase(parsed.seriesBase || nextSeriesBase, season.season_number)
-          : normalizeHlsBaseUrl(raw) ||
-            deriveSeasonHlsBase(nextSeriesBase, season.season_number);
-
-        const seasonBase = shouldCascadeReplaceBase(
-          season.hls_base_url,
-          previousSeasonDerived,
-          nextSeasonDerived,
-        )
-          ? nextSeasonDerived
-          : season.hls_base_url;
-
-        const episodes = season.episodes.map((episode) =>
-          applyCascadedEpisodeHls(episode, {
-            previousSeriesBase,
-            nextSeriesBase,
-            previousSeasonContext: previousSeasonDerived,
-            seasonBase,
-            seasonNumber: season.season_number,
-            explicitEpisodeMaster: parsed?.episodeMaster,
-            explicitEpisodeNumber: parsed?.episodeNumber ?? null,
-          }),
-        );
-
-        return {
-          ...season,
-          hls_base_url: seasonBase,
-          episodes,
-        };
-      });
-
-      nextFormSnapshot = {
+      const nextForm: SeriesFormState = {
         ...current,
-        playback_protocol: nextSeriesBase ? "hls" : current.playback_protocol,
-        hls_base_url: nextSeriesBase,
-        seasons,
+        hls_base_url:
+          parsed?.seriesBase && !normalizeHlsBaseUrl(current.hls_base_url)
+            ? parsed.seriesBase
+            : current.hls_base_url,
+        seasons: current.seasons.map((season) =>
+          season.id === seasonId ? { ...season, hls_base_url: nextSeasonBase } : season,
+        ),
       };
 
-      return nextFormSnapshot;
+      nextFormSnapshot = nextForm;
+      return nextForm;
     });
 
-    if (nextFormSnapshot) {
-      window.queueMicrotask(() => {
-        scheduleEpisodeHlsSyncAfterFormChange(
-          previousComparables,
-          nextFormSnapshot as SeriesFormState,
-        );
-      });
+    const savedForm = nextFormSnapshot as SeriesFormState | null;
+
+    if (savedForm?.playback_protocol === "hls") {
+      void routeSeriesPlaybackToConfirmedHls(savedForm);
     }
   };
 
@@ -4894,9 +4806,9 @@ export default function SeriesEditorForm({
                   ))}
                 </div>
                 <p className="mt-3 text-xs leading-6 text-[#8ea4b3]">
-                  روش پیش‌فرض قسمت‌های جدید اینجاست. قسمت‌هایی که از قبل لینک MP4 دارند با
-                  عوض کردن روش یا گذاشتن ریشه HLS پاک نمی‌شوند. ریشه را بگذارید تا فصل و
-                  قسمت‌های بدون ویدیو مستقیم به‌صورت HLS تنظیم شوند.
+                  روش پیش‌فرض قسمت‌های جدید اینجاست و با باز کردن فرم مسیر ساخته نمی‌شود.
+                  قسمت‌هایی که لینک MP4 دارند سر جایشان می‌مانند. وقتی روش را به HLS تغییر
+                  دهید، فقط قسمت‌هایی که پکیج‌شان واقعاً وجود دارد مسیر می‌گیرند.
                 </p>
               </div>
 
@@ -4920,9 +4832,8 @@ export default function SeriesEditorForm({
                   />
                   <EpisodeHlsSyncStatus message={seriesHlsSyncMessage} />
                   <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
-                    با تغییر ریشه سریال، مسیر فصل‌ها و قسمت‌های HLS خودکار همگام می‌شود.
-                    قسمت‌هایی که لینک ویدیو مستقیم دارند دست نمی‌خورند. اگر فیلدی را دستی
-                    عوض کنید، دیگر بازنویسی نمی‌شود.
+                    با تغییر ریشه، مسیر قسمت‌ها خودکار ساخته نمی‌شود. بعد از تغییر روش پخش به
+                    HLS، فقط قسمت‌هایی که پکیج دارند مسیر می‌گیرند.
                   </p>
                 </div>
 
@@ -4960,9 +4871,10 @@ export default function SeriesEditorForm({
                   const isSeasonTmdbLoading = seasonSyncStatus === "loading";
                   const seasonContinuesWithHls =
                     form.playback_protocol === "hls" ||
-                    Boolean(normalizeHlsBaseUrl(form.hls_base_url)) ||
-                    Boolean(season.hls_base_url.trim()) ||
-                    (season.episodes || []).some((episode) => episode?.source_method === "hls");
+                    (season.episodes || []).some(
+                      (episode) =>
+                        episode?.source_method === "hls" && Boolean(episode.hls_url.trim()),
+                    );
                   const seasonKeepsDirectVideo = (season.episodes || []).some((episode) =>
                     episode ? episodeKeepsExistingPlayback(episode) : false,
                   );
@@ -5057,7 +4969,7 @@ export default function SeriesEditorForm({
                                 label="پایه HLS فصل"
                                 value={season.hls_base_url}
                                 onChange={(value) => handleSeasonHlsBaseChange(season.id, value)}
-                                placeholder={buildSeasonHlsBase(form.hls_base_url, season.season_number) || "…/season-01"}
+                                placeholder="فقط اگر پکیج این فصل وجود دارد"
                                 dir="ltr"
                                 className={ltrInputClass}
                               />

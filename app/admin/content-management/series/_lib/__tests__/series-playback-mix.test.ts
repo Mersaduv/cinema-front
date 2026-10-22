@@ -52,14 +52,22 @@ function season(episodes: EpisodeDraft[]): SeasonDraft {
 }
 
 describe("mixed series playback", () => {
-  it("keeps MP4 as the default only while no HLS root is saved", () => {
+  it("keeps an MP4 series on MP4 even when an HLS root is already stored", () => {
     expect(inferSeriesPlaybackProtocol([season([episode()])])).toBe("mp4");
     expect(
       inferSeriesPlaybackProtocol(
         [season([episode()])],
         "http://cinema.af/content2/Fallout",
       ),
-    ).toBe("hls");
+    ).toBe("mp4");
+    expect(
+      inferSeriesPlaybackProtocol([
+        season([
+          episode({ source_method: "hls", hls_url: "http://cdn.example/episode-14/master.m3u8" }),
+          episode({ id: "episode-2", episode_number: "2" }),
+        ]),
+      ]),
+    ).toBe("mp4");
   });
 
   it("imports continuation episodes as HLS without converting published MP4 rows", () => {

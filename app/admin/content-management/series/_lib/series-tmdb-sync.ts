@@ -132,12 +132,8 @@ export type SeriesFormState = {
 
 export function inferSeriesPlaybackProtocol(
   seasons: SeasonDraft[],
-  hlsBaseUrl = "",
+  _hlsBaseUrl = "",
 ): "hls" | "mp4" {
-  if (normalizeHlsBaseUrl(hlsBaseUrl)) {
-    return "hls";
-  }
-
   let mp4Count = 0;
   let hlsCount = 0;
 

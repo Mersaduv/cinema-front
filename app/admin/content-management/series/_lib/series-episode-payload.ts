@@ -107,8 +107,10 @@ export function buildEpisodeUpsertPayload(
   const seasonNumber = Number(season.season_number);
   const seriesHlsBase = normalizeHlsBaseUrl(form.hls_base_url);
   const seasonHlsBase =
-    normalizeHlsBaseUrl(season.hls_base_url) ||
-    buildSeasonHlsBase(seriesHlsBase, seasonNumber);
+    episode.source_method === "hls"
+      ? normalizeHlsBaseUrl(season.hls_base_url) ||
+        buildSeasonHlsBase(seriesHlsBase, seasonNumber)
+      : normalizeHlsBaseUrl(season.hls_base_url);
 
   const hlsUrl = nullableString(episode.hls_url);
   const keepsDirectVideo =
