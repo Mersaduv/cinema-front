@@ -88,7 +88,6 @@ import {
   episodeKeepsExistingPlayback,
   inferSeriesHlsBaseFromEpisodeUrls,
   listUnconfirmedEpisodeHlsCandidates,
-  deriveEpisodeHlsUrl,
   deriveSeasonHlsBase,
   hlsExistsEpisodeKey,
   normalizeHlsBaseUrl,
@@ -2007,6 +2006,7 @@ export default function SeriesEditorForm({
     tmdbId: string,
     nextMessage?: string,
     baseForm?: SeriesFormState,
+    options?: { appendMissing?: boolean },
   ) {
     const normalizedId = normalizeTmdbCodeInput(tmdbId);
     if (!normalizedId) {
@@ -2156,9 +2156,11 @@ export default function SeriesEditorForm({
           settled.value.data?.season
         ) {
           latestForm = preserveIngestedPrimaryImages(
-            applyTmdbSeasonToForm(latestForm, settled.value.data.season, {
-              fullSeasonResync: true,
-            }),
+            applyTmdbSeasonToForm(
+              latestForm,
+              settled.value.data.season,
+              options?.appendMissing ? { appendMissing: true } : { fullSeasonResync: true },
+            ),
             formRef.current,
           );
           setForm(latestForm);
@@ -2200,7 +2202,9 @@ export default function SeriesEditorForm({
       }
 
       const finalizedForm = finalizeTmdbSeriesSyncExclusions(latestForm);
-      const discoveryGroups = buildEmptyEpisodeHlsDiscoveryGroups(finalizedForm);
+      const discoveryGroups = options?.appendMissing
+        ? []
+        : buildEmptyEpisodeHlsDiscoveryGroups(finalizedForm);
 
       if (discoveryGroups.length > 0) {
         setEpisodeHlsSyncPending((current) => {
@@ -2216,12 +2220,14 @@ export default function SeriesEditorForm({
         });
       }
 
-      const { nextForm: formWithHls, filled: filledHlsTargets } =
-        await discoverAndFillEmptyEpisodeHls(finalizedForm);
+      const { nextForm: formWithHls, filled: filledHlsTargets } = options?.appendMissing
+        ? { nextForm: finalizedForm, filled: [] as EpisodeHlsSyncTarget[] }
+        : await discoverAndFillEmptyEpisodeHls(finalizedForm);
       const formWithPreservedPrimaryImages = preserveIngestedPrimaryImages(
         formWithHls,
         formRef.current,
       );
+      formRef.current = formWithPreservedPrimaryImages;
       setForm(formWithPreservedPrimaryImages);
 
       if (discoveryGroups.length > 0) {
@@ -2267,7 +2273,9 @@ export default function SeriesEditorForm({
       lastHlsFingerprintRef.current = buildHlsSyncFingerprint(formWithPreservedPrimaryImages);
       hlsAutoSyncBootstrappedRef.current = true;
 
-      if (filledHlsTargets.length > 0) {
+      if (options?.appendMissing) {
+        void routeSeriesPlaybackToConfirmedHls(formRef.current);
+      } else if (filledHlsTargets.length > 0) {
         void scheduleEpisodeHlsSyncForForm(formWithHls, { targets: filledHlsTargets });
       }
       setTmdbSyncState({
@@ -3556,64 +3564,39 @@ export default function SeriesEditorForm({
     episodeId: string,
     method: "hls" | "url",
   ) => {
-    let hlsForSync = "";
+    setForm((current) => ({
+      ...current,
+      seasons: current.seasons.map((season) => {
+        if (season.id !== seasonId) {
+          return season;
+        }
 
-    setForm((current) => {
-      const seriesBase = normalizeHlsBaseUrl(current.hls_base_url);
+        return {
+          ...season,
+          episodes: season.episodes.map((episode) => {
+            if (episode.id !== episodeId) {
+              return episode;
+            }
 
-      return {
-        ...current,
-        seasons: current.seasons.map((season) => {
-          if (season.id !== seasonId) {
-            return season;
-          }
-
-          const seasonBase =
-            normalizeHlsBaseUrl(season.hls_base_url) ||
-            deriveSeasonHlsBase(seriesBase, season.season_number);
-
-          return {
-            ...season,
-            hls_base_url:
-              method === "hls" ? season.hls_base_url.trim() || seasonBase : season.hls_base_url,
-            episodes: season.episodes.map((episode) => {
-              if (episode.id !== episodeId) {
-                return episode;
-              }
-
-              if (method === "url") {
-                return {
-                  ...episode,
-                  source_method: "url",
-                };
-              }
-
-              const nextHls =
-                episode.hls_url.trim() ||
-                deriveEpisodeHlsUrl(
-                  seriesBase,
-                  seasonBase,
-                  season.season_number,
-                  episode.episode_number,
-                );
-              hlsForSync = toMasterPlaylistUrl(nextHls);
-
+            if (method === "url") {
               return {
                 ...episode,
-                source_method: "hls",
-                hls_url: nextHls,
-                hls_verified: episode.hls_url.trim() ? episode.hls_verified : false,
+                source_method: "url",
               };
-            }),
-          };
-        }),
-      };
-    });
+            }
 
-    if (method === "hls" && hlsForSync) {
-      delete lastSyncedEpisodeHlsRef.current[seasonEpisodeKey(seasonId, episodeId)];
-      scheduleEpisodeHlsSync(seasonId, episodeId, hlsForSync);
-    }
+            const verifiedHls = episode.hls_verified ? episode.hls_url.trim() : "";
+
+            return {
+              ...episode,
+              source_method: "hls",
+              hls_url: verifiedHls,
+              hls_verified: Boolean(verifiedHls),
+            };
+          }),
+        };
+      }),
+    }));
   };
 
   const addSeason = () => {
@@ -3752,7 +3735,12 @@ export default function SeriesEditorForm({
       return;
     }
     setSearchingTmdb(true);
-    await fetchAndApplyTmdb(tmdbCode, "اطلاعات سریال و فصل‌ها از TMDB روی فرم اعمال شد.");
+    await fetchAndApplyTmdb(
+      tmdbCode,
+      "اطلاعات سریال و فصل‌ها از TMDB روی فرم اعمال شد.",
+      undefined,
+      { appendMissing: true },
+    );
     setSearchingTmdb(false);
   };
 

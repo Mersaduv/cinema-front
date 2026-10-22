@@ -214,6 +214,8 @@ export const initialTmdbSyncState: TmdbSyncState = {
 
 export type MergeSeasonFromTmdbOptions = {
   fullSeasonResync?: boolean;
+  /** Keep the current season/episode list, then append only rows TMDB did not already have. */
+  appendMissing?: boolean;
   importEpisodeNumbers?: number[];
 };
 
@@ -352,7 +354,35 @@ export function mergeSeasonDraftFromTmdb(
 
   let episodes: EpisodeDraft[];
 
-  if (options?.fullSeasonResync) {
+  if (options?.appendMissing && currentSeason) {
+    const seen = new Set<string>();
+    episodes = currentSeason.episodes.map((currentEpisode) => {
+      const episodeNumber = currentEpisode.episode_number.trim();
+      seen.add(episodeNumber);
+      const tmdbEpisode = tmdbEpisodesByNumber.get(episodeNumber);
+
+      if (!tmdbEpisode) {
+        return currentEpisode;
+      }
+
+      return mergeEpisodeDraftFromTmdb(tmdbEpisode, currentEpisode, current);
+    });
+
+    const additions = tmdbEpisodes
+      .filter(
+        (episode) =>
+          !seen.has(String(episode.episode_number)) &&
+          !isTmdbEpisodeExcluded(
+            current.tmdb_excluded_episodes,
+            seasonNumberInt,
+            episode.episode_number,
+          ),
+      )
+      .sort((first, second) => first.episode_number - second.episode_number)
+      .map((episode) => mergeEpisodeDraftFromTmdb(episode, undefined, current));
+
+    episodes = [...episodes, ...additions];
+  } else if (options?.fullSeasonResync) {
     episodes = tmdbEpisodes
       .filter(
         (episode) =>
@@ -635,6 +665,23 @@ export function applyTmdbSeasonToForm(
     (item) => item.season_number.trim() === seasonNumber,
   );
   const mergedSeason = mergeSeasonDraftFromTmdb(season, currentSeason, current, options);
+
+  if (options?.appendMissing) {
+    if (!currentSeason) {
+      return {
+        ...current,
+        seasons: [...current.seasons, mergedSeason],
+      };
+    }
+
+    return {
+      ...current,
+      seasons: current.seasons.map((item) =>
+        item.season_number.trim() === seasonNumber ? mergedSeason : item,
+      ),
+    };
+  }
+
   const otherSeasons = current.seasons.filter(
     (item) => item.season_number.trim() !== seasonNumber,
   );

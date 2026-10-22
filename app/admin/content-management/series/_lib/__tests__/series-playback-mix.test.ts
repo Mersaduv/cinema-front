@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { validateSeriesSeasonsTab } from "../../../_lib/series-tab-validation";
 import { buildEpisodeUpsertPayload } from "../series-episode-payload";
 import {
+  applyTmdbSeasonToForm,
   inferSeriesPlaybackProtocol,
   resolveMergedEpisodeSourceMethod,
   type EpisodeDraft,
@@ -50,6 +51,74 @@ function season(episodes: EpisodeDraft[]): SeasonDraft {
     episodes,
   };
 }
+
+describe("TMDB edit sync appends new rows", () => {
+  it("keeps the current list and adds new episodes and seasons after it", () => {
+    const current = {
+      hls_base_url: "http://cinema.af/content2/Show",
+      playback_protocol: "mp4",
+      tmdb_excluded_episodes: [],
+      tmdb_excluded_season_numbers: [],
+      seasons: [
+        {
+          ...season([
+            episode({
+              id: "ep-13",
+              episode_number: "13",
+              source_method: "url",
+              video_url: "http://cdn.example/13.mp4",
+              hls_url: "",
+            }),
+          ]),
+          id: "season-2",
+          season_number: "2",
+          name: "فصل 2",
+        },
+      ],
+    } as SeriesFormState;
+
+    const withEpisode = applyTmdbSeasonToForm(
+      current,
+      {
+        season_number: 2,
+        name: "فصل 2",
+        episodes: [
+          { season_number: 2, episode_number: 13, title: "سیزده" },
+          { season_number: 2, episode_number: 14, title: "چهارده" },
+        ],
+      },
+      { appendMissing: true },
+    );
+
+    expect(withEpisode.seasons.map((item) => item.season_number)).toEqual(["2"]);
+    expect(withEpisode.seasons[0]?.episodes.map((item) => item.episode_number)).toEqual([
+      "13",
+      "14",
+    ]);
+    expect(withEpisode.seasons[0]?.episodes[0]).toMatchObject({
+      source_method: "url",
+      video_url: "http://cdn.example/13.mp4",
+      hls_url: "",
+    });
+    expect(withEpisode.seasons[0]?.episodes[1]).toMatchObject({
+      hls_url: "",
+      hls_verified: false,
+    });
+
+    const withSeason = applyTmdbSeasonToForm(
+      withEpisode,
+      {
+        season_number: 3,
+        name: "فصل 3",
+        episodes: [{ season_number: 3, episode_number: 1, title: "یک" }],
+      },
+      { appendMissing: true },
+    );
+
+    expect(withSeason.seasons.map((item) => item.season_number)).toEqual(["2", "3"]);
+    expect(withSeason.seasons[1]?.episodes[0]?.hls_url).toBe("");
+  });
+});
 
 describe("mixed series playback", () => {
   it("keeps an MP4 series on MP4 even when an HLS root is already stored", () => {
