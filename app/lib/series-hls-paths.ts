@@ -766,6 +766,59 @@ export function inferSeriesHlsBaseFromEpisodeUrls(
   return "";
 }
 
+/** Candidate playlist URLs for processing. Does not write them onto the episode. */
+export function listUnconfirmedEpisodeHlsCandidates(
+  form: EpisodeHlsFillInput,
+): EpisodeHlsFillTarget[] {
+  const seriesBase =
+    normalizeHlsBaseUrl(form.hls_base_url) || inferSeriesHlsBaseFromEpisodeUrls(form.seasons);
+
+  if (!seriesBase) {
+    return [];
+  }
+
+  const targets: EpisodeHlsFillTarget[] = [];
+
+  for (const season of form.seasons) {
+    const seasonBase =
+      season.hls_base_url.trim() || deriveSeasonHlsBase(seriesBase, season.season_number);
+
+    for (const episode of season.episodes) {
+      const method = (episode.source_method || "").toLowerCase();
+
+      if (method === "embed") {
+        continue;
+      }
+
+      if (episode.hls_verified && episode.hls_url.trim()) {
+        continue;
+      }
+
+      const hlsUrl = toMasterPlaylistUrl(
+        episode.hls_url.trim() ||
+          deriveEpisodeHlsUrl(
+            seriesBase,
+            seasonBase,
+            season.season_number,
+            episode.episode_number,
+          ),
+      );
+
+      if (!hlsUrl) {
+        continue;
+      }
+
+      targets.push({
+        seasonId: season.id,
+        episodeId: episode.id,
+        hlsUrl,
+      });
+    }
+  }
+
+  return targets;
+}
+
 export function resolveEpisodeHlsUrl(input: {
   seriesBase?: string;
   seasonBase?: string;

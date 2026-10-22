@@ -81,13 +81,13 @@ import {
   buildEpisodeHlsUrl,
   buildHlsExistsCheckGroups,
   buildSeasonHlsBase,
-  applyConfirmedEpisodeHls,
   alignSeasonHlsBasesToConfirmedEpisodes,
   buildEmptyEpisodeHlsDiscoveryGroups,
   applyDiscoveredEpisodeHlsToForm,
   comparableHlsPlaylistUrl,
   episodeKeepsExistingPlayback,
   inferSeriesHlsBaseFromEpisodeUrls,
+  listUnconfirmedEpisodeHlsCandidates,
   deriveEpisodeHlsUrl,
   deriveSeasonHlsBase,
   hlsExistsEpisodeKey,
@@ -354,78 +354,6 @@ async function discoverAndFillEmptyEpisodeHls(
   return applyDiscoveredEpisodeHlsToForm(form, discoveries);
 }
 
-async function routeConfirmedSeriesHlsPackages(
-  form: SeriesFormState,
-): Promise<{ nextForm: SeriesFormState; filled: EpisodeHlsSyncTarget[] }> {
-  const seriesBase =
-    normalizeHlsBaseUrl(form.hls_base_url) ||
-    inferSeriesHlsBaseFromEpisodeUrls(form.seasons);
-  const prunedSeasons = alignSeasonHlsBasesToConfirmedEpisodes(form.seasons, seriesBase);
-
-  if (!seriesBase) {
-    return {
-      nextForm: { ...form, seasons: prunedSeasons },
-      filled: [],
-    };
-  }
-
-  const groups = buildEmptyEpisodeHlsDiscoveryGroups(
-    { ...form, hls_base_url: seriesBase, seasons: prunedSeasons },
-    { includeOtherMethods: true },
-  );
-  const discoveries: EpisodeHlsSyncTarget[] = [];
-
-  await Promise.all(
-    groups.map(async (group) => {
-      const response = await adminMoviesService.checkHlsExists(
-        group.baseUrl,
-        group.episodes,
-      );
-      const items = unwrapCheckHlsExistsItems(response);
-
-      for (const item of items) {
-        if (!item.exists) {
-          continue;
-        }
-
-        const resolvedUrl = item.hls_url?.trim();
-
-        if (!resolvedUrl) {
-          continue;
-        }
-
-        const target = group.targetByKey.get(
-          hlsExistsEpisodeKey(item.season, item.episode),
-        );
-
-        if (!target) {
-          continue;
-        }
-
-        discoveries.push({
-          seasonId: target.seasonId,
-          episodeId: target.episodeId,
-          hlsUrl: toMasterPlaylistUrl(resolvedUrl),
-        });
-      }
-    }),
-  );
-
-  const applied = applyConfirmedEpisodeHls(
-    { ...form, hls_base_url: seriesBase, seasons: prunedSeasons },
-    discoveries,
-  );
-
-  return {
-    nextForm: {
-      ...applied.nextForm,
-      hls_base_url: seriesBase,
-      seasons: alignSeasonHlsBasesToConfirmedEpisodes(applied.nextForm.seasons, seriesBase),
-    },
-    filled: applied.filled,
-  };
-}
-
 type EpisodeHlsSyncMessageTone = "success" | "warning" | "error";
 
 function episodeHlsSyncMessageTone(message: string): EpisodeHlsSyncMessageTone {
@@ -453,6 +381,38 @@ function episodeHlsSyncMessageClassName(tone: EpisodeHlsSyncMessageTone): string
 
 const HLS_NOT_READY_MESSAGE =
   "پکیج HLS هنوز روی سرور آماده نیست. این قسمت در سایت نمایش داده نمی‌شود؛ نیازی به حذف آن نیست.";
+
+function episodeWithoutUnconfirmedHlsLink<
+  T extends {
+    source_method: "upload" | "embed" | "url" | "hls";
+    video_url: string;
+    hls_url: string;
+    hls_verified: boolean;
+  },
+>(episode: T): T {
+  if (episode.hls_verified && episode.hls_url.trim()) {
+    return episode;
+  }
+
+  if (episode.source_method === "embed") {
+    return {
+      ...episode,
+      hls_url: "",
+      hls_verified: false,
+    };
+  }
+
+  return {
+    ...episode,
+    hls_url: "",
+    hls_verified: false,
+    source_method: episode.video_url.trim()
+      ? episode.source_method === "hls"
+        ? "url"
+        : episode.source_method
+      : "url",
+  };
+}
 
 const HLS_NOT_READY_DETAILED_MESSAGE =
   "پکیج HLS هنوز روی سرور آماده نیست یا مسیر اشتباه است. این قسمت در سایت نمایش داده نمی‌شود؛ نیازی به حذف آن نیست.";
@@ -1416,6 +1376,9 @@ export default function SeriesEditorForm({
   const scheduleEpisodeHlsSyncAfterFormChangeRef = useRef<
     ((previousComparables: Map<string, string>, nextForm: SeriesFormState) => void) | null
   >(null);
+  const scheduleEpisodeHlsSyncRef = useRef<
+    ((seasonId: string, episodeId: string, hlsUrl: string) => void) | null
+  >(null);
   const formTopRef = useRef<HTMLDivElement | null>(null);
   const seriesFormBodyFingerprintRef = useRef("");
   const formRef = useRef(form);
@@ -1693,55 +1656,95 @@ export default function SeriesEditorForm({
     }));
   };
 
+  const clearUnconfirmedEpisodeHlsLink = (seasonId: string, episodeId: string) => {
+    setForm((current) => ({
+      ...current,
+      seasons: current.seasons.map((season) => {
+        if (season.id !== seasonId) {
+          return season;
+        }
+
+        const episodes = season.episodes.map((episode) =>
+          episode.id === episodeId ? episodeWithoutUnconfirmedHlsLink(episode) : episode,
+        );
+        const stillHasHls = episodes.some(
+          (episode) => episode.source_method === "hls" && episode.hls_url.trim(),
+        );
+
+        return {
+          ...season,
+          hls_base_url: stillHasHls ? season.hls_base_url : "",
+          episodes,
+        };
+      }),
+    }));
+  };
+
   const routeSeriesPlaybackToConfirmedHls = async (formSnapshot: SeriesFormState) => {
-    setSeriesHlsSyncMessage("در حال بررسی پکیج‌های HLS موجود…");
-    const previousComparables = new Map(episodeHlsComparableMapRef.current);
-    const { nextForm, filled } = await routeConfirmedSeriesHlsPackages(formSnapshot);
+    const seriesBase =
+      normalizeHlsBaseUrl(formSnapshot.hls_base_url) ||
+      inferSeriesHlsBaseFromEpisodeUrls(formSnapshot.seasons);
+    const candidates = listUnconfirmedEpisodeHlsCandidates({
+      ...formSnapshot,
+      hls_base_url: seriesBase,
+    });
 
-    setForm(nextForm);
-    episodeHlsComparableMapRef.current = buildEpisodeHlsComparableMap(nextForm);
-    lastHlsFingerprintRef.current = buildHlsSyncFingerprint(nextForm);
-
-    if (filled.length === 0) {
+    if (!seriesBase || candidates.length === 0) {
       setSeriesHlsSyncMessage(
-        "پکیج HLS برای قسمت‌های بدون مسیر پیدا نشد. قسمت‌های MP4 همان‌طور ماندند.",
+        seriesBase
+          ? "قسمت بدون مسیر برای پردازش HLS نیست."
+          : "برای پردازش HLS، ریشه پکیج سریال را وارد کنید.",
       );
       return;
     }
 
     setSeriesHlsSyncMessage(
-      "مسیر فقط برای قسمت‌هایی ثبت شد که پکیج HLS دارند. بقیه قسمت‌ها تغییر نکردند.",
+      "پردازش HLS شروع شد. لینک فقط برای قسمتی می‌ماند که پکیجش واقعاً خوانده شود.",
     );
-    scheduleEpisodeHlsSyncAfterFormChangeRef.current?.(previousComparables, nextForm);
+
+    for (const target of candidates) {
+      const syncKey = `${target.seasonId}:${target.episodeId}`;
+      delete lastSyncedEpisodeHlsRef.current[syncKey];
+      scheduleEpisodeHlsSyncRef.current?.(target.seasonId, target.episodeId, target.hlsUrl);
+    }
   };
 
   const setPlaybackProtocol = (protocol: "hls" | "mp4") => {
-    let nextFormSnapshot: SeriesFormState | null = null;
+    const current = formRef.current;
 
-    setForm((current) => {
-      if (current.playback_protocol === protocol) {
-        return current;
+    if (current.playback_protocol === protocol) {
+      if (protocol === "hls") {
+        void routeSeriesPlaybackToConfirmedHls(current);
       }
+      return;
+    }
 
-      const nextForm: SeriesFormState = {
-        ...current,
-        playback_protocol: protocol,
-        seasons:
-          protocol === "hls"
-            ? alignSeasonHlsBasesToConfirmedEpisodes(
-                current.seasons,
-                normalizeHlsBaseUrl(current.hls_base_url) ||
-                  inferSeriesHlsBaseFromEpisodeUrls(current.seasons),
-              )
-            : current.seasons,
-      };
+    const seriesBase =
+      normalizeHlsBaseUrl(current.hls_base_url) ||
+      inferSeriesHlsBaseFromEpisodeUrls(current.seasons);
+    const nextForm: SeriesFormState = {
+      ...current,
+      playback_protocol: protocol,
+      hls_base_url: protocol === "hls" && seriesBase ? seriesBase : current.hls_base_url,
+      seasons:
+        protocol === "hls"
+          ? alignSeasonHlsBasesToConfirmedEpisodes(
+              current.seasons.map((season) => ({
+                ...season,
+                episodes: season.episodes.map((episode) =>
+                  episodeWithoutUnconfirmedHlsLink(episode),
+                ),
+              })),
+              seriesBase,
+            )
+          : current.seasons,
+    };
 
-      nextFormSnapshot = nextForm;
-      return nextForm;
-    });
+    formRef.current = nextForm;
+    setForm(nextForm);
 
-    if (protocol === "hls" && nextFormSnapshot) {
-      void routeSeriesPlaybackToConfirmedHls(nextFormSnapshot);
+    if (protocol === "hls") {
+      void routeSeriesPlaybackToConfirmedHls(nextForm);
     }
   };
 
@@ -3017,6 +3020,7 @@ export default function SeriesEditorForm({
             : undefined;
 
           lastSyncedEpisodeHlsRef.current[key] = `miss:${comparable}`;
+          clearUnconfirmedEpisodeHlsLink(seasonId, episodeId);
           setEpisodeHlsSyncMessage((current) => ({
             ...current,
             [key]:
@@ -3051,6 +3055,9 @@ export default function SeriesEditorForm({
               ? season
               : {
                   ...season,
+                  hls_base_url:
+                    parseHlsPackagePath(payload.canonical_hls_url || raw)?.seasonBase ||
+                    season.hls_base_url,
                   episodes: season.episodes.map((episode) => {
                     if (episode.id !== episodeId) {
                       return episode;
@@ -3108,6 +3115,7 @@ export default function SeriesEditorForm({
         }
 
         lastSyncedEpisodeHlsRef.current[key] = `miss:${comparable}`;
+        clearUnconfirmedEpisodeHlsLink(seasonId, episodeId);
         setEpisodeHlsSyncMessage((current) => ({
           ...current,
           [key]:
@@ -3122,6 +3130,8 @@ export default function SeriesEditorForm({
       }
     });
   };
+
+  scheduleEpisodeHlsSyncRef.current = scheduleEpisodeHlsSync;
 
   const applyHlsExistsCheckResults = (
     items: Array<{
@@ -5005,13 +5015,6 @@ export default function SeriesEditorForm({
                               episodeSavedFingerprints[episodeKey] === undefined ||
                               episodeSavedFingerprints[episodeKey] !==
                                 episodeDraftFingerprint(episode);
-                            const resolvedEpisodeHls = resolveEpisodeHlsUrl({
-                              seriesBase: form.hls_base_url,
-                              seasonBase: season.hls_base_url,
-                              episodeHls: episode.hls_url,
-                              seasonNumber: season.season_number,
-                              episodeNumber: episode.episode_number,
-                            });
 
                             return (
                               <div
@@ -5228,18 +5231,6 @@ export default function SeriesEditorForm({
                                             checking={episodeHlsSyncPending[episodeKey]}
                                             message={episodeHlsSyncMessage[episodeKey]}
                                           />
-                                          {!episode.hls_url.trim() && resolvedEpisodeHls.hlsUrl ? (
-                                            <p className="text-xs text-[#8ea4b3]">
-                                              پیش‌فرض از{" "}
-                                              {resolvedEpisodeHls.source === "season"
-                                                ? "فصل"
-                                                : resolvedEpisodeHls.source === "series"
-                                                  ? "سریال"
-                                                  : "مسیر بالادست"}
-                                              :{" "}
-                                              <span dir="ltr">{resolvedEpisodeHls.hlsUrl}</span>
-                                            </p>
-                                          ) : null}
                                         </>
                                       )}
 
