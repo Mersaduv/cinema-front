@@ -9,6 +9,10 @@ import {
   resolveTmdbMainSynopsis,
 } from "../../../../lib/series-synopsis-helper";
 import { sortCastByOrder } from "../../../../lib/cast-utils";
+import {
+  episodeKeepsExistingPlayback,
+  normalizeHlsBaseUrl,
+} from "../../../../lib/series-hls-paths";
 import type {
   AdminSeriesActor,
   AdminSeriesEpisode,
@@ -115,7 +119,7 @@ export type SeriesFormState = {
   countries: string[];
   actors: AdminSeriesActor[];
   crew: SeriesCrewFormRow[];
-  /** Series-wide playback mode — drives seasons/episodes link fields (like movie form). */
+  /** Default for new episodes. Saved MP4/HLS rows keep their own source method. */
   playback_protocol: "hls" | "mp4";
   hls_base_url: string;
   drm_scheme: string;
@@ -128,7 +132,12 @@ export type SeriesFormState = {
 
 export function inferSeriesPlaybackProtocol(
   seasons: SeasonDraft[],
+  hlsBaseUrl = "",
 ): "hls" | "mp4" {
+  if (normalizeHlsBaseUrl(hlsBaseUrl)) {
+    return "hls";
+  }
+
   let mp4Count = 0;
   let hlsCount = 0;
 
@@ -147,6 +156,31 @@ export function inferSeriesPlaybackProtocol(
   }
 
   return "hls";
+}
+
+export function resolveMergedEpisodeSourceMethod(
+  currentEpisode:
+    | Pick<EpisodeDraft, "source_method" | "video_url" | "embed_url" | "hls_url">
+    | undefined,
+  current: Pick<SeriesFormState, "hls_base_url" | "playback_protocol">,
+): EpisodeDraft["source_method"] {
+  if (currentEpisode && episodeKeepsExistingPlayback(currentEpisode)) {
+    return currentEpisode.source_method;
+  }
+
+  if (currentEpisode?.source_method === "hls" || currentEpisode?.hls_url.trim()) {
+    return "hls";
+  }
+
+  if (normalizeHlsBaseUrl(current.hls_base_url)) {
+    return "hls";
+  }
+
+  if (currentEpisode?.source_method) {
+    return currentEpisode.source_method;
+  }
+
+  return episodeSourceMethodForProtocol(current.playback_protocol || "hls");
 }
 
 export function episodeSourceMethodForProtocol(
@@ -282,9 +316,7 @@ export function mergeEpisodeDraftFromTmdb(
           ? String(currentEpisode.duration_minutes)
           : "",
     still_url: episode.still_url || currentEpisode?.still_url || "",
-    source_method:
-      currentEpisode?.source_method ||
-      episodeSourceMethodForProtocol(current.playback_protocol || "hls"),
+    source_method: resolveMergedEpisodeSourceMethod(currentEpisode, current),
     video_url: currentEpisode?.video_url || "",
     embed_url: currentEpisode?.embed_url || "",
     hls_url: currentEpisode?.hls_url || "",
@@ -403,7 +435,7 @@ export function mergeSeasonDraftFromTmdb(
             air_date: "",
             duration_minutes: "",
             still_url: "",
-            source_method: episodeSourceMethodForProtocol(current.playback_protocol || "hls"),
+            source_method: resolveMergedEpisodeSourceMethod(undefined, current),
             video_url: "",
             embed_url: "",
             hls_url: "",

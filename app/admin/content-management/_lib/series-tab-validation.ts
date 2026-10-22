@@ -131,7 +131,6 @@ export function validateSeriesSeasonsTab(
   entryMode: ContentEntryMode = "tmdb",
 ): TabFieldIssue[] {
   const issues: TabFieldIssue[] = [];
-  const playbackProtocol = form.playback_protocol || "hls";
 
   if (form.seasons.length === 0) {
     if (entryMode === "manual") {
@@ -166,9 +165,12 @@ export function validateSeriesSeasonsTab(
         });
       }
 
-      // Progressive episode URLs are optional; only validate format when filled.
+      // Progressive episode URLs are optional; only validate format when this episode is direct video.
+      const episodeIsDirectVideo =
+        episode.source_method === "url" || episode.source_method === "upload";
+
       if (
-        playbackProtocol === "mp4" &&
+        episodeIsDirectVideo &&
         (episode.video_url || "").trim() &&
         !isProgressiveVideoUrl(episode.video_url)
       ) {

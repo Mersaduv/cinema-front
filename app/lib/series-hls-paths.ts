@@ -266,6 +266,91 @@ export function shouldCascadeReplaceBase(
   return normalizeComparableBase(currentValue) === normalizeComparableBase(previousValue);
 }
 
+/**
+ * Direct MP4/embed episodes that already have a playback link stay as they are
+ * when an HLS root is applied. Empty direct-video rows can still become HLS.
+ */
+export function episodeKeepsExistingPlayback(episode: {
+  source_method?: string;
+  video_url?: string;
+  embed_url?: string;
+}) {
+  const method = (episode.source_method || "").toLowerCase();
+
+  if ((method === "url" || method === "upload") && Boolean(episode.video_url?.trim())) {
+    return true;
+  }
+
+  return method === "embed" && Boolean(episode.embed_url?.trim());
+}
+
+export function applyCascadedEpisodeHls<
+  T extends {
+    episode_number: string;
+    hls_url: string;
+    hls_verified: boolean;
+    source_method?: string;
+    video_url?: string;
+    embed_url?: string;
+  },
+>(
+  episode: T,
+  input: {
+    previousSeriesBase: string;
+    nextSeriesBase: string;
+    previousSeasonContext: string;
+    seasonBase: string;
+    seasonNumber: string;
+    explicitEpisodeMaster?: string | null;
+    explicitEpisodeNumber?: number | null;
+  },
+): T {
+  if (
+    input.explicitEpisodeNumber !== null &&
+    input.explicitEpisodeNumber !== undefined &&
+    String(input.explicitEpisodeNumber) !== episode.episode_number.trim()
+  ) {
+    return episode;
+  }
+
+  if (episodeKeepsExistingPlayback(episode)) {
+    return episode;
+  }
+
+  const previousEpisodeDerived = deriveEpisodeHlsUrl(
+    input.previousSeriesBase,
+    input.previousSeasonContext,
+    input.seasonNumber,
+    episode.episode_number,
+  );
+  const nextEpisodeDerived =
+    input.explicitEpisodeMaster &&
+    input.explicitEpisodeNumber !== null &&
+    input.explicitEpisodeNumber !== undefined &&
+    String(input.explicitEpisodeNumber) === episode.episode_number.trim()
+      ? input.explicitEpisodeMaster
+      : deriveEpisodeHlsUrl(
+          input.nextSeriesBase,
+          input.seasonBase,
+          input.seasonNumber,
+          episode.episode_number,
+        );
+  const nextEpisodeHls = shouldCascadeReplaceEpisode(
+    episode.hls_url,
+    previousEpisodeDerived,
+    nextEpisodeDerived,
+  )
+    ? nextEpisodeDerived
+    : episode.hls_url;
+
+  return {
+    ...episode,
+    source_method: "hls" as T["source_method"],
+    hls_url: nextEpisodeHls,
+    hls_verified: nextEpisodeHls === episode.hls_url ? episode.hls_verified : false,
+  };
+}
+
 export function shouldCascadeReplaceEpisode(
   current: string,
   previousDerived: string,

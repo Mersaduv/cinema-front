@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyCascadedEpisodeHls,
   buildEpisodeHlsPathCandidates,
   buildEmptyEpisodeHlsDiscoveryGroups,
+  episodeKeepsExistingPlayback,
   fillEmptyEpisodeHlsFromBases,
 } from "../series-hls-paths";
 
@@ -108,5 +110,68 @@ describe("fillEmptyEpisodeHlsFromBases", () => {
     expect(nextForm.seasons[0]?.episodes[1]?.hls_url).toBe(
       "http://custom.example/episode-02/master.m3u8",
     );
+  });
+});
+
+describe("applyCascadedEpisodeHls", () => {
+  const cascadeInput = {
+    previousSeriesBase: "",
+    nextSeriesBase: "http://cinema.af/content2/Fallout",
+    previousSeasonContext: "",
+    seasonBase: "http://cinema.af/content2/Fallout/season-02",
+    seasonNumber: "2",
+    explicitEpisodeMaster: null,
+    explicitEpisodeNumber: null,
+  };
+
+  it("keeps episodes that already have a direct video", () => {
+    const episode = {
+      episode_number: "1",
+      source_method: "url" as const,
+      video_url: "http://cdn.example/s01e01.mp4",
+      embed_url: "",
+      hls_url: "",
+      hls_verified: false,
+    };
+
+    expect(episodeKeepsExistingPlayback(episode)).toBe(true);
+    expect(applyCascadedEpisodeHls(episode, cascadeInput)).toEqual(episode);
+  });
+
+  it("turns empty direct-video rows into HLS paths from the new root", () => {
+    const next = applyCascadedEpisodeHls(
+      {
+        episode_number: "3",
+        source_method: "url" as const,
+        video_url: "",
+        embed_url: "",
+        hls_url: "",
+        hls_verified: false,
+      },
+      cascadeInput,
+    );
+
+    expect(next.source_method).toBe("hls");
+    expect(next.hls_url).toBe(
+      "http://cinema.af/content2/Fallout/season-02/episode-03/master.m3u8",
+    );
+    expect(next.video_url).toBe("");
+  });
+
+  it("does not replace a manual HLS path", () => {
+    const next = applyCascadedEpisodeHls(
+      {
+        episode_number: "3",
+        source_method: "hls" as const,
+        video_url: "",
+        embed_url: "",
+        hls_url: "http://custom.example/episode-03/master.m3u8",
+        hls_verified: true,
+      },
+      cascadeInput,
+    );
+
+    expect(next.hls_url).toBe("http://custom.example/episode-03/master.m3u8");
+    expect(next.hls_verified).toBe(true);
   });
 });

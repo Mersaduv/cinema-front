@@ -111,8 +111,12 @@ export function buildEpisodeUpsertPayload(
     buildSeasonHlsBase(seriesHlsBase, seasonNumber);
 
   const hlsUrl = nullableString(episode.hls_url);
-  const sourceMethod =
-    hlsUrl && episode.source_method !== "embed"
+  const keepsDirectVideo =
+    episode.source_method === "url" || episode.source_method === "upload";
+  const keepsEmbed = episode.source_method === "embed";
+  const sourceMethod = keepsDirectVideo || keepsEmbed
+    ? episode.source_method
+    : hlsUrl
       ? "hls"
       : episode.source_method || "hls";
 

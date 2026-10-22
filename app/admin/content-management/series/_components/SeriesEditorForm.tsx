@@ -81,9 +81,11 @@ import {
   buildEpisodeHlsUrl,
   buildHlsExistsCheckGroups,
   buildSeasonHlsBase,
+  applyCascadedEpisodeHls,
   buildEmptyEpisodeHlsDiscoveryGroups,
   applyDiscoveredEpisodeHlsToForm,
   comparableHlsPlaylistUrl,
+  episodeKeepsExistingPlayback,
   deriveEpisodeHlsUrl,
   deriveSeasonHlsBase,
   hlsExistsEpisodeKey,
@@ -91,7 +93,6 @@ import {
   parseHlsPackagePath,
   resolveEpisodeHlsUrl,
   shouldCascadeReplaceBase,
-  shouldCascadeReplaceEpisode,
   toMasterPlaylistUrl,
 } from "../../../../lib/series-hls-paths";
 import {
@@ -589,6 +590,11 @@ function buildHlsSyncFingerprint(form: SeriesFormState): string {
     parts.push(`s:${season.season_number}:${seasonBase.toLowerCase()}`);
 
     for (const episode of season.episodes) {
+      if (episode.source_method && episode.source_method !== "hls") {
+        parts.push(`e:${season.id}:${episode.id}:`);
+        continue;
+      }
+
       const resolved = resolveEpisodeHlsUrl({
         seriesBase: form.hls_base_url,
         seasonBase: season.hls_base_url,
@@ -616,6 +622,10 @@ function collectEpisodeHlsSyncTargetsForComparableChange(
 
   for (const season of form.seasons) {
     for (const episode of season.episodes) {
+      if (episode.source_method && episode.source_method !== "hls") {
+        continue;
+      }
+
       const resolved = resolveEpisodeHlsUrl({
         seriesBase: form.hls_base_url,
         seasonBase: season.hls_base_url,
@@ -649,6 +659,10 @@ function resolveEpisodeComparableHlsUrl(
   season: SeasonDraft,
   episode: EpisodeDraft,
 ): string {
+  if (episode.source_method && episode.source_method !== "hls") {
+    return "";
+  }
+
   const resolved = resolveEpisodeHlsUrl({
     seriesBase: form.hls_base_url,
     seasonBase: season.hls_base_url,
@@ -1060,7 +1074,10 @@ function mapSeriesToForm(series: AdminSeries): SeriesFormState {
         : [createSeasonDraft(1)],
   };
 
-  mapped.playback_protocol = inferSeriesPlaybackProtocol(mapped.seasons);
+  mapped.playback_protocol = inferSeriesPlaybackProtocol(
+    mapped.seasons,
+    mapped.hls_base_url,
+  );
   return mapped;
 }
 
@@ -1317,6 +1334,9 @@ export default function SeriesEditorForm({
   const seriesHlsCascadeTimerRef = useRef<number | null>(null);
   const seasonHlsCascadeTimersRef = useRef<Record<string, number>>({});
   const lastCommittedSeriesHlsBaseRef = useRef("");
+  const scheduleEpisodeHlsSyncAfterFormChangeRef = useRef<
+    ((previousComparables: Map<string, string>, nextForm: SeriesFormState) => void) | null
+  >(null);
   const formTopRef = useRef<HTMLDivElement | null>(null);
   const seriesFormBodyFingerprintRef = useRef("");
   const formRef = useRef(form);
@@ -1595,29 +1615,81 @@ export default function SeriesEditorForm({
   };
 
   const setPlaybackProtocol = (protocol: "hls" | "mp4") => {
+    const previousComparables = new Map(episodeHlsComparableMapRef.current);
+    let nextFormSnapshot: SeriesFormState | null = null;
+
     setForm((current) => {
       if (current.playback_protocol === protocol) {
         return current;
       }
 
-      const nextMethod = episodeSourceMethodForProtocol(protocol);
-
-      return {
+      const seriesBase = normalizeHlsBaseUrl(current.hls_base_url);
+      const nextForm: SeriesFormState = {
         ...current,
         playback_protocol: protocol,
-        seasons: current.seasons.map((season) => ({
-          ...season,
-          episodes: season.episodes.map((episode) => ({
-            ...episode,
-            source_method: nextMethod,
-            // Clear cross-protocol playback fields to avoid mixed saves.
-            ...(protocol === "mp4"
-              ? { hls_url: "", hls_verified: false }
-              : { video_url: "" }),
-          })),
-        })),
+        seasons: current.seasons.map((season) => {
+          const derivedSeasonBase = deriveSeasonHlsBase(seriesBase, season.season_number);
+          const seasonBase = normalizeHlsBaseUrl(season.hls_base_url) || derivedSeasonBase;
+
+          return {
+            ...season,
+            hls_base_url:
+              protocol === "hls" && seriesBase
+                ? season.hls_base_url.trim() || seasonBase
+                : season.hls_base_url,
+            episodes: season.episodes.map((episode) => {
+              if (protocol === "hls") {
+                if (episodeKeepsExistingPlayback(episode)) {
+                  return episode;
+                }
+
+                const nextHls =
+                  episode.hls_url.trim() ||
+                  (seriesBase
+                    ? deriveEpisodeHlsUrl(
+                        seriesBase,
+                        seasonBase,
+                        season.season_number,
+                        episode.episode_number,
+                      )
+                    : "");
+
+                return {
+                  ...episode,
+                  source_method: "hls",
+                  hls_url: nextHls,
+                  hls_verified: episode.hls_url.trim() ? episode.hls_verified : false,
+                };
+              }
+
+              if (
+                (episode.source_method === "hls" && episode.hls_url.trim()) ||
+                episodeKeepsExistingPlayback(episode)
+              ) {
+                return episode;
+              }
+
+              return {
+                ...episode,
+                source_method: "url",
+              };
+            }),
+          };
+        }),
       };
+
+      nextFormSnapshot = nextForm;
+      return nextForm;
     });
+
+    if (protocol === "hls" && nextFormSnapshot) {
+      window.queueMicrotask(() => {
+        scheduleEpisodeHlsSyncAfterFormChangeRef.current?.(
+          previousComparables,
+          nextFormSnapshot as SeriesFormState,
+        );
+      });
+    }
   };
 
   const addArrayItems = (field: SeriesFreeArrayField, rawValue: string) => {
@@ -3199,6 +3271,8 @@ export default function SeriesEditorForm({
     scheduleHlsSyncForNewOrChangedEpisodes(previousComparables, nextForm);
   };
 
+  scheduleEpisodeHlsSyncAfterFormChangeRef.current = scheduleEpisodeHlsSyncAfterFormChange;
+
   useEffect(() => {
     if (mode !== "create" || loading) {
       return;
@@ -3293,48 +3367,17 @@ export default function SeriesEditorForm({
 
         const previousSeasonContext = previousSeasonDerived || seasonBase;
 
-        const episodes = season.episodes.map((episode) => {
-          if (
-            parsed != null &&
-            parsed.episodeNumber !== null &&
-            parsed.episodeNumber !== undefined &&
-            String(parsed.episodeNumber) !== episode.episode_number.trim()
-          ) {
-            return episode;
-          }
-
-          const previousEpisodeDerived = deriveEpisodeHlsUrl(
+        const episodes = season.episodes.map((episode) =>
+          applyCascadedEpisodeHls(episode, {
             previousSeriesBase,
+            nextSeriesBase: nextSeriesBaseValue,
             previousSeasonContext,
-            season.season_number,
-            episode.episode_number,
-          );
-          const nextEpisodeDerived =
-            parsed?.episodeMaster &&
-            String(parsed.episodeNumber) === episode.episode_number.trim()
-              ? parsed.episodeMaster
-              : deriveEpisodeHlsUrl(
-                  nextSeriesBaseValue,
-                  seasonBase,
-                  season.season_number,
-                  episode.episode_number,
-                );
-
-          const nextEpisodeHls = shouldCascadeReplaceEpisode(
-            episode.hls_url,
-            previousEpisodeDerived,
-            nextEpisodeDerived,
-          )
-            ? nextEpisodeDerived
-            : episode.hls_url;
-
-          return {
-            ...episode,
-            hls_url: nextEpisodeHls,
-            hls_verified:
-              nextEpisodeHls === episode.hls_url ? episode.hls_verified : false,
-          };
-        });
+            seasonBase,
+            seasonNumber: season.season_number,
+            explicitEpisodeMaster: parsed?.episodeMaster,
+            explicitEpisodeNumber: parsed?.episodeNumber ?? null,
+          }),
+        );
 
         return {
           ...season,
@@ -3345,6 +3388,7 @@ export default function SeriesEditorForm({
 
       nextFormSnapshot = {
         ...current,
+        playback_protocol: "hls",
         hls_base_url: nextSeriesBaseValue,
         seasons,
       };
@@ -3355,32 +3399,45 @@ export default function SeriesEditorForm({
     lastCommittedSeriesHlsBaseRef.current = nextSeriesBase;
 
     if (nextFormSnapshot) {
+      const savedForm = nextFormSnapshot as SeriesFormState;
       const syncTargets =
         mode === "create"
           ? filterEpisodeHlsSyncTargetsForInitialScan(
-              nextFormSnapshot,
-              collectEpisodeHlsSyncTargets(nextFormSnapshot),
+              savedForm,
+              collectEpisodeHlsSyncTargets(savedForm),
             )
           : filterEpisodeHlsSyncTargetsForInitialScan(
-              nextFormSnapshot,
+              savedForm,
               collectEpisodeHlsSyncTargetsForComparableChange(
-                nextFormSnapshot,
+                savedForm,
                 previousComparables,
               ),
             );
 
       if (syncTargets.length > 0) {
+        const keptDirectVideo = savedForm.seasons.some((season) =>
+          season.episodes.some((episode) => episodeKeepsExistingPlayback(episode)),
+        );
         setSeriesHlsSyncMessage(
-          "مسیر فصل‌ها و قسمت‌ها همگام شد؛ زیرنویس و دوبلهٔ قسمت‌ها در حال بارگذاری است.",
+          keptDirectVideo
+            ? "مسیر قسمت‌های HLS همگام شد. قسمت‌هایی که لینک MP4 دارند بدون تغییر ماندند."
+            : "مسیر فصل‌ها و قسمت‌ها همگام شد؛ زیرنویس و دوبلهٔ قسمت‌ها در حال بارگذاری است.",
         );
         window.queueMicrotask(() => {
           scheduleEpisodeHlsSyncAfterFormChange(
             previousComparables,
-            nextFormSnapshot as SeriesFormState,
+            savedForm,
           );
         });
       } else if (parsed?.level === "series") {
-        setSeriesHlsSyncMessage("ریشه سریال ثبت شد.");
+        const keptDirectVideo = savedForm.seasons.some((season) =>
+          season.episodes.some((episode) => episodeKeepsExistingPlayback(episode)),
+        );
+        setSeriesHlsSyncMessage(
+          keptDirectVideo
+            ? "ریشه HLS ثبت شد. قسمت‌های MP4 قبلی حفظ شدند و قسمت‌های بدون ویدیو مستقیم HLS می‌شوند."
+            : "ریشه سریال ثبت شد.",
+        );
       } else {
         setSeriesHlsSyncMessage("");
       }
@@ -3426,40 +3483,17 @@ export default function SeriesEditorForm({
           ? nextSeasonDerived
           : season.hls_base_url;
 
-        const episodes = season.episodes.map((episode) => {
-          const previousEpisodeDerived = deriveEpisodeHlsUrl(
+        const episodes = season.episodes.map((episode) =>
+          applyCascadedEpisodeHls(episode, {
             previousSeriesBase,
-            previousSeasonDerived,
-            season.season_number,
-            episode.episode_number,
-          );
-          const nextEpisodeDerived =
-            parsed?.episodeMaster &&
-            parsed.episodeNumber !== null &&
-            String(parsed.episodeNumber) === episode.episode_number.trim()
-              ? parsed.episodeMaster
-              : deriveEpisodeHlsUrl(
-                  nextSeriesBase,
-                  seasonBase,
-                  season.season_number,
-                  episode.episode_number,
-                );
-
-          const nextEpisodeHls = shouldCascadeReplaceEpisode(
-            episode.hls_url,
-            previousEpisodeDerived,
-            nextEpisodeDerived,
-          )
-            ? nextEpisodeDerived
-            : episode.hls_url;
-
-          return {
-            ...episode,
-            hls_url: nextEpisodeHls,
-            hls_verified:
-              nextEpisodeHls === episode.hls_url ? episode.hls_verified : false,
-          };
-        });
+            nextSeriesBase,
+            previousSeasonContext: previousSeasonDerived,
+            seasonBase,
+            seasonNumber: season.season_number,
+            explicitEpisodeMaster: parsed?.episodeMaster,
+            explicitEpisodeNumber: parsed?.episodeNumber ?? null,
+          }),
+        );
 
         return {
           ...season,
@@ -3470,6 +3504,7 @@ export default function SeriesEditorForm({
 
       nextFormSnapshot = {
         ...current,
+        playback_protocol: nextSeriesBase ? "hls" : current.playback_protocol,
         hls_base_url: nextSeriesBase,
         seasons,
       };
@@ -3648,6 +3683,71 @@ export default function SeriesEditorForm({
         return next;
       });
     }, 550);
+  };
+
+  const setEpisodeSourceMethod = (
+    seasonId: string,
+    episodeId: string,
+    method: "hls" | "url",
+  ) => {
+    let hlsForSync = "";
+
+    setForm((current) => {
+      const seriesBase = normalizeHlsBaseUrl(current.hls_base_url);
+
+      return {
+        ...current,
+        seasons: current.seasons.map((season) => {
+          if (season.id !== seasonId) {
+            return season;
+          }
+
+          const seasonBase =
+            normalizeHlsBaseUrl(season.hls_base_url) ||
+            deriveSeasonHlsBase(seriesBase, season.season_number);
+
+          return {
+            ...season,
+            hls_base_url:
+              method === "hls" ? season.hls_base_url.trim() || seasonBase : season.hls_base_url,
+            episodes: season.episodes.map((episode) => {
+              if (episode.id !== episodeId) {
+                return episode;
+              }
+
+              if (method === "url") {
+                return {
+                  ...episode,
+                  source_method: "url",
+                };
+              }
+
+              const nextHls =
+                episode.hls_url.trim() ||
+                deriveEpisodeHlsUrl(
+                  seriesBase,
+                  seasonBase,
+                  season.season_number,
+                  episode.episode_number,
+                );
+              hlsForSync = toMasterPlaylistUrl(nextHls);
+
+              return {
+                ...episode,
+                source_method: "hls",
+                hls_url: nextHls,
+                hls_verified: episode.hls_url.trim() ? episode.hls_verified : false,
+              };
+            }),
+          };
+        }),
+      };
+    });
+
+    if (method === "hls" && hlsForSync) {
+      delete lastSyncedEpisodeHlsRef.current[seasonEpisodeKey(seasonId, episodeId)];
+      scheduleEpisodeHlsSync(seasonId, episodeId, hlsForSync);
+    }
   };
 
   const addSeason = () => {
@@ -4794,14 +4894,13 @@ export default function SeriesEditorForm({
                   ))}
                 </div>
                 <p className="mt-3 text-xs leading-6 text-[#8ea4b3]">
-                  {form.playback_protocol === "mp4"
-                    ? "برای هر قسمت فقط لینک فایل MP4 و در صورت نیاز زیرنویس/دوبله progressive وارد کنید."
-                    : "ریشه پکیج HLS سریال را بگذارید؛ مسیر فصل و قسمت‌ها خودکار همگام می‌شود."}
+                  روش پیش‌فرض قسمت‌های جدید اینجاست. قسمت‌هایی که از قبل لینک MP4 دارند با
+                  عوض کردن روش یا گذاشتن ریشه HLS پاک نمی‌شوند. ریشه را بگذارید تا فصل و
+                  قسمت‌های بدون ویدیو مستقیم به‌صورت HLS تنظیم شوند.
                 </p>
               </div>
 
-              {form.playback_protocol === "hls" ? (
-                <div className="rounded-[28px] border border-[#38bdf8]/20 bg-[#38bdf8]/[0.06] p-5">
+              <div className="rounded-[28px] border border-[#38bdf8]/20 bg-[#38bdf8]/[0.06] p-5">
                   <div className="mb-4">
                     <h3 className="text-base font-bold text-white">پایه پخش HLS سریال</h3>
                     <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
@@ -4821,12 +4920,11 @@ export default function SeriesEditorForm({
                   />
                   <EpisodeHlsSyncStatus message={seriesHlsSyncMessage} />
                   <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
-                    با تغییر ریشه سریال، مسیر فصل‌ها و قسمت‌ها خودکار همگام می‌شود. اگر فیلدی را
-                    دستی عوض کنید، دیگر بازنویسی نمی‌شود. پس از «همگام‌سازی از TMDB»، مسیر HLS فقط
-                    برای قسمت‌هایی که خالی است از ریشه سریال و فصل پر می‌شود.
+                    با تغییر ریشه سریال، مسیر فصل‌ها و قسمت‌های HLS خودکار همگام می‌شود.
+                    قسمت‌هایی که لینک ویدیو مستقیم دارند دست نمی‌خورند. اگر فیلدی را دستی
+                    عوض کنید، دیگر بازنویسی نمی‌شود.
                   </p>
                 </div>
-              ) : null}
 
               <FormFieldAnchor field="seasons" error={tabFieldErrors.seasons}>
               <div className="space-y-5">
@@ -4860,6 +4958,14 @@ export default function SeriesEditorForm({
                     (row) => row.season_number === Number(season.season_number),
                   )?.status;
                   const isSeasonTmdbLoading = seasonSyncStatus === "loading";
+                  const seasonContinuesWithHls =
+                    form.playback_protocol === "hls" ||
+                    Boolean(normalizeHlsBaseUrl(form.hls_base_url)) ||
+                    Boolean(season.hls_base_url.trim()) ||
+                    (season.episodes || []).some((episode) => episode?.source_method === "hls");
+                  const seasonKeepsDirectVideo = (season.episodes || []).some((episode) =>
+                    episode ? episodeKeepsExistingPlayback(episode) : false,
+                  );
 
                   return (
                   <section
@@ -4945,7 +5051,7 @@ export default function SeriesEditorForm({
                         </div>
 
                         <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 space-y-4">
-                          {form.playback_protocol === "hls" ? (
+                          {seasonContinuesWithHls ? (
                             <>
                               <TextField
                                 label="پایه HLS فصل"
@@ -4956,13 +5062,14 @@ export default function SeriesEditorForm({
                                 className={ltrInputClass}
                               />
                               <p className="text-xs leading-6 text-[#8ea4b3]">
-                                با تغییر پایه فصل، مسیر قسمت‌ها خودکار پر می‌شود. از قسمت هم می‌توان
-                                ریشه سریال و فصل را پر کرد.
+                                {seasonKeepsDirectVideo
+                                  ? "پایه HLS فقط قسمت‌های بدون ویدیو مستقیم را پر می‌کند. قسمت‌های MP4 این فصل حفظ می‌شوند."
+                                  : "با تغییر پایه فصل، مسیر قسمت‌های HLS خودکار پر می‌شود."}
                               </p>
                             </>
                           ) : (
                             <p className="text-xs leading-6 text-[#8ea4b3]">
-                              حالت MP4: برای هر قسمت لینک فایل ویدیو را جداگانه وارد کنید.
+                              حالت MP4: برای هر قسمت لینک فایل ویدیو را جداگانه وارد کنید. برای ادامه با HLS، ریشه سریال را بالا بگذارید.
                             </p>
                           )}
                         </div>
@@ -5017,6 +5124,14 @@ export default function SeriesEditorForm({
                                             episode.episode_number || "-",
                                             episode.title,
                                           )}
+                                        </span>
+                                        <span className="rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-[#d6e2e9]">
+                                          {episode.source_method === "url" ||
+                                          episode.source_method === "upload"
+                                            ? "MP4"
+                                            : episode.source_method === "embed"
+                                              ? "Embed"
+                                              : "HLS"}
                                         </span>
                                         {episodeHlsSyncMessage[episodeKey]?.includes("آماده نیست") ? (
                                           <span className="rounded-full border border-[#f5c518]/30 bg-[#f5c518]/10 px-2 py-0.5 text-[10px] font-semibold text-[#f8d977]">
@@ -5110,7 +5225,76 @@ export default function SeriesEditorForm({
                                       dir="ltr"
                                     />
                                     <div className="md:col-span-2 space-y-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                                      {form.playback_protocol === "hls" ? (
+                                      <div className="flex flex-wrap gap-2">
+                                        {(
+                                          [
+                                            { value: "hls" as const, label: "HLS" },
+                                            { value: "url" as const, label: "ویدیو مستقیم MP4" },
+                                          ] as const
+                                        ).map((option) => {
+                                          const selected =
+                                            option.value === "hls"
+                                              ? episode.source_method === "hls"
+                                              : episode.source_method === "url" ||
+                                                episode.source_method === "upload";
+
+                                          return (
+                                            <button
+                                              key={option.value}
+                                              type="button"
+                                              onClick={() =>
+                                                setEpisodeSourceMethod(
+                                                  season.id,
+                                                  episode.id,
+                                                  option.value,
+                                                )
+                                              }
+                                              className={`rounded-2xl border px-3 py-1.5 text-xs font-semibold transition ${
+                                                selected
+                                                  ? "border-[#f5c518]/45 bg-[#f5c518]/15 text-white"
+                                                  : "border-white/10 bg-[#071019] text-[#c7d5de] hover:border-white/20"
+                                              }`}
+                                            >
+                                              {option.label}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                      {episode.source_method === "url" ||
+                                      episode.source_method === "upload" ? (
+                                        <TextField
+                                          label="آدرس ویدیو مستقیم (MP4/MKV)"
+                                          value={episode.video_url}
+                                          onChange={(value) =>
+                                            updateEpisode(season.id, episode.id, {
+                                              video_url: value,
+                                              source_method: "url",
+                                            })
+                                          }
+                                          placeholder="https://cdn.example.com/episodes/s01e01.mkv"
+                                          dir="ltr"
+                                          className={ltrInputClass}
+                                          fieldKey={`episode:${season.id}:${episode.id}:video_url`}
+                                          error={
+                                            tabFieldErrors[
+                                              `episode:${season.id}:${episode.id}:video_url`
+                                            ]
+                                          }
+                                        />
+                                      ) : episode.source_method === "embed" ? (
+                                        <TextField
+                                          label="آدرس embed"
+                                          value={episode.embed_url}
+                                          onChange={(value) =>
+                                            updateEpisode(season.id, episode.id, {
+                                              embed_url: value,
+                                              source_method: "embed",
+                                            })
+                                          }
+                                          dir="ltr"
+                                          className={ltrInputClass}
+                                        />
+                                      ) : (
                                         <>
                                           <TextField
                                             label="مسیر HLS"
@@ -5145,30 +5329,15 @@ export default function SeriesEditorForm({
                                             </p>
                                           ) : null}
                                         </>
-                                      ) : (
-                                        <TextField
-                                          label="آدرس ویدیو مستقیم (MP4/MKV)"
-                                          value={episode.video_url}
-                                          onChange={(value) =>
-                                            updateEpisode(season.id, episode.id, {
-                                              video_url: value,
-                                              source_method: "url",
-                                            })
-                                          }
-                                          placeholder="https://cdn.example.com/episodes/s01e01.mkv"
-                                          dir="ltr"
-                                          className={ltrInputClass}
-                                          fieldKey={`episode:${season.id}:${episode.id}:video_url`}
-                                          error={
-                                            tabFieldErrors[
-                                              `episode:${season.id}:${episode.id}:video_url`
-                                            ]
-                                          }
-                                        />
                                       )}
 
                                       <PlaybackSubtitleDubFields
-                                        playbackProtocol={form.playback_protocol}
+                                        playbackProtocol={
+                                          episode.source_method === "url" ||
+                                          episode.source_method === "upload"
+                                            ? "mp4"
+                                            : "hls"
+                                        }
                                         subtitleUrl={episode.subtitle_url}
                                         dubbedAudioUrl={episode.dubbed_audio_url}
                                         hasSubtitle={episode.has_subtitle}
