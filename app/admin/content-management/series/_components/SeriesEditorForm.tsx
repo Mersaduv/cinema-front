@@ -1381,7 +1381,10 @@ export default function SeriesEditorForm({
   const formTopRef = useRef<HTMLDivElement | null>(null);
   const seriesFormBodyFingerprintRef = useRef("");
   const formRef = useRef(form);
-  formRef.current = form;
+  const tmdbFormLockRef = useRef(false);
+  if (!tmdbFormLockRef.current) {
+    formRef.current = form;
+  }
   const lastHlsFingerprintRef = useRef("");
   const episodeHlsComparableMapRef = useRef<Map<string, string>>(new Map());
   const hlsAutoSyncBootstrappedRef = useRef(false);
@@ -1902,14 +1905,16 @@ export default function SeriesEditorForm({
         continue;
       }
 
+      const imageBase = tmdbFormLockRef.current ? formRef.current : latestForm;
       latestForm = {
-        ...applyIngestedPrimaryImages(latestForm, data, {
-          poster_url: latestForm.poster_source_url || latestForm.poster_url,
-          backdrop_url: latestForm.backdrop_source_url || latestForm.backdrop_url,
+        ...imageBase,
+        ...applyIngestedPrimaryImages(imageBase, data, {
+          poster_url: imageBase.poster_source_url || imageBase.poster_url,
+          backdrop_url: imageBase.backdrop_source_url || imageBase.backdrop_url,
         }),
         actors: data.actors?.length
-          ? mergeIngestedActorProfiles(latestForm.actors, data.actors)
-          : latestForm.actors,
+          ? mergeIngestedActorProfiles(imageBase.actors, data.actors)
+          : imageBase.actors,
       };
 
       if (!needsPrimaryImageIngest(latestForm)) {
@@ -2031,6 +2036,7 @@ export default function SeriesEditorForm({
     }
 
     tmdbAbortControllerRef.current?.abort();
+    tmdbFormLockRef.current = true;
     const imageSession = beginTmdbImageIngestSession();
     const abortController = new AbortController();
     tmdbAbortControllerRef.current = abortController;
@@ -2081,6 +2087,7 @@ export default function SeriesEditorForm({
         taxonomyCountries,
         taxonomyLanguages,
       );
+      formRef.current = overviewForm;
       setForm(overviewForm);
 
       let primaryIngestPromise: Promise<void> | null = null;
@@ -2095,7 +2102,6 @@ export default function SeriesEditorForm({
         );
       }
 
-      setFetchingTmdb(false);
       setTmdbSyncState({
         phase: seasonNumbers.length > 0 ? "fetching_seasons" : "done",
         overviewReady: true,
@@ -2129,10 +2135,108 @@ export default function SeriesEditorForm({
         })),
       }));
 
+      let seasonApplyQueue = Promise.resolve();
+      const revealImportedEpisodes = (previous: SeriesFormState, next: SeriesFormState) => {
+        const previousKeys = new Set(
+          previous.seasons.flatMap((season) =>
+            season.episodes.map(
+              (episode) => `${season.season_number.trim()}:${episode.episode_number.trim()}`,
+            ),
+          ),
+        );
+        const added: Array<{ seasonId: string; episodeId: string; syncKey: string }> = [];
+
+        for (const season of next.seasons) {
+          for (const episode of season.episodes) {
+            const identity = `${season.season_number.trim()}:${episode.episode_number.trim()}`;
+            if (previousKeys.has(identity)) {
+              continue;
+            }
+            added.push({
+              seasonId: season.id,
+              episodeId: episode.id,
+              syncKey: seasonEpisodeKey(season.id, episode.id),
+            });
+          }
+        }
+
+        if (added.length === 0) {
+          return;
+        }
+
+        setActiveTab("seasons");
+        setExpandedSeasonIds((current) => [
+          ...current,
+          ...added
+            .map((item) => item.seasonId)
+            .filter((seasonId) => !current.includes(seasonId)),
+        ]);
+        setExpandedEpisodeKeys((current) => [
+          ...current,
+          ...added
+            .map((item) => item.syncKey)
+            .filter((syncKey) => !current.includes(syncKey)),
+        ]);
+        setEpisodeHlsSyncPending((current) => {
+          const pending = { ...current };
+          for (const item of added) {
+            pending[item.syncKey] = true;
+          }
+          return pending;
+        });
+        setEpisodeHlsSyncMessage((current) => {
+          const messages = { ...current };
+          for (const item of added) {
+            messages[item.syncKey] =
+              "به لیست اضافه شد. پردازش HLS همین‌جا ادامه دارد تا تمام شود.";
+          }
+          return messages;
+        });
+        setSearchMessage("قسمت جدید در لیست فصل‌ها قرار گرفت و پردازشش مشخص است.");
+      };
+      const applyImportedSeason = (season: AdminSeriesSeason) => {
+        const apply = () => {
+          const previous = formRef.current;
+          const next = preserveIngestedPrimaryImages(
+            applyTmdbSeasonToForm(
+              previous,
+              season,
+              options?.appendMissing ? { appendMissing: true } : { fullSeasonResync: true },
+            ),
+            previous,
+          );
+          formRef.current = next;
+          setForm(next);
+          if (options?.appendMissing) {
+            revealImportedEpisodes(previous, next);
+          }
+        };
+
+        const queued = seasonApplyQueue.then(apply);
+        seasonApplyQueue = queued.then(
+          () => undefined,
+          () => undefined,
+        );
+        return queued;
+      };
+
       const seasonFetchPromise = fetchTmdbSeasonsWithConcurrency(
         seasonNumbers,
-        (seasonNumber) =>
-          adminSeriesService.fetchTmdbSeason(tmdbId, seasonNumber, { signal }),
+        async (seasonNumber) => {
+          const response = await adminSeriesService.fetchTmdbSeason(tmdbId, seasonNumber, {
+            signal,
+          });
+
+          if (
+            !signal.aborted &&
+            response.success &&
+            response.data?.season
+          ) {
+            await applyImportedSeason(response.data.season);
+          }
+
+          return response;
+        },
         { concurrency: 4, signal },
       );
 
@@ -2163,6 +2267,7 @@ export default function SeriesEditorForm({
             ),
             formRef.current,
           );
+          formRef.current = latestForm;
           setForm(latestForm);
 
           const mergedSeason = latestForm.seasons.find(
@@ -2266,7 +2371,9 @@ export default function SeriesEditorForm({
         await runSeriesPrimaryImageIngest(formRef.current, imageSession.signal);
       }
 
-      setExpandedEpisodeKeys([]);
+      if (!options?.appendMissing) {
+        setExpandedEpisodeKeys([]);
+      }
       episodeHlsComparableMapRef.current = buildEpisodeHlsComparableMap(
         formWithPreservedPrimaryImages,
       );
@@ -2312,6 +2419,7 @@ export default function SeriesEditorForm({
       );
       setTmdbSyncState({ ...initialTmdbSyncState, phase: "error" });
     } finally {
+      tmdbFormLockRef.current = false;
       if (!signal.aborted) {
         setFetchingTmdb(false);
       }
@@ -4931,6 +5039,11 @@ export default function SeriesEditorForm({
                                               ? "Embed"
                                               : "HLS"}
                                         </span>
+                                        {episodeHlsSyncPending[episodeKey] ? (
+                                          <span className="rounded-full border border-[#38bdf8]/40 bg-[#38bdf8]/15 px-2 py-0.5 text-[10px] font-semibold text-[#8bdcff]">
+                                            در حال پردازش
+                                          </span>
+                                        ) : null}
                                         {episodeHlsSyncMessage[episodeKey]?.includes("آماده نیست") ? (
                                           <span className="rounded-full border border-[#f5c518]/30 bg-[#f5c518]/10 px-2 py-0.5 text-[10px] font-semibold text-[#f8d977]">
                                             منتشر نمی‌شود
