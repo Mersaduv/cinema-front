@@ -243,6 +243,31 @@ describe("confirmed HLS routing", () => {
       },
     ]);
   });
+
+  it("does not send an episode that already has a direct video to HLS processing", () => {
+    const candidates = listUnconfirmedEpisodeHlsCandidates({
+      hls_base_url: "http://cinema.af/content2/Fallout",
+      seasons: [
+        {
+          id: "season-1",
+          season_number: "1",
+          hls_base_url: "",
+          episodes: [
+            {
+              id: "episode-mp4",
+              episode_number: "2",
+              source_method: "url",
+              video_url: "http://cdn.example/ep.mp4",
+              hls_url: "",
+              hls_verified: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(candidates).toEqual([]);
+  });
 });
 
 describe("applyCascadedEpisodeHls", () => {

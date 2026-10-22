@@ -11,7 +11,7 @@ import {
   HOME_FRESH_MOVIES_FILTERS,
   HOME_FRESH_SERIES_FILTERS,
   HOME_SITE_FRESH_MAX,
-  sortBySitePublishedAt,
+  sortFreshRail,
 } from "../../lib/catalog/home";
 import {
   fetchMoviesCatalogRest,
@@ -37,7 +37,7 @@ function mergeFresh(existing: FreshItem[], incoming: FreshItem[]): FreshItem[] {
     merged.push(item);
   }
 
-  return sortBySitePublishedAt(merged).slice(0, HOME_SITE_FRESH_MAX);
+  return sortFreshRail(merged).slice(0, HOME_SITE_FRESH_MAX);
 }
 
 export default function HomeSiteFreshRail({

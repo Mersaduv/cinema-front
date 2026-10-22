@@ -67,7 +67,7 @@ export const HOME_TOP_RATED_FILTERS: CatalogFiltersState = {
 
 export const HOME_FRESH_MOVIES_FILTERS: CatalogFiltersState = {
   search: "",
-  sort: "updated",
+  sort: "newest",
   genres: [],
   countries: [],
   languages: [],
@@ -79,6 +79,7 @@ export const HOME_FRESH_MOVIES_FILTERS: CatalogFiltersState = {
 
 export const HOME_FRESH_SERIES_FILTERS: CatalogFiltersState = {
   ...HOME_FRESH_MOVIES_FILTERS,
+  sort: "episode_arrived",
 };
 
 export const HOME_POPULAR_MOVIES_FILTERS: CatalogFiltersState = {
@@ -297,17 +298,34 @@ export function pickTrendingHomeItems(
   return [...merged, ...fallback].slice(0, limit);
 }
 
-export function sortBySitePublishedAt<
-  T extends { updated_at?: string | null; published_at?: string | null },
->(items: T[]): T[] {
+type FreshRailItem = {
+  id?: number;
+  catalogKind?: "movie" | "series";
+  published_at?: string | null;
+  fresh_rank_at?: string | null;
+};
+
+/** Movies by publish time, series by the newest uploaded episode. Edits do not move either. */
+export function freshRailRank(item: FreshRailItem): number {
+  if (item.catalogKind === "series") {
+    return Date.parse(item.fresh_rank_at ?? "") || 0;
+  }
+
+  return Date.parse(item.published_at ?? "") || 0;
+}
+
+export function sortFreshRail<T extends FreshRailItem>(items: T[]): T[] {
   return [...items].sort((left, right) => {
-    const leftTime = Date.parse(left.updated_at ?? left.published_at ?? "") || 0;
-    const rightTime = Date.parse(right.updated_at ?? right.published_at ?? "") || 0;
-    return rightTime - leftTime;
+    const delta = freshRailRank(right) - freshRailRank(left);
+    if (delta !== 0) {
+      return delta;
+    }
+
+    return (right.id ?? 0) - (left.id ?? 0);
   });
 }
 
-/** Movies + series ordered by the latest site update (updated_at). */
+/** Movies + series ordered by what was uploaded, newest at the head. */
 export function pickFreshHomeItems(
   movies: CatalogListItem[],
   series: CatalogListItem[],
@@ -324,7 +342,7 @@ export function pickFreshHomeItems(
     })),
   ];
 
-  return sortBySitePublishedAt(merged).slice(0, limit);
+  return sortFreshRail(merged).slice(0, limit);
 }
 
 export function splitSiteFreshRail(

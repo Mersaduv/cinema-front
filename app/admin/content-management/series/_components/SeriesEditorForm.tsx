@@ -1709,45 +1709,6 @@ export default function SeriesEditorForm({
     }
   };
 
-  const setPlaybackProtocol = (protocol: "hls" | "mp4") => {
-    const current = formRef.current;
-
-    if (current.playback_protocol === protocol) {
-      if (protocol === "hls") {
-        void routeSeriesPlaybackToConfirmedHls(current);
-      }
-      return;
-    }
-
-    const seriesBase =
-      normalizeHlsBaseUrl(current.hls_base_url) ||
-      inferSeriesHlsBaseFromEpisodeUrls(current.seasons);
-    const nextForm: SeriesFormState = {
-      ...current,
-      playback_protocol: protocol,
-      hls_base_url: protocol === "hls" && seriesBase ? seriesBase : current.hls_base_url,
-      seasons:
-        protocol === "hls"
-          ? alignSeasonHlsBasesToConfirmedEpisodes(
-              current.seasons.map((season) => ({
-                ...season,
-                episodes: season.episodes.map((episode) =>
-                  episodeWithoutUnconfirmedHlsLink(episode),
-                ),
-              })),
-              seriesBase,
-            )
-          : current.seasons,
-    };
-
-    formRef.current = nextForm;
-    setForm(nextForm);
-
-    if (protocol === "hls") {
-      void routeSeriesPlaybackToConfirmedHls(nextForm);
-    }
-  };
-
   const addArrayItems = (field: SeriesFreeArrayField, rawValue: string) => {
     const parsed = parseTagInput(rawValue);
     const personFields: SeriesFreeArrayField[] = ["directors", "writers", "creators"];
@@ -3402,46 +3363,29 @@ export default function SeriesEditorForm({
       return;
     }
 
-    if (savedForm.playback_protocol === "hls") {
-      void routeSeriesPlaybackToConfirmedHls(savedForm);
-      return;
-    }
-
     setSeriesHlsSyncMessage(
-      "ریشه HLS ثبت شد. با تغییر روش پخش به HLS، فقط قسمت‌هایی که پکیج دارند مسیر می‌گیرند.",
+      "ریشه HLS ثبت شد. برای پیدا کردن مسیر قسمت‌های جدید، پردازش HLS را بزنید.",
     );
   };
 
   const cascadeSeasonHlsDown = (seasonId: string, raw: string) => {
     const parsed = parseHlsPackagePath(raw);
     const nextSeasonBase = parsed?.seasonBase || normalizeHlsBaseUrl(raw);
-    let nextFormSnapshot: SeriesFormState | null = null;
 
     if (!nextSeasonBase) {
       return;
     }
 
-    setForm((current) => {
-      const nextForm: SeriesFormState = {
-        ...current,
-        hls_base_url:
-          parsed?.seriesBase && !normalizeHlsBaseUrl(current.hls_base_url)
-            ? parsed.seriesBase
-            : current.hls_base_url,
-        seasons: current.seasons.map((season) =>
-          season.id === seasonId ? { ...season, hls_base_url: nextSeasonBase } : season,
-        ),
-      };
-
-      nextFormSnapshot = nextForm;
-      return nextForm;
-    });
-
-    const savedForm = nextFormSnapshot as SeriesFormState | null;
-
-    if (savedForm?.playback_protocol === "hls") {
-      void routeSeriesPlaybackToConfirmedHls(savedForm);
-    }
+    setForm((current) => ({
+      ...current,
+      hls_base_url:
+        parsed?.seriesBase && !normalizeHlsBaseUrl(current.hls_base_url)
+          ? parsed.seriesBase
+          : current.hls_base_url,
+      seasons: current.seasons.map((season) =>
+        season.id === seasonId ? { ...season, hls_base_url: nextSeasonBase } : season,
+      ),
+    }));
   };
 
   const handleEpisodeHlsChange = (seasonId: string, episodeId: string, value: string) => {
@@ -3676,21 +3620,6 @@ export default function SeriesEditorForm({
     const nextSeasonNumber = getNextSeasonNumber(formRef.current.seasons);
     const protocol = formRef.current.playback_protocol || "hls";
     const nextSeason = createSeasonDraft(nextSeasonNumber, protocol);
-    const seriesBase = normalizeHlsBaseUrl(formRef.current.hls_base_url);
-
-    if (protocol === "hls" && seriesBase) {
-      nextSeason.hls_base_url = deriveSeasonHlsBase(seriesBase, nextSeason.season_number);
-      nextSeason.episodes = nextSeason.episodes.map((episode) => ({
-        ...episode,
-        hls_url: deriveEpisodeHlsUrl(
-          seriesBase,
-          nextSeason.hls_base_url,
-          nextSeason.season_number,
-          episode.episode_number,
-        ),
-        hls_verified: false,
-      }));
-    }
 
     const nextFormSnapshot: SeriesFormState = {
       ...formRef.current,
@@ -3746,20 +3675,6 @@ export default function SeriesEditorForm({
       getNextEpisodeNumber(targetSeason.episodes),
       protocol,
     );
-    const seriesBase = normalizeHlsBaseUrl(formRef.current.hls_base_url);
-    const seasonBase =
-      normalizeHlsBaseUrl(targetSeason.hls_base_url) ||
-      deriveSeasonHlsBase(seriesBase, targetSeason.season_number);
-
-    if (protocol === "hls" && seasonBase) {
-      createdEpisode.hls_url = deriveEpisodeHlsUrl(
-        seriesBase,
-        seasonBase,
-        targetSeason.season_number,
-        createdEpisode.episode_number,
-      );
-      createdEpisode.hls_verified = false;
-    }
 
     const nextFormSnapshot: SeriesFormState = {
       ...formRef.current,
@@ -3768,7 +3683,6 @@ export default function SeriesEditorForm({
           ? season
           : {
               ...season,
-              hls_base_url: season.hls_base_url || seasonBase,
               episodes: [...season.episodes, createdEpisode],
             },
       ),
@@ -4792,45 +4706,25 @@ export default function SeriesEditorForm({
                 </button>
               </div>
 
-              <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                <p className="mb-2 text-sm text-[#8ea4b3]">روش پخش سریال</p>
-                <div className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      { value: "hls" as const, label: "HLS (پکیج m3u8)" },
-                      { value: "mp4" as const, label: "ویدیو مستقیم MP4" },
-                    ] as const
-                  ).map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setPlaybackProtocol(option.value)}
-                      className={`rounded-2xl border px-4 py-2 text-xs font-semibold transition ${
-                        form.playback_protocol === option.value
-                          ? "border-[#f5c518]/45 bg-[#f5c518]/15 text-white"
-                          : "border-white/10 bg-[#071019] text-[#c7d5de] hover:border-white/20"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-3 text-xs leading-6 text-[#8ea4b3]">
-                  روش پیش‌فرض قسمت‌های جدید اینجاست و با باز کردن فرم مسیر ساخته نمی‌شود.
-                  قسمت‌هایی که لینک MP4 دارند سر جایشان می‌مانند. وقتی روش را به HLS تغییر
-                  دهید، فقط قسمت‌هایی که پکیج‌شان واقعاً وجود دارد مسیر می‌گیرند.
-                </p>
-              </div>
-
               <div className="rounded-[28px] border border-[#38bdf8]/20 bg-[#38bdf8]/[0.06] p-5">
-                  <div className="mb-4">
-                    <h3 className="text-base font-bold text-white">پایه پخش HLS سریال</h3>
-                    <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
-                      ساختار hls-worker:{" "}
-                      <span dir="ltr" className="text-[#d8e5ec]">
-                        {"{series}/season-01/episode-01/master.m3u8"}
-                      </span>
-                    </p>
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-bold text-white">پایه پخش HLS سریال</h3>
+                      <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
+                        ساختار hls-worker:{" "}
+                        <span dir="ltr" className="text-[#d8e5ec]">
+                          {"{series}/season-01/episode-01/master.m3u8"}
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void routeSeriesPlaybackToConfirmedHls(formRef.current)}
+                      disabled={hasEpisodeHlsSyncPending}
+                      className="inline-flex items-center rounded-2xl border border-[#38bdf8]/40 bg-[#38bdf8]/15 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#38bdf8]/25 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      پردازش HLS
+                    </button>
                   </div>
                   <TextField
                     label="ریشه پکیج سریال"
@@ -4842,8 +4736,9 @@ export default function SeriesEditorForm({
                   />
                   <EpisodeHlsSyncStatus message={seriesHlsSyncMessage} />
                   <p className="mt-2 text-xs leading-6 text-[#8ea4b3]">
-                    با تغییر ریشه، مسیر قسمت‌ها خودکار ساخته نمی‌شود. بعد از تغییر روش پخش به
-                    HLS، فقط قسمت‌هایی که پکیج دارند مسیر می‌گیرند.
+                    روش پخش هر قسمت جداگانه است و قسمت‌های MP4 سر جایشان می‌مانند. با «پردازش
+                    HLS» مسیر قسمت‌های جدید از ریشه پیدا می‌شود و فقط قسمتی لینک می‌گیرد که
+                    پکیجش واقعاً خوانده شود.
                   </p>
                 </div>
 
@@ -4880,7 +4775,7 @@ export default function SeriesEditorForm({
                   )?.status;
                   const isSeasonTmdbLoading = seasonSyncStatus === "loading";
                   const seasonContinuesWithHls =
-                    form.playback_protocol === "hls" ||
+                    Boolean(form.hls_base_url.trim()) ||
                     (season.episodes || []).some(
                       (episode) =>
                         episode?.source_method === "hls" && Boolean(episode.hls_url.trim()),
@@ -4985,13 +4880,13 @@ export default function SeriesEditorForm({
                               />
                               <p className="text-xs leading-6 text-[#8ea4b3]">
                                 {seasonKeepsDirectVideo
-                                  ? "پایه HLS فقط قسمت‌های بدون ویدیو مستقیم را پر می‌کند. قسمت‌های MP4 این فصل حفظ می‌شوند."
-                                  : "با تغییر پایه فصل، مسیر قسمت‌های HLS خودکار پر می‌شود."}
+                                  ? "قسمت‌های MP4 این فصل حفظ می‌شوند. مسیر قسمت‌های جدید با پردازش HLS پیدا می‌شود."
+                                  : "پایه فصل ذخیره می‌شود. مسیر قسمت‌های جدید با دکمه پردازش HLS پیدا می‌شود."}
                               </p>
                             </>
                           ) : (
                             <p className="text-xs leading-6 text-[#8ea4b3]">
-                              حالت MP4: برای هر قسمت لینک فایل ویدیو را جداگانه وارد کنید. برای ادامه با HLS، ریشه سریال را بالا بگذارید.
+                              هر قسمت دکمه HLS یا ویدیو مستقیم دارد. برای قسمت‌های جدید، ریشه سریال را بگذارید و پردازش HLS را بزنید.
                             </p>
                           )}
                         </div>

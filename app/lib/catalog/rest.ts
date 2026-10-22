@@ -20,6 +20,7 @@ export type CatalogListItem = {
   release_year: number | null;
   published_at?: string | null;
   updated_at?: string | null;
+  fresh_rank_at?: string | null;
   poster_url: string | null;
   poster_blur_url?: string | null;
   poster_srcset?: string | null;
@@ -123,6 +124,7 @@ export function toCatalogItem(
     release_year: (row.release_year as number | null) ?? null,
     published_at: typeof row.published_at === "string" ? row.published_at : null,
     updated_at: typeof row.updated_at === "string" ? row.updated_at : null,
+    fresh_rank_at: typeof row.fresh_rank_at === "string" ? row.fresh_rank_at : null,
     poster_url: (row.poster_url as string | null) ?? null,
     poster_blur_url: (row.poster_blur_url as string | null) ?? null,
     poster_srcset: (row.poster_srcset as string | null) ?? null,

@@ -469,6 +469,8 @@ export type EpisodeHlsFillInput = {
       hls_url: string;
       hls_verified: boolean;
       source_method?: string;
+      video_url?: string;
+      embed_url?: string;
     }>;
   }>;
 };
@@ -786,7 +788,7 @@ export function listUnconfirmedEpisodeHlsCandidates(
     for (const episode of season.episodes) {
       const method = (episode.source_method || "").toLowerCase();
 
-      if (method === "embed") {
+      if (method === "embed" || episodeKeepsExistingPlayback(episode)) {
         continue;
       }
 
