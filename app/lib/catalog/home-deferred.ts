@@ -113,9 +113,16 @@ async function fetchLatestEpisodes(): Promise<LatestEpisodeCard[]> {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005/api";
 
   try {
-    const response = await fetch(`${apiBase}/home/latest-episodes?limit=12`, {
-      next: { revalidate: 180, tags: ["home-rails", "catalog-series"] },
-    });
+    const response = await (async () => {
+      const url = `${apiBase}/home/latest-episodes?limit=12`;
+      if (typeof window === "undefined") {
+        const { cinemaLoopbackFetch } = await import("../cinema-loopback-fetch");
+        return cinemaLoopbackFetch(url);
+      }
+      return fetch(url, {
+        next: { revalidate: 180, tags: ["home-rails", "catalog-series"] },
+      });
+    })();
 
     if (!response.ok) {
       return [];

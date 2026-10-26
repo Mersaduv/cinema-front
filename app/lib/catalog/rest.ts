@@ -155,6 +155,18 @@ export function toCatalogItem(
   };
 }
 
+async function catalogFetch(
+  url: string,
+  init: RequestInit & { next?: { revalidate?: number; tags?: string[] } },
+): Promise<Response> {
+  if (typeof window === "undefined") {
+    const { cinemaLoopbackFetch } = await import("../cinema-loopback-fetch");
+    return cinemaLoopbackFetch(url, init);
+  }
+
+  return fetch(url, init);
+}
+
 function emptyPaginationMeta(perPage: number, page: number): PaginationMeta {
   return { total: 0, per_page: perPage, current_page: page, last_page: 1 };
 }
@@ -197,7 +209,7 @@ export async function fetchMoviesCatalogRest(
   try {
     const query = buildQueryParams(filters, page, perPage, options);
     const isServer = typeof window === "undefined";
-    const response = await fetch(`${API_BASE_URL}/movies?${query}`, {
+    const response = await catalogFetch(`${API_BASE_URL}/movies?${query}`, {
       headers: {
         Accept: "application/json",
       },
@@ -298,7 +310,7 @@ export async function fetchSeriesCatalogRest(
   try {
     const query = buildQueryParams(filters, page, perPage, options);
     const isServer = typeof window === "undefined";
-    const response = await fetch(`${API_BASE_URL}/series?${query}`, {
+    const response = await catalogFetch(`${API_BASE_URL}/series?${query}`, {
       headers: {
         Accept: "application/json",
       },

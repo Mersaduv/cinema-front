@@ -32,11 +32,7 @@ export async function fetchFilterOptions(
   }
 
   if (!inflight) {
-    inflight = fetch(`${API_BASE_URL}/filter-options`, {
-      headers: { Accept: "application/json" },
-      cache: init?.cache ?? "force-cache",
-      ...init,
-    })
+    inflight = requestFilterOptions(init)
       .then(async (response) => {
         if (!response.ok) {
           throw new Error("دریافت گزینه‌های فیلتر انجام نشد.");
@@ -51,12 +47,48 @@ export async function fetchFilterOptions(
         cachedOptions = json.data;
         return json.data;
       })
+      .catch((error: unknown) => {
+        if (typeof window === "undefined") {
+          console.error("Filter options API was unreachable during render.");
+          return emptyFilterOptions();
+        }
+        throw error;
+      })
       .finally(() => {
         inflight = null;
       });
   }
 
   return inflight;
+}
+
+async function requestFilterOptions(init?: RequestInit): Promise<Response> {
+  const url = `${API_BASE_URL}/filter-options`;
+  const requestInit: RequestInit = {
+    headers: { Accept: "application/json" },
+    cache: init?.cache ?? "force-cache",
+    ...init,
+  };
+
+  if (typeof window === "undefined") {
+    const { cinemaLoopbackFetch } = await import("./cinema-loopback-fetch");
+    return cinemaLoopbackFetch(url, requestInit);
+  }
+
+  return fetch(url, requestInit);
+}
+
+function emptyFilterOptions(): FilterOptions {
+  return {
+    movie_genres: [],
+    tv_genres: [],
+    countries: [],
+    languages: [],
+    release_years: [],
+    age_ratings: [],
+    content_types: [],
+    sort_options: [],
+  };
 }
 
 export function clearFilterOptionsCache(): void {

@@ -19,25 +19,17 @@ const netWithTimeout = net as typeof net & {
 };
 netWithTimeout.setDefaultAutoSelectFamilyAttemptTimeout?.(250);
 
-const originalLookup = dns.lookup;
+const originalLookup = dns.lookup as (
+  hostname: string,
+  options?: unknown,
+  callback?: unknown,
+) => void;
 const originalPromisesLookup = dns.promises.lookup.bind(dns.promises);
 
 dns.lookup = function loopbackLookup(
   hostname: string,
-  options?:
-    | number
-    | DnsTypes.LookupOptions
-    | DnsTypes.LookupOneOptions
-    | ((
-        err: NodeJS.ErrnoException | null,
-        address: string,
-        family: number,
-      ) => void),
-  callback?: (
-    err: NodeJS.ErrnoException | null,
-    address: string | DnsTypes.LookupAddress[],
-    family: number,
-  ) => void,
+  options?: unknown,
+  callback?: unknown,
 ) {
   const cb = typeof options === "function" ? options : callback;
   const opts =
@@ -54,30 +46,11 @@ dns.lookup = function loopbackLookup(
   }
 
   if (typeof options === "function") {
-    return originalLookup(hostname, options);
+    originalLookup(hostname, options);
+    return;
   }
 
-  if (typeof options === "number") {
-    return originalLookup(
-      hostname,
-      options,
-      cb as (
-        err: NodeJS.ErrnoException | null,
-        address: string,
-        family: number,
-      ) => void,
-    );
-  }
-
-  return originalLookup(
-    hostname,
-    options ?? {},
-    cb as (
-      err: NodeJS.ErrnoException | null,
-      address: string,
-      family: number,
-    ) => void,
-  );
+  originalLookup(hostname, options ?? {}, cb);
 } as typeof dns.lookup;
 
 dns.promises.lookup = (async (

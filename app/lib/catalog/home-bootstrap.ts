@@ -1,4 +1,5 @@
 import "./server-fetch-dns";
+import { cinemaLoopbackFetch } from "../cinema-loopback-fetch";
 import type { MoviesCarouselFetchResult, MoviesCatalogFetchResult } from "./rest";
 import { filterHomeCatalogFetchResult } from "./home-visibility";
 import {
@@ -66,20 +67,18 @@ export async function fetchHomeCriticalBootstrap(): Promise<HomeCriticalData> {
   try {
     return await readHomeCriticalBootstrap();
   } catch (error) {
-    if (!isUnreachableApi(error)) {
+    if (isNextFrameworkSignal(error)) {
       throw error;
     }
 
+    console.error("Home critical API was unreachable during render; continuing without it.");
     return emptyHomeCriticalData();
   }
 }
 
 async function readHomeCriticalBootstrap(): Promise<HomeCriticalData> {
-  const response = await fetch(`${API_BASE_URL}/home/critical`, {
-    next: {
-      revalidate: 300,
-      tags: ["home-critical", "catalog-movies", "catalog-series"],
-    },
+  const response = await cinemaLoopbackFetch(`${API_BASE_URL}/home/critical`, {
+    headers: { Accept: "application/json" },
   });
 
   if (!response.ok) {
@@ -165,20 +164,11 @@ function emptyHomeCriticalData(): HomeCriticalData {
   };
 }
 
-function isUnreachableApi(error: unknown): boolean {
-  if (!(error instanceof Error)) {
+function isNextFrameworkSignal(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("digest" in error)) {
     return false;
   }
 
-  const cause = (error as Error & { cause?: { code?: string } }).cause;
-  const code = cause?.code ?? "";
-
-  return (
-    error.message === "fetch failed" ||
-    code === "UND_ERR_CONNECT_TIMEOUT" ||
-    code === "ECONNREFUSED" ||
-    code === "ECONNRESET" ||
-    code === "ENOTFOUND" ||
-    code === "EHOSTUNREACH"
-  );
+  const digest = String((error as { digest?: unknown }).digest ?? "");
+  return digest.startsWith("NEXT_");
 }
