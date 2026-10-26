@@ -1,3 +1,4 @@
+import "./server-fetch-dns";
 import type { MoviesCarouselFetchResult, MoviesCatalogFetchResult } from "./rest";
 import { filterHomeCatalogFetchResult } from "./home-visibility";
 import {
@@ -62,6 +63,18 @@ function toCatalogResult(pool: PoolPayload): MoviesCatalogFetchResult {
 }
 
 export async function fetchHomeCriticalBootstrap(): Promise<HomeCriticalData> {
+  try {
+    return await readHomeCriticalBootstrap();
+  } catch (error) {
+    if (!isUnreachableApi(error)) {
+      throw error;
+    }
+
+    return emptyHomeCriticalData();
+  }
+}
+
+async function readHomeCriticalBootstrap(): Promise<HomeCriticalData> {
   const response = await fetch(`${API_BASE_URL}/home/critical`, {
     next: {
       revalidate: 300,
@@ -134,4 +147,38 @@ export async function fetchHomeCriticalBootstrap(): Promise<HomeCriticalData> {
     trendingTotal,
     popularMovies: filterHomeCatalogFetchResult(popularMoviesResult),
   };
+}
+
+function emptyHomeCriticalData(): HomeCriticalData {
+  const siteFresh = splitSiteFreshRail([], []);
+
+  return {
+    heroSlides: [],
+    siteFreshVisible: siteFresh.visible,
+    siteFreshReserve: siteFresh.reserve,
+    siteFreshMoviesCursor: null,
+    siteFreshSeriesCursor: null,
+    siteFreshTotal: 0,
+    trendingItems: [],
+    trendingTotal: 0,
+    popularMovies: filterHomeCatalogFetchResult(toCarouselResult({})),
+  };
+}
+
+function isUnreachableApi(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const cause = (error as Error & { cause?: { code?: string } }).cause;
+  const code = cause?.code ?? "";
+
+  return (
+    error.message === "fetch failed" ||
+    code === "UND_ERR_CONNECT_TIMEOUT" ||
+    code === "ECONNREFUSED" ||
+    code === "ECONNRESET" ||
+    code === "ENOTFOUND" ||
+    code === "EHOSTUNREACH"
+  );
 }

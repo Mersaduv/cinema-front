@@ -1,3 +1,4 @@
+import "./catalog/server-fetch-dns";
 import { cacheLife, cacheTag } from "next/cache";
 import { fetchFilterOptions, type FilterOptions } from "./filter-options";
 
