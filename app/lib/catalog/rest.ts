@@ -200,7 +200,6 @@ export async function fetchMoviesCatalogRest(
     const response = await fetch(`${API_BASE_URL}/movies?${query}`, {
       headers: {
         Accept: "application/json",
-        "Accept-Encoding": "gzip",
       },
       ...(isServer
         ? options?.skipFetchCache
@@ -263,14 +262,14 @@ export async function fetchMoviesCatalogRest(
       return {
         items: [],
         meta: emptyCarouselMeta(perPage, page),
-        error: error instanceof Error ? error.message : "دریافت فیلم‌ها انجام نشد.",
+        error: "دریافت فیلم‌ها انجام نشد.",
       };
     }
 
     return {
       items: [],
       meta: emptyPaginationMeta(perPage, page),
-      error: error instanceof Error ? error.message : "دریافت فیلم‌ها انجام نشد.",
+      error: "دریافت فیلم‌ها انجام نشد.",
     };
   }
 }
@@ -302,7 +301,6 @@ export async function fetchSeriesCatalogRest(
     const response = await fetch(`${API_BASE_URL}/series?${query}`, {
       headers: {
         Accept: "application/json",
-        "Accept-Encoding": "gzip",
       },
       ...(isServer
         ? options?.skipFetchCache
@@ -365,14 +363,14 @@ export async function fetchSeriesCatalogRest(
       return {
         items: [],
         meta: emptyCarouselMeta(perPage, page),
-        error: error instanceof Error ? error.message : "دریافت سریال‌ها انجام نشد.",
+        error: "دریافت سریال‌ها انجام نشد.",
       };
     }
 
     return {
       items: [],
       meta: emptyPaginationMeta(perPage, page),
-      error: error instanceof Error ? error.message : "دریافت سریال‌ها انجام نشد.",
+      error: "دریافت سریال‌ها انجام نشد.",
     };
   }
 }

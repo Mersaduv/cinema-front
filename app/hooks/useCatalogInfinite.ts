@@ -12,6 +12,7 @@ import {
   type CatalogFiltersState,
 } from "../lib/catalog/search-params";
 import type { CarouselMeta } from "../types/carousel";
+import { resolveVisibleCatalogError } from "../lib/catalog/catalog-error";
 import { CATALOG_LIST_SWR_OPTIONS } from "../lib/swr/public-cache";
 
 const DEFAULT_PAGE_SIZE = 24;
@@ -141,6 +142,10 @@ export function useCatalogInfinite({
         kind === "movie" ? fetchMoviesCatalogRest : fetchSeriesCatalogRest;
       const result = await fetcher(carouselFilters, 1, pageSize, controller.signal);
 
+      if (result.error && result.items.length === 0) {
+        throw new Error(result.error);
+      }
+
       return {
         items: result.items,
         meta: result.meta as CarouselMeta,
@@ -177,8 +182,8 @@ export function useCatalogInfinite({
   const hasMore = Boolean(meta.has_more && meta.next_cursor);
   const isFilterLoading =
     (isLoading || isValidating) &&
-    filterSignature !== initialSignature.current &&
-    extraItems.length === 0;
+    extraItems.length === 0 &&
+    (filterSignature !== initialSignature.current || baseItems.length === 0);
 
   const loadMore = useCallback(() => {
     if (!hasMore || isLoadingMore || isValidating) {
@@ -242,11 +247,16 @@ export function useCatalogInfinite({
     pageSize,
   ]);
 
-  const error =
-    loadMoreError ||
-    data?.error ||
-    (swrError instanceof Error ? swrError.message : "") ||
-    (isInitialQuery ? initialError : "");
+  const error = resolveVisibleCatalogError({
+    loadMoreError,
+    dataError: data?.error,
+    swrMessage:
+      swrError instanceof Error && swrError.name !== "AbortError" ? swrError.message : "",
+    initialError,
+    hasSettledData: data !== undefined,
+    itemCount: items.length,
+    isInitialQuery,
+  });
 
   return {
     items,

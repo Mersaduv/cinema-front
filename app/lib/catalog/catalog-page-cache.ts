@@ -1,3 +1,4 @@
+import "./server-fetch-dns";
 import { cacheLife, cacheTag } from "next/cache";
 import type { CatalogFiltersState } from "./search-params";
 import {

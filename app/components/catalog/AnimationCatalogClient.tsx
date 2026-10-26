@@ -26,6 +26,7 @@ import { EMPTY_CATALOG_FILTERS } from "../../lib/catalog/search-params";
 import { parseSearchParamsRecord } from "../../lib/catalog/search-params";
 import type { PaginationMeta } from "../../lib/catalog/rest";
 import { CATALOG_LIST_SWR_OPTIONS } from "../../lib/swr/public-cache";
+import { resolveVisibleCatalogError } from "../../lib/catalog/catalog-error";
 
 const PAGE_SIZE = 24;
 
@@ -160,7 +161,18 @@ function AnimationCatalogClientInner({
       const controller = new AbortController();
       abortRef.current = controller;
 
-      return fetchAnimationCatalogMerged(effectiveFilters, 1, PAGE_SIZE, controller.signal);
+      const result = await fetchAnimationCatalogMerged(
+        effectiveFilters,
+        1,
+        PAGE_SIZE,
+        controller.signal,
+      );
+
+      if (result.error && result.items.length === 0) {
+        throw new Error(result.error);
+      }
+
+      return result;
     },
     {
       fallbackData: isInitialQuery
@@ -185,11 +197,18 @@ function AnimationCatalogClientInner({
     () => mergeAnimationItems(baseItems, extraItems),
     [baseItems, extraItems],
   );
-  const error = loadMoreError || data?.error || (isInitialQuery ? initialError : "");
+  const error = resolveVisibleCatalogError({
+    loadMoreError,
+    dataError: data?.error,
+    initialError,
+    hasSettledData: data !== undefined,
+    itemCount: items.length,
+    isInitialQuery,
+  });
   const loading =
     (isLoading || isValidating) &&
-    fetchSignature !== initialSignature.current &&
-    extraItems.length === 0;
+    extraItems.length === 0 &&
+    (fetchSignature !== initialSignature.current || baseItems.length === 0);
 
   const loadMore = useCallback(() => {
     if (!hasMore || isLoadingMore || isValidating) {
