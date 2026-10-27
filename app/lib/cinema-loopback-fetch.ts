@@ -30,18 +30,19 @@ export function cinemaLoopbackFetch(
   headers.set("Accept-Encoding", "identity");
   headers.set("Host", target.hostname);
 
+  const options: http.RequestOptions = {
+    protocol: "http:",
+    hostname: "127.0.0.1",
+    port,
+    method: init?.method ?? "GET",
+    path: `${target.pathname}${target.search}`,
+    headers: Object.fromEntries(headers.entries()),
+    timeout: 8000,
+  };
+
   return new Promise((resolve, reject) => {
     const request = http.request(
-      {
-        protocol: "http:",
-        hostname: "127.0.0.1",
-        port,
-        method: init?.method ?? "GET",
-        path: `${target.pathname}${target.search}`,
-        headers: Object.fromEntries(headers.entries()),
-        servername: target.hostname,
-        timeout: 8000,
-      },
+      options,
       (response) => {
         const chunks: Buffer[] = [];
         response.on("data", (chunk: Buffer) => {
