@@ -3,9 +3,10 @@ import * as net from "node:net";
 import type * as DnsTypes from "node:dns";
 
 /**
- * The production host cannot open a TCP connection to its own public name
- * (cinema.af:80 times out). Keep the Host header as cinema.af, but connect
- * to loopback so nginx/IIS on this machine answers during `next build` and SSR.
+ * cinema.af resolves to a public address this server cannot open.
+ * Rewriting the name to 127.0.0.1 does not change the port: the URL is still :80.
+ * Node requests that must reach Laravel go through cinemaLoopbackFetch, which
+ * uses 127.0.0.1:8005.
  */
 const LOOPBACK_HOSTS = new Set(["cinema.af", "www.cinema.af"]);
 

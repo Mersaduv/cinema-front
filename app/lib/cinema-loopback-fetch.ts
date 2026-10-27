@@ -1,12 +1,17 @@
 import http from "node:http";
-import https from "node:https";
 
 const LOOPBACK_HOSTS = new Set(["cinema.af", "www.cinema.af"]);
 
 /**
- * The host that builds this app cannot open cinema.af:80 (ConnectTimeoutError).
- * Talk to the local web server instead, and keep Host: cinema.af so the right site answers.
+ * IIS on this machine serves the Laravel API at 127.0.0.1:8005.
+ * cinema.af:80 is the public name and times out from the server itself.
+ * Browser code keeps NEXT_PUBLIC_API_URL; only Node requests use loopback.
  */
+function loopbackPort(): number {
+  const configured = Number(process.env.CINEMA_API_LOOPBACK_PORT || "8005");
+  return Number.isFinite(configured) && configured > 0 ? configured : 8005;
+}
+
 export function cinemaLoopbackFetch(
   url: string,
   init?: RequestInit,
@@ -17,19 +22,18 @@ export function cinemaLoopbackFetch(
     return fetch(url, init);
   }
 
-  const transport = target.protocol === "https:" ? https : http;
-  const port = target.port || (target.protocol === "https:" ? 443 : 80);
+  const port = loopbackPort();
   const headers = new Headers(init?.headers);
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
   }
   headers.set("Accept-Encoding", "identity");
-  headers.set("Host", target.host);
+  headers.set("Host", target.hostname);
 
   return new Promise((resolve, reject) => {
-    const request = transport.request(
+    const request = http.request(
       {
-        protocol: target.protocol,
+        protocol: "http:",
         hostname: "127.0.0.1",
         port,
         method: init?.method ?? "GET",

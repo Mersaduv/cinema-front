@@ -4,6 +4,19 @@ import { toCatalogItem } from "../catalog/rest";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005/api";
 
+type CollectionsRequestInit = RequestInit & {
+  next?: { revalidate?: number; tags?: string[] };
+};
+
+async function collectionsFetch(url: string, init: CollectionsRequestInit): Promise<Response> {
+  if (typeof window === "undefined") {
+    const { cinemaLoopbackFetch } = await import("../cinema-loopback-fetch");
+    return cinemaLoopbackFetch(url, init);
+  }
+
+  return fetch(url, init);
+}
+
 export type CollectionListItem = {
   id: number;
   name: string;
@@ -60,10 +73,9 @@ export async function fetchCollectionsCatalogRest(
     params.set("per_page", String(perPage));
     if (search.trim()) params.set("search", search.trim());
 
-    const isServer = typeof window === "undefined";
-    const response = await fetch(`${API_BASE_URL}/collections?${params}`, {
+    const response = await collectionsFetch(`${API_BASE_URL}/collections?${params}`, {
       headers: { Accept: "application/json", "Accept-Encoding": "gzip" },
-      ...(isServer
+      ...(typeof window === "undefined"
         ? options?.skipFetchCache
           ? { cache: "no-store" as const }
           : { next: { revalidate: 60, tags: ["catalog"] } }
@@ -112,7 +124,7 @@ export async function fetchCollectionDetailRest(
   signal?: AbortSignal,
 ): Promise<{ collection: CollectionDetail | null; error: string }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/collections/${encodeURIComponent(slug)}`, {
+    const response = await collectionsFetch(`${API_BASE_URL}/collections/${encodeURIComponent(slug)}`, {
       headers: { Accept: "application/json", "Accept-Encoding": "gzip" },
       ...(typeof window === "undefined"
         ? { next: { revalidate: 60, tags: ["catalog"] } }

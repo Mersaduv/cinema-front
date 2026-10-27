@@ -14,6 +14,14 @@ export type GraphqlRequestOptions = {
   cache?: RequestCache;
 };
 
+async function serverFetch(
+  url: string,
+  init: RequestInit & { next?: { revalidate?: number | false; tags?: string[] } },
+): Promise<Response> {
+  const { cinemaLoopbackFetch } = await import("../cinema-loopback-fetch");
+  return cinemaLoopbackFetch(url, init);
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -31,7 +39,7 @@ export async function graphqlRequest<T>(
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       const useCache = options?.cache ?? "default";
-      const response = await fetch(GRAPHQL_URL, {
+      const response = await serverFetch(GRAPHQL_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
