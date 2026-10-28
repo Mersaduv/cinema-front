@@ -8,7 +8,6 @@ import {
   HiOutlineChat,
   HiOutlineDocumentText,
   HiOutlineLogout,
-  HiOutlinePencil,
   HiOutlineTicket,
   HiOutlineViewGrid,
 } from "react-icons/hi";
@@ -21,8 +20,7 @@ export type ProfileNavId =
   | "tickets-new"
   | "watchlist"
   | "requests"
-  | "comments"
-  | "edit-profile";
+  | "comments";
 
 type ProfileShellProps = {
   active: ProfileNavId;
@@ -64,12 +62,6 @@ export default function ProfileShell({
       href: "/requests",
     },
     { id: "comments" as const, label: "دیدگاه ها", icon: HiOutlineChat, href: "/profile?panel=comments" },
-    {
-      id: "edit-profile" as const,
-      label: "ویرایش پروفایل",
-      icon: HiOutlinePencil,
-      href: "/profile?panel=edit-profile",
-    },
   ];
 
   return (

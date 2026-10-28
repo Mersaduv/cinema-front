@@ -32,9 +32,7 @@ function ProfilePageContent() {
       ? "comments"
       : panel === "watchlist"
         ? "watchlist"
-        : panel === "edit-profile"
-          ? "edit-profile"
-          : "dashboard";
+        : "dashboard";
 
   const stats = useMemo(
     () => [
