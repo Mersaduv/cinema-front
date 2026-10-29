@@ -1627,6 +1627,7 @@ export default function MovieEditorForm({
     const timer = window.setTimeout(async () => {
       const generation = ++hlsPreviewGenerationRef.current;
       setHlsPreviewLoading(true);
+      setHlsSyncMessage("");
 
       try {
         const response = await adminMoviesService.previewHlsPackage(raw, {
@@ -1638,6 +1639,12 @@ export default function MovieEditorForm({
         }
 
         if (!(response.success && response.data)) {
+          const detail =
+            (response.errors && Object.values(response.errors)[0]?.[0]) ||
+            response.message ||
+            "خواندن پکیج HLS از سرور انجام نشد.";
+          setHlsSyncMessage(detail);
+          setError(detail);
           return;
         }
 
@@ -1647,6 +1654,7 @@ export default function MovieEditorForm({
         );
         lastHlsPreviewComparableRef.current = previewComparable;
         applyHlsPackageInsights(payload, { mergeDownloads: false });
+        setError("");
 
         setHlsSyncMessage(
           payload.download_links && Object.keys(payload.download_links).length > 0
@@ -3000,7 +3008,16 @@ export default function MovieEditorForm({
                           className={`w-full rounded-2xl border bg-[#071019] px-4 py-3 text-sm text-white outline-none transition focus:border-[#f5c518]/45 ${ltrLinkInputClass} ${formFieldBorderClass(Boolean(tabFieldErrors.hls_url), "border-white/10")}`}
                         />
                         {hlsSyncMessage ? (
-                          <p className="mt-2 text-xs text-[#86efac]">{hlsSyncMessage}</p>
+                          <p
+                            className={`mt-2 text-xs ${
+                              hlsSyncMessage.includes("همگام") ||
+                              hlsSyncMessage.includes("شناسایی")
+                                ? "text-[#86efac]"
+                                : "text-rose-300"
+                            }`}
+                          >
+                            {hlsSyncMessage}
+                          </p>
                         ) : null}
                       </label>
                       </FormFieldAnchor>
