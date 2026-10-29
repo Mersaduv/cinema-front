@@ -4,6 +4,7 @@ import {
   PUBLIC_HOME_INVALIDATION_PATHS,
   PUBLIC_HOME_INVALIDATION_TAGS,
 } from "../../../lib/catalog/cache-tags";
+import { cinemaLoopbackFetch } from "../../../lib/cinema-loopback-fetch";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005/api";
 
@@ -14,22 +15,38 @@ type RevalidatePayload = {
   seriesSlugs?: unknown;
 };
 
+type StaffRole = {
+  slug?: string | null;
+  name?: string | null;
+};
+
+type StaffPermission = {
+  slug?: string | null;
+};
+
 type MeResponse = {
   user?: {
-    roles?: Array<{
-      slug?: string | null;
-      name?: string | null;
-    }>;
+    account_type?: string | null;
+    roles?: StaffRole[];
+    permissions?: StaffPermission[];
   };
   data?: {
     user?: {
-      roles?: Array<{
-        slug?: string | null;
-        name?: string | null;
-      }>;
+      account_type?: string | null;
+      roles?: StaffRole[];
+      permissions?: StaffPermission[];
     };
   };
 };
+
+const ALLOWED_ROLE_SLUGS = new Set(["admin", "media"]);
+const ALLOWED_PERMISSION_SLUGS = new Set([
+  "edit_movies",
+  "create_movies",
+  "edit_series",
+  "create_series",
+  "view_dashboard",
+]);
 
 function normalizeStringList(value: unknown, fallback: readonly string[] = []): string[] {
   const source = Array.isArray(value) ? value : [...fallback];
@@ -46,20 +63,44 @@ function detailPathsFromSlugs(movieSlugs: string[], seriesSlugs: string[]): stri
   ];
 }
 
-function hasAdminRole(payload: MeResponse): boolean {
-  const roles = payload.user?.roles ?? payload.data?.user?.roles ?? [];
+function canRevalidatePublicCache(payload: MeResponse): boolean {
+  const user = payload.user ?? payload.data?.user;
 
-  return roles.some((role) => {
-    const slug = role.slug?.trim().toLowerCase();
-    const name = role.name?.trim().toLowerCase();
+  if (!user) {
+    return false;
+  }
 
-    return slug === "admin" || name === "admin";
+  if (user.account_type === "viewer") {
+    return false;
+  }
+
+  const roles = user.roles ?? [];
+  const permissions = user.permissions ?? [];
+
+  if (
+    roles.some((role) => {
+      const slug = role.slug?.trim().toLowerCase();
+      const name = role.name?.trim().toLowerCase();
+
+      return (
+        (slug != null && ALLOWED_ROLE_SLUGS.has(slug)) ||
+        name === "admin" ||
+        name === "media"
+      );
+    })
+  ) {
+    return true;
+  }
+
+  return permissions.some((permission) => {
+    const slug = permission.slug?.trim().toLowerCase();
+    return slug != null && ALLOWED_PERMISSION_SLUGS.has(slug);
   });
 }
 
-async function isAuthorizedAdmin(token: string): Promise<boolean> {
+async function isAuthorizedStaff(token: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/me`, {
+    const response = await cinemaLoopbackFetch(`${API_BASE_URL}/me?include_permissions=1`, {
       method: "GET",
       cache: "no-store",
       headers: {
@@ -73,7 +114,7 @@ async function isAuthorizedAdmin(token: string): Promise<boolean> {
     }
 
     const payload = (await response.json()) as MeResponse;
-    return hasAdminRole(payload);
+    return canRevalidatePublicCache(payload);
   } catch {
     return false;
   }
@@ -86,9 +127,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const isAdmin = await isAuthorizedAdmin(authorization);
+  const isStaff = await isAuthorizedStaff(authorization);
 
-  if (!isAdmin) {
+  if (!isStaff) {
     return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
   }
 
